@@ -14,6 +14,10 @@ interface UserProfile {
   phone: string | null;
   avatarUrl: string | null;
   planId: string | null;
+  plan?: {
+    name: string;
+    displayName: string;
+  } | null;
   createdAt: string;
   settings?: {
     language?: string;
@@ -40,7 +44,10 @@ export default function ProfilePage() {
         if (res.ok) {
           const data = await res.json();
           if (data.user) {
-            setUser(data.user);
+            setUser({
+              ...data.user,
+              plan: data.plan || data.user.plan || null,
+            });
             setName(data.user.name || "");
             setEmail(data.user.email || "");
             setCompany(data.user.company || "");
@@ -95,7 +102,16 @@ export default function ProfilePage() {
   const memberDate = user?.createdAt
     ? new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(new Date(user.createdAt))
     : "Recente";
-  const planLabel = user?.planId ? `Plano ${user.planId.toUpperCase()}` : "Plano Pro";
+  const planLabel = user?.role === "ADMIN"
+    ? "Administrador"
+    : user?.plan?.displayName ||
+      (user?.plan?.name === "FREE"
+        ? "Plano Grátis"
+        : user?.plan?.name === "PRO"
+        ? "Plano Pro"
+        : user?.plan?.name === "BUSINESS"
+        ? "Plano Business"
+        : "Plano Grátis");
 
   return (
     <div>

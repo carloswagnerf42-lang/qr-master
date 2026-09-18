@@ -108,7 +108,7 @@ export default function DashboardPage() {
     loadChart();
   }, [period]);
 
-  const firstName = data?.userName ? data.userName.split(" ")[0] : "Carlos";
+  const firstName = data?.userName ? data.userName.split(" ")[0] : "";
 
   return (
     <div>
@@ -126,7 +126,7 @@ export default function DashboardPage() {
               <span>Painel em Tempo Real</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-              {greeting}, {firstName} 👋
+              {greeting}{firstName ? `, ${firstName}` : ""} 👋
             </h1>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
               Aqui está o resumo atualizado dos seus QR Codes e escaneamentos.
