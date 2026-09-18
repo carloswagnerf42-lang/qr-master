@@ -1,0 +1,124 @@
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/db";
+import { requireAdmin, logAdminAction } from "@/lib/admin";
+
+export async function GET() {
+  try {
+    const auth = await requireAdmin();
+    if (!auth.success) return auth.errorResponse;
+
+    const plans = await prisma.plan.findMany({
+      orderBy: { priceMonth: "asc" },
+      include: {
+        _count: {
+          select: { users: true, subscriptions: true },
+        },
+      },
+    });
+
+    return NextResponse.json({ success: true, plans });
+  } catch (error) {
+    console.error("Erro ao listar planos administrativos:", error);
+    return NextResponse.json(
+      { error: "Erro interno no servidor ao listar planos." },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const auth = await requireAdmin();
+    if (!auth.success) return auth.errorResponse;
+    const admin = auth.admin;
+
+    const body = await req.json();
+    const { userId, planId, planName, durationDays = 30, paymentNote, status = "ACTIVE" } = body;
+
+    if (!userId) {
+      return NextResponse.json({ error: "ID do usuário não especificado." }, { status: 400 });
+    }
+
+    // Localiza o usuário alvo
+    const targetUser = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!targetUser) {
+      return NextResponse.json({ error: "Usuário não encontrado." }, { status: 404 });
+    }
+
+    // Localiza o plano selecionado
+    let selectedPlan = null;
+    if (planId) {
+      selectedPlan = await prisma.plan.findUnique({ where: { id: planId } });
+    } else if (planName) {
+      selectedPlan = await prisma.plan.findUnique({ where: { name: planName } });
+    }
+
+    if (!selectedPlan) {
+      return NextResponse.json({ error: "Plano selecionado não é válido." }, { status: 400 });
+    }
+
+    const now = new Date();
+    const effectiveDays = Math.max(1, Number(durationDays) || 30);
+    const periodEnd = new Date(now.getTime() + effectiveDays * 24 * 60 * 60 * 1000);
+
+    // 1. Atualiza o planId no usuário
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        planId: selectedPlan.id,
+      },
+      include: {
+        plan: true,
+        subscription: true,
+      },
+    });
+
+    // 2. Atualiza ou cria a assinatura (Subscription) com período e status
+    const subscription = await prisma.subscription.upsert({
+      where: { userId: userId },
+      create: {
+        userId: userId,
+        planId: selectedPlan.id,
+        status: status || "ACTIVE",
+        currentPeriodStart: now,
+        currentPeriodEnd: periodEnd,
+      },
+      update: {
+        planId: selectedPlan.id,
+        status: status || "ACTIVE",
+        currentPeriodStart: now,
+        currentPeriodEnd: periodEnd,
+      },
+    });
+
+    // 3. Registra no log de auditoria
+    const noteText = paymentNote ? ` (Origem: ${paymentNote})` : " (Ativação manual admin)";
+    await logAdminAction({
+      adminId: admin.id,
+      action: "ADMIN_PLAN_ACTIVATION",
+      entityId: targetUser.id,
+      description: `Plano "${selectedPlan.displayName}" ativado manualmente pelo Administrador (${admin.name}) para o usuário "${targetUser.name}"${noteText}. Validade: ${periodEnd.toLocaleDateString("pt-BR")}.`,
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: `Plano ${selectedPlan.displayName} ativado com sucesso para ${targetUser.name}!`,
+      user: {
+        id: updatedUser.id,
+        name: updatedUser.name,
+        email: updatedUser.email,
+        plan: selectedPlan,
+        subscription,
+      },
+    });
+  } catch (error) {
+    console.error("Erro na ativação manual de plano:", error);
+    return NextResponse.json(
+      { error: "Erro interno no servidor ao ativar plano." },
+      { status: 500 }
+    );
+  }
+}

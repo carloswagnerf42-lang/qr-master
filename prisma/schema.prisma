@@ -1,0 +1,274 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id            String         @id @default(cuid())
+  name          String
+  email         String         @unique
+  passwordHash  String
+  role          String         @default("USER") // USER, ADMIN
+  company       String?
+  phone         String?
+  avatarUrl     String?
+  planId        String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  plan          Plan?          @relation(fields: [planId], references: [id])
+  settings      UserSettings?
+  qrCodes       QRCode[]
+  categories    Category[]
+  campaigns     Campaign[]
+  multiLinks    MultiLinkPage[]
+  activityLogs  ActivityLog[]
+  subscription  Subscription?
+  generatedFiles GeneratedFile[]
+
+  @@index([email])
+}
+
+model UserSettings {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  theme             String   @default("system") // light, dark, system
+  language          String   @default("pt-BR")  // pt-BR, en, es
+  notifyNewScans    Boolean  @default(true)
+  notifyWeeklyReport Boolean @default(true)
+  notifyLimitAlert  Boolean  @default(true)
+  analyticsConsent  Boolean  @default(true)
+  dataRetentionDays Int      @default(365)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Plan {
+  id          String         @id @default(cuid())
+  name        String         @unique // FREE, PRO, BUSINESS
+  displayName String
+  priceMonth  Float          @default(0)
+  maxQRCodes  Int            @default(5)
+  dynamicQRs  Boolean        @default(false)
+  analytics   Boolean        @default(false)
+  exportSvg   Boolean        @default(false)
+  exportPdf   Boolean        @default(false)
+  customLogo  Boolean        @default(false)
+  campaigns   Boolean        @default(false)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  users       User[]
+  subscriptions Subscription[]
+}
+
+model Subscription {
+  id                    String    @id @default(cuid())
+  userId                String    @unique
+  planId                String
+  status                String    @default("ACTIVE") // ACTIVE, PAST_DUE, CANCELED, INCOMPLETE
+  gateway               String    @default("stripe") // stripe, asaas, manual
+  gatewayCustomerId     String?   @unique
+  gatewaySubscriptionId String?   @unique
+  currentPeriodStart    DateTime  @default(now())
+  currentPeriodEnd      DateTime
+  cancelAtPeriodEnd     Boolean   @default(false)
+  canceledAt            DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan                  Plan      @relation(fields: [planId], references: [id])
+
+  @@index([gatewayCustomerId])
+  @@index([gatewaySubscriptionId])
+  @@index([status])
+}
+
+model WebhookEvent {
+  id           String   @id @default(cuid())
+  gateway      String   // stripe, asaas, manual
+  eventId      String   @unique // ID único do evento emitido pelo gateway (ex: evt_xxx)
+  eventType    String   // invoice.paid, customer.subscription.updated, etc.
+  status       String   @default("PROCESSED") // PROCESSED, FAILED, IGNORED
+  payload      String   // JSON bruto recebido para auditoria
+  errorMessage String?
+  processedAt  DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  @@index([gateway, eventId])
+  @@index([eventType])
+  @@index([createdAt])
+}
+
+model Category {
+  id          String    @id @default(cuid())
+  userId      String
+  name        String
+  color       String    @default("#6366f1")
+  icon        String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  qrCodes     QRCode[]
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+model Campaign {
+  id          String    @id @default(cuid())
+  userId      String
+  name        String
+  description String?
+  startDate   DateTime?
+  endDate     DateTime?
+  status      String    @default("ACTIVE") // ACTIVE, PAUSED, COMPLETED
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  qrCodes     QRCode[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model QRCode {
+  id          String        @id @default(cuid())
+  userId      String
+  name        String
+  description String?
+  type        String        // url, whatsapp, text, email, phone, sms, wifi, location, contact, event, pix, social, multilink
+  isDynamic   Boolean       @default(false)
+  shortCode   String?       @unique
+  destination String        // URL de destino real
+  content     String        // JSON payload estruturado correspondente ao tipo
+  status      String        @default("ACTIVE") // ACTIVE, INACTIVE
+  favorite    Boolean       @default(false)
+  styleConfig String        // JSON com cores, moldura, gradiente, estilo dos módulos e cantos
+  logoUrl     String?
+  categoryId  String?
+  campaignId  String?
+  scanCount   Int           @default(0)
+  lastScanAt  DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  deletedAt   DateTime?     // Soft delete (Lixeira)
+
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category    Category?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  campaign    Campaign?     @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  scans       QRCodeScan[]
+  generatedFiles GeneratedFile[]
+
+  @@index([userId])
+  @@index([shortCode])
+  @@index([status])
+  @@index([deletedAt])
+  @@index([createdAt])
+  @@index([categoryId])
+  @@index([campaignId])
+}
+
+model QRCodeScan {
+  id          String    @id @default(cuid())
+  qrCodeId    String
+  timestamp   DateTime  @default(now())
+  country     String?   @default("Brasil")
+  state       String?
+  city        String?
+  device      String    @default("Desktop") // Mobile, Tablet, Desktop
+  browser     String    @default("Chrome")
+  os          String    @default("Windows")  // Android, iOS, Windows, macOS, Linux
+  referrer    String?
+  ipHash      String?   // Hash anônimo (LGPD)
+
+  qrCode      QRCode    @relation(fields: [qrCodeId], references: [id], onDelete: Cascade)
+
+  @@index([qrCodeId])
+  @@index([timestamp])
+  @@index([device])
+  @@index([os])
+  @@index([country])
+}
+
+model Template {
+  id          String   @id @default(cuid())
+  name        String
+  category    String   // Negócios, Social, Restaurante, Eventos, Pagamentos
+  type        String   // whatsapp, wifi, pix, instagram, vcard, url
+  description String
+  previewUrl  String?
+  content     String   // Template de payload
+  styleConfig String   // Estilo predefinido
+  isPopular   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([category])
+  @@index([isPopular])
+}
+
+model MultiLinkPage {
+  id          String   @id @default(cuid())
+  userId      String
+  slug        String   @unique
+  title       String
+  bio         String?
+  avatarUrl   String?
+  theme       String   @default("modern-indigo") // tema visual da página
+  links       String   // JSON com array de links: [{ title, url, icon, active }]
+  socials     String?  // JSON com redes sociais: { instagram, whatsapp, youtube, facebook, linkedin }
+  viewsCount  Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([slug])
+}
+
+model ActivityLog {
+  id          String   @id @default(cuid())
+  userId      String
+  action      String   // LOGIN, CREATE_QR, UPDATE_QR, DELETE_QR, RESTORE_QR, DOWNLOAD_QR
+  entityId    String?
+  description String
+  ipHash      String?
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model GeneratedFile {
+  id          String    @id @default(cuid())
+  userId      String
+  qrCodeId    String?
+  fileName    String
+  fileType    String    // png, svg, pdf
+  fileSize    Int       // in bytes
+  mimeType    String    // image/png, image/svg+xml, application/pdf
+  storagePath String    // caminho relativo em disco
+  downloadUrl String    // URL para download
+  createdAt   DateTime  @default(now())
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  qrCode      QRCode?   @relation(fields: [qrCodeId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([qrCodeId])
+  @@index([createdAt])
+}
