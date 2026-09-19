@@ -13,7 +13,8 @@ const nextConfig = {
   async headers() {
     return [
       {
-        source: '/(.*)',
+        // Headers de segurança estritos para todas as rotas exceto redirecionamento de QR
+        source: '/((?!q/).*)',
         headers: [
           {
             key: 'X-Content-Type-Options',
@@ -38,6 +39,20 @@ const nextConfig = {
           {
             key: 'Permissions-Policy',
             value: 'camera=(), microphone=(), geolocation=()',
+          },
+        ],
+      },
+      {
+        // Headers permissivos para rota de resolução /q/:path* (compatibilidade com in-app scanners e câmeras mobile)
+        source: '/q/:path*',
+        headers: [
+          {
+            key: 'X-Content-Type-Options',
+            value: 'nosniff',
+          },
+          {
+            key: 'Referrer-Policy',
+            value: 'strict-origin-when-cross-origin',
           },
         ],
       },

@@ -172,6 +172,7 @@ export default function CreateQRCodePage() {
   // Update field helper
   const updateContent = (field: keyof QRCodeContentPayload, val: unknown) => {
     setContent((prev) => ({ ...prev, [field]: val }));
+    if (createdQr) setCreatedQr(null);
   };
 
   // Handle Logo Upload
@@ -1195,7 +1196,11 @@ export default function CreateQRCodePage() {
               <div className="my-2 p-4 rounded-2xl bg-slate-100 dark:bg-slate-950/60 border border-slate-200/60 dark:border-slate-800 flex items-center justify-center overflow-hidden">
                 <QRCodeRenderer
                   id="generator-qr-code"
-                  value={destinationString}
+                  value={
+                    isDynamic && createdQr?.shortCode
+                      ? `${getAppUrl()}/q/${createdQr.shortCode}`
+                      : destinationString
+                  }
                   styleConfig={style}
                   size={zoom}
                 />

@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { cookies } from "next/headers";
+import { NextRequest } from "next/server";
 import { prisma } from "./db";
 
 function getJwtSecret(): string {
@@ -55,8 +56,33 @@ export function verifyToken(token: string): SessionUser | null {
   }
 }
 
-export async function getSession(): Promise<SessionUser | null> {
+export async function getSession(req?: Request | NextRequest): Promise<SessionUser | null> {
   try {
+    // 1. Prioritize cookie/token directly from request if passed
+    if (req) {
+      if ("cookies" in req && typeof (req as any).cookies?.get === "function") {
+        const token = (req as any).cookies.get(COOKIE_NAME)?.value;
+        if (token) {
+          const verified = verifyToken(token);
+          if (verified) return verified;
+        }
+      }
+      const cookieHeader = req.headers?.get("cookie");
+      if (cookieHeader) {
+        const match = cookieHeader.match(new RegExp(`(?:^|;\\s*)${COOKIE_NAME}=([^;]*)`));
+        if (match && match[1]) {
+          const verified = verifyToken(decodeURIComponent(match[1]));
+          if (verified) return verified;
+        }
+      }
+      const authHeader = req.headers?.get("authorization");
+      if (authHeader && authHeader.startsWith("Bearer ")) {
+        const verified = verifyToken(authHeader.substring(7));
+        if (verified) return verified;
+      }
+    }
+
+    // 2. Fall back to Next.js cookies() store
     const cookieStore = cookies();
     const token = cookieStore.get(COOKIE_NAME)?.value;
     if (!token) return null;

@@ -9,7 +9,7 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getSession();
+    const session = await getSession(req);
     if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
     const qr = await prisma.qRCode.findFirst({
@@ -37,7 +37,7 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getSession();
+    const session = await getSession(req);
     if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
     const existing = await prisma.qRCode.findFirst({
@@ -137,13 +137,29 @@ export async function PUT(
       }
     }
 
+    let finalContent = existing.content;
+    if (content !== undefined) {
+      finalContent = typeof content === "string" ? content : JSON.stringify(content);
+    } else if (destination !== undefined) {
+      try {
+        const parsed = JSON.parse(existing.content);
+        if (typeof parsed === "object" && parsed !== null) {
+          if (parsed.url !== undefined) parsed.url = finalDestination;
+          if (parsed.website !== undefined) parsed.website = finalDestination;
+          finalContent = JSON.stringify(parsed);
+        }
+      } catch {
+        // If not JSON, leave existing
+      }
+    }
+
     const updated = await prisma.qRCode.update({
       where: { id: params.id },
       data: {
         name: name !== undefined ? name.trim() : existing.name,
         description: description !== undefined ? (description ? description.trim() : null) : existing.description,
         destination: finalDestination,
-        content: content !== undefined ? (typeof content === "string" ? content : JSON.stringify(content)) : existing.content,
+        content: finalContent,
         styleConfig: styleConfig !== undefined ? (typeof styleConfig === "string" ? styleConfig : JSON.stringify(styleConfig)) : existing.styleConfig,
         categoryId: finalCategoryId,
         campaignId: finalCampaignId,
@@ -179,7 +195,7 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getSession();
+    const session = await getSession(req);
     if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
     const existing = await prisma.qRCode.findFirst({
