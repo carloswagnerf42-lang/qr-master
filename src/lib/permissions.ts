@@ -90,6 +90,19 @@ export function isSubscriptionActive(sub: {
 }
 
 /**
+ * Calcula a porcentagem real de desconto entre a cobrança mensal (12x) e o preço anual
+ */
+export function calculateAnnualDiscountPercent(priceMonth: number, priceYear: number): number {
+  const numMonth = Number(priceMonth) || 0;
+  const numYear = Number(priceYear) || 0;
+  if (numMonth <= 0 || numYear <= 0) return 0;
+  const annualMonthly = numMonth * 12;
+  if (numYear >= annualMonthly) return 0;
+  const discount = ((annualMonthly - numYear) / annualMonthly) * 100;
+  return Math.round(discount);
+}
+
+/**
  * Definição padrão dos limites caso o plano não seja encontrado no banco
  */
 export const DEFAULT_FREE_PLAN: PlanDetails = {

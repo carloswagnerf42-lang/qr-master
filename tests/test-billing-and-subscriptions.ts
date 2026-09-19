@@ -2,6 +2,7 @@ import {
   isSubscriptionActive,
   checkPermission,
   can,
+  calculateAnnualDiscountPercent,
   PlanDetails,
   UserPlanContext,
   SubscriptionDetails,
@@ -484,6 +485,14 @@ async function runBillingAndSubscriptionTests() {
       errored = true;
     }
     assert(errored === true, "Tentativa de abrir checkout para plano FREE é rejeitada");
+
+    // 5. Testes de Cálculo Dinâmico de Porcentagem de Desconto Anual
+    assert(calculateAnnualDiscountPercent(19.90, 99.00) === 59, "Desconto Pro do usuário (R$ 19,90/mês vs R$ 99,00/ano) calculado corretamente: 59%");
+    assert(calculateAnnualDiscountPercent(29.90, 199.00) === 45, "Desconto Business do usuário (R$ 29,90/mês vs R$ 199,00/ano) calculado corretamente: 45%");
+    assert(calculateAnnualDiscountPercent(39.90, 399.00) === 17, "Desconto Padrão Pro (R$ 39,90/mês vs R$ 399,00/ano) calculado corretamente: 17%");
+    assert(calculateAnnualDiscountPercent(0, 0) === 0, "Plano FREE retorna 0% de desconto");
+    assert(calculateAnnualDiscountPercent(50, 600) === 0, "Plano sem economia retorna 0% de desconto");
+    assert(calculateAnnualDiscountPercent(50, 700) === 0, "Preço anual maior que mensal retorna 0% de desconto");
   }
 
   // =================================================================

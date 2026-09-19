@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { getUserPlanAndUsage, isSubscriptionActive } from "@/lib/permissions";
+import { prisma } from "@/lib/db";
 
 export async function GET(req: NextRequest) {
   try {
@@ -9,7 +10,27 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
     }
 
-    const userContext = await getUserPlanAndUsage(session.id);
+    const [userContext, availablePlans] = await Promise.all([
+      getUserPlanAndUsage(session.id),
+      prisma.plan.findMany({
+        orderBy: { priceMonth: "asc" },
+        select: {
+          id: true,
+          name: true,
+          displayName: true,
+          priceMonth: true,
+          priceYear: true,
+          maxQRCodes: true,
+          dynamicQRs: true,
+          analytics: true,
+          exportSvg: true,
+          exportPdf: true,
+          customLogo: true,
+          campaigns: true,
+        },
+      }),
+    ]);
+
     if (!userContext) {
       return NextResponse.json({ error: "Usuário não encontrado." }, { status: 404 });
     }
@@ -19,6 +40,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       plan: userContext.plan,
+      availablePlans,
       subscription: sub
         ? {
             id: sub.id,

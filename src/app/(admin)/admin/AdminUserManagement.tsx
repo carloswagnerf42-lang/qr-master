@@ -35,6 +35,7 @@ import {
   Check,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
+import { calculateAnnualDiscountPercent } from "@/lib/permissions";
 
 interface UserItem {
   id: string;
@@ -759,6 +760,10 @@ export function AdminUserManagement({
               const isFree = plan.name === "FREE";
               const isPro = plan.name === "PRO";
               const isBiz = plan.name === "BUSINESS";
+              const discountPercent = calculateAnnualDiscountPercent(
+                Number(plan.priceMonth) || 0,
+                Number(plan.priceYear) || 0
+              );
 
               return (
                 <div
@@ -803,9 +808,9 @@ export function AdminUserManagement({
                           <span className="text-xs font-semibold text-emerald-400">
                             R$ {Number(plan.priceYear || 0).toFixed(2)}/ano
                           </span>
-                          {plan.name !== "FREE" && (
+                          {!isFree && discountPercent > 0 && (
                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
-                              Economize ~17%
+                              Economize {discountPercent}%
                             </span>
                           )}
                         </div>
@@ -1433,7 +1438,10 @@ export function AdminUserManagement({
                     </span>
                   ) : (
                     <span className="text-[10px] text-emerald-400 mt-1 block">
-                      Eq. a R$ {(editPriceYear / 12).toFixed(2)}/mês
+                      Eq. a R$ {(Number(editPriceYear) / 12).toFixed(2)}/mês
+                      {calculateAnnualDiscountPercent(editPriceMonth, editPriceYear) > 0
+                        ? ` (${calculateAnnualDiscountPercent(editPriceMonth, editPriceYear)}% de economia)`
+                        : ""}
                     </span>
                   )}
                 </div>

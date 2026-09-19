@@ -24,6 +24,7 @@ import {
 import { Header } from "@/components/layout/Header";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { useToast } from "@/components/ui/Toast";
+import { calculateAnnualDiscountPercent } from "@/lib/permissions";
 
 export default function SettingsPage() {
   const toast = useToast();
@@ -57,6 +58,7 @@ export default function SettingsPage() {
     campaigns: boolean;
   } | null>(null);
   const [billingCycle, setBillingCycle] = useState<"month" | "year">("month");
+  const [availablePlans, setAvailablePlans] = useState<any[]>([]);
   const [usage, setUsage] = useState<{ qrCodes: number; maxQRCodes: number; remainingQRCodes: number } | null>(null);
   const [subscription, setSubscription] = useState<{
     id?: string;
@@ -142,6 +144,9 @@ export default function SettingsPage() {
             }
             if (billingData.plan) {
               setUserPlan(billingData.plan);
+            }
+            if (billingData.availablePlans) {
+              setAvailablePlans(billingData.availablePlans);
             }
             if (billingData.usage) {
               setUsage(billingData.usage);
@@ -1090,179 +1095,206 @@ export default function SettingsPage() {
               )}
 
               {/* Cards de Upgrade de Plano (quando no FREE ou sem assinatura ativa) */}
-              {(!userPlan || userPlan.name === "FREE" || !subscription?.isActive) && (
-                <div className="space-y-4 pt-2">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1">
-                    <div>
-                      <h5 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                        Faça Upgrade e Desbloqueie Todo o Potencial:
-                      </h5>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        Escolha entre cobrança mensal ou anual com desconto exclusivo de 2 meses grátis.
-                      </p>
-                    </div>
+              {(!userPlan || userPlan.name === "FREE" || !subscription?.isActive) && (() => {
+                const proPlanData = availablePlans.find((p) => p.name === "PRO");
+                const bizPlanData = availablePlans.find((p) => p.name === "BUSINESS");
 
-                    {/* Toggle Seletor Mensal / Anual */}
-                    <div className="inline-flex p-1 bg-slate-100 dark:bg-slate-800/90 rounded-xl border border-slate-200 dark:border-slate-700/80 self-start sm:self-auto">
-                      <button
-                        type="button"
-                        onClick={() => setBillingCycle("month")}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                          billingCycle === "month"
-                            ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm"
-                            : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                        }`}
-                      >
-                        Mensal
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setBillingCycle("year")}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
-                          billingCycle === "year"
-                            ? "bg-indigo-600 text-white shadow-sm"
-                            : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                        }`}
-                      >
-                        <span>Anual</span>
-                        <span className="px-1.5 py-0.2 rounded text-[10px] bg-emerald-500 text-white font-extrabold tracking-tight">
-                          2 Meses Grátis
-                        </span>
-                      </button>
-                    </div>
-                  </div>
+                const proMonthPrice = Number(proPlanData?.priceMonth) || 19.90;
+                const proYearPrice = Number(proPlanData?.priceYear) || 99.00;
+                const proDiscount = calculateAnnualDiscountPercent(proMonthPrice, proYearPrice);
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Card Plano PRO */}
-                    <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border-2 border-indigo-600/60 dark:border-indigo-500/60 shadow-md flex flex-col justify-between space-y-4">
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="px-2.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-[10px] font-extrabold uppercase">
-                            Mais Popular
-                          </span>
-                          <span className="text-xs text-slate-400 font-medium">
-                            {billingCycle === "year" ? "Anual (~17% OFF)" : "Mensal"}
-                          </span>
-                        </div>
-                        <h4 className="text-xl font-extrabold text-slate-900 dark:text-white">
-                          Plano PRO
-                        </h4>
-                        <div className="flex items-baseline gap-1">
-                          <span className="text-3xl font-black text-slate-900 dark:text-white">
-                            {billingCycle === "year" ? "R$ 399,00" : "R$ 39,90"}
-                          </span>
-                          <span className="text-xs text-slate-500">
-                            {billingCycle === "year" ? "/ano (equiv. a R$ 33,25/mês)" : "/mês"}
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-500 leading-relaxed">
-                          Ideal para negócios, restaurantes e profissionais liberais que precisam de QR Codes dinâmicos com alteração de link em tempo real.
+                const bizMonthPrice = Number(bizPlanData?.priceMonth) || 29.90;
+                const bizYearPrice = Number(bizPlanData?.priceYear) || 199.00;
+                const bizDiscount = calculateAnnualDiscountPercent(bizMonthPrice, bizYearPrice);
+
+                const maxDiscount = Math.max(proDiscount, bizDiscount);
+
+                return (
+                  <div className="space-y-4 pt-2">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1">
+                      <div>
+                        <h5 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                          Faça Upgrade e Desbloqueie Todo o Potencial:
+                        </h5>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          {maxDiscount > 0
+                            ? `Escolha entre cobrança mensal ou anual com até ${maxDiscount}% de economia.`
+                            : "Escolha entre cobrança mensal ou anual."}
                         </p>
-                        <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-300 pt-2">
-                          <li className="flex items-center gap-2">
-                            <Check className="w-4 h-4 text-emerald-500" />
-                            <span>Até <strong>100 QR Codes</strong> dinâmicos e estáticos</span>
-                          </li>
-                          <li className="flex items-center gap-2">
-                            <Check className="w-4 h-4 text-emerald-500" />
-                            <span>Alteração de destino em tempo real (/q/code)</span>
-                          </li>
-                          <li className="flex items-center gap-2">
-                            <Check className="w-4 h-4 text-emerald-500" />
-                            <span>Métricas e Analytics completo por dispositivo/SO</span>
-                          </li>
-                          <li className="flex items-center gap-2">
-                            <Check className="w-4 h-4 text-emerald-500" />
-                            <span>Exportação em alta definição SVG e PDF para gráfica</span>
-                          </li>
-                          <li className="flex items-center gap-2">
-                            <Check className="w-4 h-4 text-emerald-500" />
-                            <span>Inserção de Logotipo personalizado</span>
-                          </li>
-                        </ul>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => handleUpgrade("PRO")}
-                        disabled={startingCheckout !== null}
-                        className="w-full py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
-                      >
-                        {startingCheckout === "PRO" ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Sparkles className="w-4 h-4" />
-                        )}
-                        <span>
-                          Assinar Plano PRO {billingCycle === "year" ? "Anual" : "Mensal"}
-                        </span>
-                      </button>
+                      {/* Toggle Seletor Mensal / Anual */}
+                      <div className="inline-flex p-1 bg-slate-100 dark:bg-slate-800/90 rounded-xl border border-slate-200 dark:border-slate-700/80 self-start sm:self-auto">
+                        <button
+                          type="button"
+                          onClick={() => setBillingCycle("month")}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                            billingCycle === "month"
+                              ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm"
+                              : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                          }`}
+                        >
+                          Mensal
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setBillingCycle("year")}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
+                            billingCycle === "year"
+                              ? "bg-indigo-600 text-white shadow-sm"
+                              : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                          }`}
+                        >
+                          <span>Anual</span>
+                          {maxDiscount > 0 && (
+                            <span className="px-1.5 py-0.2 rounded text-[10px] bg-emerald-500 text-white font-extrabold tracking-tight">
+                              Até {maxDiscount}% OFF
+                            </span>
+                          )}
+                        </button>
+                      </div>
                     </div>
 
-                    {/* Card Plano BUSINESS */}
-                    <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between space-y-4">
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="px-2.5 py-0.5 rounded-full bg-violet-500/10 text-violet-600 dark:text-violet-400 text-[10px] font-extrabold uppercase">
-                            Para Empresas
-                          </span>
-                          <span className="text-xs text-slate-400 font-medium">
-                            {billingCycle === "year" ? "Anual (~17% OFF)" : "Mensal"}
-                          </span>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Card Plano PRO */}
+                      <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border-2 border-indigo-600/60 dark:border-indigo-500/60 shadow-md flex flex-col justify-between space-y-4">
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="px-2.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-[10px] font-extrabold uppercase">
+                              Mais Popular
+                            </span>
+                            <span className="text-xs text-slate-400 font-medium">
+                              {billingCycle === "year"
+                                ? proDiscount > 0 ? `Anual (${proDiscount}% OFF)` : "Anual"
+                                : "Mensal"}
+                            </span>
+                          </div>
+                          <h4 className="text-xl font-extrabold text-slate-900 dark:text-white">
+                            Plano PRO
+                          </h4>
+                          <div className="flex items-baseline gap-1">
+                            <span className="text-3xl font-black text-slate-900 dark:text-white">
+                              R$ {(billingCycle === "year" ? proYearPrice : proMonthPrice).toFixed(2).replace(".", ",")}
+                            </span>
+                            <span className="text-xs text-slate-500">
+                              {billingCycle === "year"
+                                ? `/ano (equiv. a R$ ${(proYearPrice / 12).toFixed(2).replace(".", ",")}/mês)`
+                                : "/mês"}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-500 leading-relaxed">
+                            Ideal para negócios, restaurantes e profissionais liberais que precisam de QR Codes dinâmicos com alteração de link em tempo real.
+                          </p>
+                          <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-300 pt-2">
+                            <li className="flex items-center gap-2">
+                              <Check className="w-4 h-4 text-emerald-500" />
+                              <span>Até <strong>{proPlanData?.maxQRCodes ?? 100} QR Codes</strong> dinâmicos e estáticos</span>
+                            </li>
+                            <li className="flex items-center gap-2">
+                              <Check className="w-4 h-4 text-emerald-500" />
+                              <span>Alteração de destino em tempo real (/q/code)</span>
+                            </li>
+                            <li className="flex items-center gap-2">
+                              <Check className="w-4 h-4 text-emerald-500" />
+                              <span>Métricas e Analytics completo por dispositivo/SO</span>
+                            </li>
+                            <li className="flex items-center gap-2">
+                              <Check className="w-4 h-4 text-emerald-500" />
+                              <span>Exportação em alta definição SVG e PDF para gráfica</span>
+                            </li>
+                            <li className="flex items-center gap-2">
+                              <Check className="w-4 h-4 text-emerald-500" />
+                              <span>Inserção de Logotipo personalizado</span>
+                            </li>
+                          </ul>
                         </div>
-                        <h4 className="text-xl font-extrabold text-slate-900 dark:text-white">
-                          Plano BUSINESS
-                        </h4>
-                        <div className="flex items-baseline gap-1">
-                          <span className="text-3xl font-black text-slate-900 dark:text-white">
-                            {billingCycle === "year" ? "R$ 999,00" : "R$ 99,90"}
+
+                        <button
+                          type="button"
+                          onClick={() => handleUpgrade("PRO")}
+                          disabled={startingCheckout !== null}
+                          className="w-full py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
+                        >
+                          {startingCheckout === "PRO" ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Sparkles className="w-4 h-4" />
+                          )}
+                          <span>
+                            Assinar Plano PRO {billingCycle === "year" ? "Anual" : "Mensal"}
                           </span>
-                          <span className="text-xs text-slate-500">
-                            {billingCycle === "year" ? "/ano (equiv. a R$ 83,25/mês)" : "/mês"}
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-500 leading-relaxed">
-                          Para redes, agências e franquias com alto volume de campanhas e gestão em grande escala.
-                        </p>
-                        <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-300 pt-2">
-                          <li className="flex items-center gap-2">
-                            <Check className="w-4 h-4 text-emerald-500" />
-                            <span><strong>QR Codes Ilimitados</strong></span>
-                          </li>
-                          <li className="flex items-center gap-2">
-                            <Check className="w-4 h-4 text-emerald-500" />
-                            <span>Todas as funcionalidades do plano PRO</span>
-                          </li>
-                          <li className="flex items-center gap-2">
-                            <Check className="w-4 h-4 text-emerald-500" />
-                            <span>Módulo de Campanhas e Agrupamento</span>
-                          </li>
-                          <li className="flex items-center gap-2">
-                            <Check className="w-4 h-4 text-emerald-500" />
-                            <span>Exportação em lote e suporte prioritário</span>
-                          </li>
-                        </ul>
+                        </button>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => handleUpgrade("BUSINESS")}
-                        disabled={startingCheckout !== null}
-                        className="w-full py-3 px-4 rounded-xl bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 text-white font-bold text-xs shadow-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
-                      >
-                        {startingCheckout === "BUSINESS" ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Sparkles className="w-4 h-4" />
-                        )}
-                        <span>
-                          Assinar Plano BUSINESS {billingCycle === "year" ? "Anual" : "Mensal"}
-                        </span>
-                      </button>
+                      {/* Card Plano BUSINESS */}
+                      <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between space-y-4">
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="px-2.5 py-0.5 rounded-full bg-violet-500/10 text-violet-600 dark:text-violet-400 text-[10px] font-extrabold uppercase">
+                              Para Empresas
+                            </span>
+                            <span className="text-xs text-slate-400 font-medium">
+                              {billingCycle === "year"
+                                ? bizDiscount > 0 ? `Anual (${bizDiscount}% OFF)` : "Anual"
+                                : "Mensal"}
+                            </span>
+                          </div>
+                          <h4 className="text-xl font-extrabold text-slate-900 dark:text-white">
+                            Plano BUSINESS
+                          </h4>
+                          <div className="flex items-baseline gap-1">
+                            <span className="text-3xl font-black text-slate-900 dark:text-white">
+                              R$ {(billingCycle === "year" ? bizYearPrice : bizMonthPrice).toFixed(2).replace(".", ",")}
+                            </span>
+                            <span className="text-xs text-slate-500">
+                              {billingCycle === "year"
+                                ? `/ano (equiv. a R$ ${(bizYearPrice / 12).toFixed(2).replace(".", ",")}/mês)`
+                                : "/mês"}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-500 leading-relaxed">
+                            Para redes, agências e franquias com alto volume de campanhas e gestão em grande escala.
+                          </p>
+                          <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-300 pt-2">
+                            <li className="flex items-center gap-2">
+                              <Check className="w-4 h-4 text-emerald-500" />
+                              <span><strong>QR Codes Ilimitados</strong></span>
+                            </li>
+                            <li className="flex items-center gap-2">
+                              <Check className="w-4 h-4 text-emerald-500" />
+                              <span>Todas as funcionalidades do plano PRO</span>
+                            </li>
+                            <li className="flex items-center gap-2">
+                              <Check className="w-4 h-4 text-emerald-500" />
+                              <span>Módulo de Campanhas e Agrupamento</span>
+                            </li>
+                            <li className="flex items-center gap-2">
+                              <Check className="w-4 h-4 text-emerald-500" />
+                              <span>Exportação em lote e suporte prioritário</span>
+                            </li>
+                          </ul>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleUpgrade("BUSINESS")}
+                          disabled={startingCheckout !== null}
+                          className="w-full py-3 px-4 rounded-xl bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 text-white font-bold text-xs shadow-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
+                        >
+                          {startingCheckout === "BUSINESS" ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Sparkles className="w-4 h-4" />
+                          )}
+                          <span>
+                            Assinar Plano BUSINESS {billingCycle === "year" ? "Anual" : "Mensal"}
+                          </span>
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
           )}
         </div>
