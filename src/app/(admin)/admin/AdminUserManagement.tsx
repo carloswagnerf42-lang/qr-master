@@ -33,6 +33,7 @@ import {
   Edit3,
   Copy,
   Check,
+  Info,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { calculateAnnualDiscountPercent } from "@/lib/permissions";
@@ -1417,6 +1418,17 @@ export function AdminUserManagement({
                     />
                     <p className="text-[10px] text-slate-400">
                       Utilizada para identificação transparente do checkout.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Dica essencial para funcionamento do Pix Direto */}
+                <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-start gap-2.5 text-xs text-amber-200">
+                  <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <span className="font-bold text-amber-300">Atenção para recebimento via Pix direto:</span>
+                    <p className="text-[11px] text-amber-200/90 leading-relaxed">
+                      Para que o Mercado Pago gere o QR Code Pix diretamente dentro do site (sem redirecionamento), a conta do Mercado Pago precisa ter pelo menos <strong>uma Chave Pix cadastrada</strong> (acesse o app ou site do Mercado Pago &gt; <em>Área Pix &gt; Minhas Chaves</em> e crie qualquer chave: CPF, celular, e-mail ou aleatória). Se nenhuma chave Pix estiver ativa na conta, o Mercado Pago rejeitará a geração direta de QR Code via API.
                     </p>
                   </div>
                 </div>

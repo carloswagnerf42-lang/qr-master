@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { planName, billingCycle, gateway, paymentMethod } = body;
+    const { planName, billingCycle, gateway, paymentMethod, cpf } = body;
 
     if (!planName || !["PRO", "BUSINESS"].includes(planName)) {
       return NextResponse.json(
@@ -45,19 +45,32 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const pixData = await createMercadoPagoPixPayment({
-        userId: session.id,
-        userEmail: session.email,
-        userName: session.name || "Cliente QR MASTER",
-        planName: planName as "PRO" | "BUSINESS",
-        billingCycle: billingCycle === "year" ? "year" : "month",
-      });
+      try {
+        const pixData = await createMercadoPagoPixPayment({
+          userId: session.id,
+          userEmail: session.email,
+          userName: session.name || "Cliente QR MASTER",
+          planName: planName as "PRO" | "BUSINESS",
+          billingCycle: billingCycle === "year" ? "year" : "month",
+          cpf,
+        });
 
-      return NextResponse.json({
-        success: true,
-        type: "pix",
-        ...pixData,
-      });
+        return NextResponse.json({
+          success: true,
+          type: "pix",
+          ...pixData,
+        });
+      } catch (pixErr: any) {
+        return NextResponse.json(
+          {
+            error: pixErr.message || "Falha ao gerar Pix Mercado Pago.",
+            code: pixErr.code || undefined,
+            isPixKeyMissing: Boolean(pixErr.isPixKeyMissing),
+            canFallbackToCheckoutPro: true,
+          },
+          { status: 400 }
+        );
+      }
     }
 
     // 1. Prioriza Mercado Pago se solicitado ou se Stripe não estiver configurado mas MP estiver

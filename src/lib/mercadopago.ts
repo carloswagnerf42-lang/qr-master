@@ -86,6 +86,7 @@ export interface CreateMPPixParams {
   userName: string;
   planName: "PRO" | "BUSINESS";
   billingCycle?: "month" | "year";
+  cpf?: string;
 }
 
 /**
@@ -124,9 +125,10 @@ export async function createMercadoPagoPreference(params: CreateMPPreferencePara
   const baseUrl = getAppUrl();
   const finalSuccessUrl = successUrl || `${baseUrl}/settings?payment=success&gateway=mercadopago`;
   const finalCancelUrl = cancelUrl || `${baseUrl}/settings?payment=canceled&gateway=mercadopago`;
-  const notificationUrl = `${baseUrl}/api/webhooks/mercadopago`;
+  const isPublicHttps = baseUrl.startsWith("https://") && !baseUrl.includes("localhost") && !baseUrl.includes("127.0.0.1");
+  const notificationUrl = isPublicHttps ? `${baseUrl}/api/webhooks/mercadopago` : undefined;
 
-  const payload = {
+  const payload: Record<string, any> = {
     items: [
       {
         id: plan.id,
@@ -153,7 +155,6 @@ export async function createMercadoPagoPreference(params: CreateMPPreferencePara
       planName: plan.name,
       billingCycle: isYearly ? "year" : "month",
     }),
-    notification_url: notificationUrl,
     statement_descriptor: "QR MASTER",
     payment_methods: {
       excluded_payment_types:
@@ -163,6 +164,10 @@ export async function createMercadoPagoPreference(params: CreateMPPreferencePara
       installments: 12,
     },
   };
+
+  if (notificationUrl) {
+    payload.notification_url = notificationUrl;
+  }
 
   const response = await fetch("https://api.mercadopago.com/checkout/preferences", {
     method: "POST",
@@ -213,25 +218,42 @@ export async function createMercadoPagoPixPayment(params: CreateMPPixParams) {
     : (Number(plan.priceMonth) > 0 ? Number(plan.priceMonth) : (planName === "PRO" ? 39.9 : 99.9));
 
   const baseUrl = getAppUrl();
-  const notificationUrl = `${baseUrl}/api/webhooks/mercadopago`;
+  const isPublicHttps =
+    baseUrl.startsWith("https://") &&
+    !baseUrl.includes("localhost") &&
+    !baseUrl.includes("127.0.0.1");
+  const notificationUrl = isPublicHttps ? `${baseUrl}/api/webhooks/mercadopago` : undefined;
 
-  const payload = {
+  const payerData: Record<string, any> = {
+    email: userEmail,
+    first_name: userName.split(" ")[0] || "Cliente",
+    last_name: userName.split(" ").slice(1).join(" ") || "QR MASTER",
+  };
+
+  const cleanCpf = (params.cpf || "").replace(/\D/g, "");
+  if (cleanCpf.length === 11) {
+    payerData.identification = {
+      type: "CPF",
+      number: cleanCpf,
+    };
+  }
+
+  const payload: Record<string, any> = {
     transaction_amount: price,
     description: `QR MASTER - ${plan.displayName} (${isYearly ? "Anual" : "Mensal"})`,
     payment_method_id: "pix",
-    payer: {
-      email: userEmail,
-      first_name: userName.split(" ")[0] || "Cliente",
-      last_name: userName.split(" ").slice(1).join(" ") || "QR MASTER",
-    },
+    payer: payerData,
     external_reference: JSON.stringify({
       userId,
       planId: plan.id,
       planName: plan.name,
       billingCycle: isYearly ? "year" : "month",
     }),
-    notification_url: notificationUrl,
   };
+
+  if (notificationUrl) {
+    payload.notification_url = notificationUrl;
+  }
 
   const response = await fetch("https://api.mercadopago.com/v1/payments", {
     method: "POST",
@@ -246,7 +268,41 @@ export async function createMercadoPagoPixPayment(params: CreateMPPixParams) {
   if (!response.ok) {
     const errBody = await response.text();
     console.error("Erro na criação de Pix Mercado Pago:", errBody);
-    throw new Error(`Falha ao gerar Pix Mercado Pago: ${response.statusText}`);
+
+    let detailedMsg = response.statusText;
+    let isPixKeyMissing = false;
+    let code = "";
+
+    try {
+      const errJson = JSON.parse(errBody);
+      const cause = Array.isArray(errJson.cause) && errJson.cause[0] ? errJson.cause[0] : null;
+      code = String(cause?.code || errJson.code || "");
+      const causeDesc = cause?.description || errJson.message || response.statusText;
+
+      if (
+        code === "13253" ||
+        errJson.message?.toLowerCase().includes("collector user without key enabled") ||
+        causeDesc?.toLowerCase().includes("key enabled")
+      ) {
+        isPixKeyMissing = true;
+        detailedMsg =
+          "A conta do Mercado Pago precisa ter pelo menos uma Chave Pix cadastrada (acesse o app do Mercado Pago > Pix > Minhas Chaves e adicione uma chave). Enquanto isso, você pode pagar pelo Checkout Mercado Pago ou com Cartão.";
+      } else if (errJson.message?.toLowerCase().includes("collector and payer cannot be the same")) {
+        detailedMsg =
+          "O e-mail da sua conta de usuário é idêntico ao da conta recebedora do Mercado Pago. Para testar o Pix, utilize outra conta de usuário ou pague via Cartão.";
+      } else if (causeDesc?.toLowerCase().includes("notificaction_url")) {
+        detailedMsg = "URL de notificação inválida configurada no Mercado Pago.";
+      } else {
+        detailedMsg = causeDesc;
+      }
+    } catch {
+      detailedMsg = response.statusText;
+    }
+
+    const customErr: any = new Error(`Falha ao gerar Pix: ${detailedMsg}`);
+    customErr.isPixKeyMissing = isPixKeyMissing;
+    customErr.code = code;
+    throw customErr;
   }
 
   const data = await response.json();

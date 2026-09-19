@@ -27,6 +27,7 @@ import {
   RefreshCw,
   X,
   ChevronLeft,
+  AlertCircle,
 } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
@@ -97,6 +98,11 @@ export default function SettingsPage() {
   } | null>(null);
   const [checkingPix, setCheckingPix] = useState(false);
   const [copiedPix, setCopiedPix] = useState(false);
+  const [pixError, setPixError] = useState<{
+    message: string;
+    isPixKeyMissing?: boolean;
+    canFallback?: boolean;
+  } | null>(null);
 
   // Saving spinners
   const [savingAccount, setSavingAccount] = useState(false);
@@ -260,6 +266,7 @@ export default function SettingsPage() {
     setSelectedPlanForCheckout(planName);
     setCheckoutStep("select");
     setPixData(null);
+    setPixError(null);
     setCopiedPix(false);
     setCheckoutModalOpen(true);
   };
@@ -268,6 +275,7 @@ export default function SettingsPage() {
     setCheckoutModalOpen(false);
     setCheckoutStep("select");
     setPixData(null);
+    setPixError(null);
     setCopiedPix(false);
   };
 
@@ -278,6 +286,7 @@ export default function SettingsPage() {
   // 1. Iniciar Pagamento Pix (Checkout Interno no site)
   const handleSelectPix = async () => {
     setGeneratingPix(true);
+    setPixError(null);
     try {
       const res = await fetch("/api/billing/checkout", {
         method: "POST",
@@ -299,7 +308,13 @@ export default function SettingsPage() {
         });
         setCheckoutStep("pix");
       } else {
-        toast.error("Erro ao gerar Pix", data.error || "Não foi possível gerar a cobrança Pix.");
+        const errorMsg = data.error || "Não foi possível gerar a cobrança Pix.";
+        setPixError({
+          message: errorMsg,
+          isPixKeyMissing: data.isPixKeyMissing,
+          canFallback: data.canFallbackToCheckoutPro ?? true,
+        });
+        toast.error("Aviso Mercado Pago", errorMsg);
       }
     } catch {
       toast.error("Erro de conexão", "Falha ao se comunicar com o servidor de pagamentos.");
@@ -1663,6 +1678,39 @@ export default function SettingsPage() {
                   <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                     Como você prefere realizar o pagamento?
                   </p>
+
+                  {/* ALERTA AMIGÁVEL DO MERCADO PAGO / PIX */}
+                  {pixError && (
+                    <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/25 space-y-3 animate-in fade-in-50 text-left">
+                      <div className="flex items-start gap-3">
+                        <AlertCircle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                        <div className="space-y-1">
+                          <h4 className="text-xs font-bold text-amber-900 dark:text-amber-200">
+                            {pixError.isPixKeyMissing
+                              ? "Chave Pix ausente na conta do Mercado Pago"
+                              : "Aviso do Mercado Pago"}
+                          </h4>
+                          <p className="text-[11px] text-amber-800 dark:text-amber-300 leading-relaxed">
+                            {pixError.message}
+                          </p>
+                        </div>
+                      </div>
+
+                      {pixError.canFallback && (
+                        <div className="pt-2 border-t border-amber-500/20">
+                          <button
+                            type="button"
+                            onClick={handleSelectCard}
+                            disabled={redirectingCard}
+                            className="w-full py-2.5 px-3 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all"
+                          >
+                            {redirectingCard ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ExternalLink className="w-3.5 h-3.5" />}
+                            <span>Continuar via Checkout Mercado Pago (Pix e Cartão)</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <div className="space-y-3">
                     {/* OPÇÃO 1: PIX INSTANTÂNEO (INTERNO) */}
