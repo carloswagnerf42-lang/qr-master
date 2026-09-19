@@ -61,7 +61,10 @@ interface AnalyticsData {
     totalScans: number;
     dailyAverage: number;
     maxDayScans: number;
-    growthPercentage: number;
+    maxDayDate?: string | null;
+    growthPercentage?: number | null;
+    growthStatus?: "positive" | "negative" | "neutral" | "no_previous_data";
+    growthLabel?: string;
   };
   timeline: Array<{ date: string; scans: number }>;
 }
@@ -350,9 +353,17 @@ export default function DashboardPage() {
             </div>
             <div>
               <p className="text-[11px] text-slate-500 dark:text-slate-400">Comparação período</p>
-              <p className="text-lg font-extrabold text-emerald-600 dark:text-emerald-400 mt-0.5 flex items-center gap-1">
-                <ArrowUpRight className="w-4 h-4" />
-                <span>+{chartData?.metrics.growthPercentage ?? 18.4}%</span>
+              <p
+                className={`text-lg font-extrabold mt-0.5 flex items-center gap-1 ${
+                  chartData?.metrics.growthStatus === "positive"
+                    ? "text-emerald-600 dark:text-emerald-400"
+                    : chartData?.metrics.growthStatus === "negative"
+                    ? "text-rose-600 dark:text-rose-400"
+                    : "text-slate-600 dark:text-slate-400"
+                }`}
+              >
+                {chartData?.metrics.growthStatus === "positive" && <ArrowUpRight className="w-4 h-4" />}
+                <span>{chartData?.metrics.growthLabel || "Sem variação"}</span>
               </p>
             </div>
           </div>

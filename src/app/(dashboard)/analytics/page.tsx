@@ -37,7 +37,14 @@ interface AnalyticsResponse {
     totalScans: number;
     dailyAverage: number;
     maxDayScans: number;
-    growthPercentage: number;
+    maxDayDate: string | null;
+    previousScansCount: number;
+    growthPercentage: number | null;
+    growthStatus: "positive" | "negative" | "neutral" | "no_previous_data";
+    growthLabel: string;
+    conversionRate: number | null;
+    conversionStatus: string;
+    conversionLabel: string;
   };
   timeline: Array<{ date: string; scans: number }>;
   deviceData: Array<{ name: string; value: number }>;
@@ -142,7 +149,7 @@ export default function AnalyticsPage() {
 
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 text-emerald-800 dark:text-emerald-300 text-xs font-semibold">
             <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>Telemetria em Conformidade com a LGPD (IPs Anonimizados)</span>
+            <span>IPs anonimizados na telemetria (HMAC-SHA256)</span>
           </div>
         </div>
 
@@ -153,8 +160,16 @@ export default function AnalyticsPage() {
             <p className="text-2xl font-extrabold text-slate-900 dark:text-white mt-1">
               {data?.metrics.totalScans ?? 0}
             </p>
-            <span className="text-[11px] text-emerald-500 font-bold mt-1 block">
-              +{data?.metrics.growthPercentage ?? 18.4}% vs período anterior
+            <span
+              className={`text-[11px] font-bold mt-1 block ${
+                data?.metrics.growthStatus === "positive"
+                  ? "text-emerald-500"
+                  : data?.metrics.growthStatus === "negative"
+                  ? "text-rose-500"
+                  : "text-slate-400"
+              }`}
+            >
+              {data?.metrics.growthLabel || "Sem variação"}
             </span>
           </div>
 
@@ -167,20 +182,23 @@ export default function AnalyticsPage() {
           </div>
 
           <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
-            <span className="text-xs text-slate-400 font-semibold uppercase">Dia Mais Ativo</span>
+            <span className="text-xs text-slate-400 font-semibold uppercase">Pico Diário</span>
             <p className="text-2xl font-extrabold text-indigo-600 dark:text-indigo-400 mt-1">
-              {data?.metrics.maxDayScans ?? 0}
+              {data?.metrics.maxDayScans ?? 0}{" "}
+              <span className="text-xs font-semibold text-slate-400">scans</span>
             </p>
-            <span className="text-[11px] text-slate-400 mt-1 block">pico máximo de acessos</span>
+            <span className="text-[11px] text-slate-400 mt-1 block truncate">
+              {data?.metrics.maxDayDate ? `em ${data.metrics.maxDayDate}` : "Sem acessos no período"}
+            </span>
           </div>
 
           <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
             <span className="text-xs text-slate-400 font-semibold uppercase">Conversão Média</span>
-            <p className="text-2xl font-extrabold text-slate-900 dark:text-white mt-1">
-              98.2%
+            <p className="text-2xl font-extrabold text-slate-400 dark:text-slate-500 mt-1">
+              —
             </p>
-            <span className="text-[11px] text-emerald-500 font-bold mt-1 block">
-              taxa de sucesso nos links
+            <span className="text-[11px] text-slate-400 mt-1 block truncate">
+              Sem metas de conversão ativas
             </span>
           </div>
         </div>
@@ -230,41 +248,49 @@ export default function AnalyticsPage() {
               <p className="text-xs text-slate-400">Distribuição entre mobile e desktop</p>
             </div>
 
-            <div className="h-48 w-full my-auto flex items-center justify-center">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={data?.deviceData || []}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={45}
-                    outerRadius={70}
-                    paddingAngle={4}
-                    dataKey="value"
-                  >
-                    {(data?.deviceData || []).map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-
-            <div className="space-y-1.5 border-t border-slate-100 dark:border-slate-800 pt-3">
-              {(data?.deviceData || []).map((item, idx) => (
-                <div key={item.name} className="flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="w-2.5 h-2.5 rounded-full"
-                      style={{ backgroundColor: PIE_COLORS[idx % PIE_COLORS.length] }}
-                    />
-                    <span className="text-slate-600 dark:text-slate-300 font-medium">{item.name}</span>
-                  </div>
-                  <span className="font-bold text-slate-800 dark:text-slate-200">{item.value} scans</span>
+            {(!data?.deviceData || data.deviceData.length === 0) ? (
+              <div className="h-48 w-full my-auto flex items-center justify-center text-xs text-slate-400">
+                Nenhum scan registrado no período
+              </div>
+            ) : (
+              <>
+                <div className="h-48 w-full my-auto flex items-center justify-center">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={data.deviceData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={45}
+                        outerRadius={70}
+                        paddingAngle={4}
+                        dataKey="value"
+                      >
+                        {data.deviceData.map((_, index) => (
+                          <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
                 </div>
-              ))}
-            </div>
+
+                <div className="space-y-1.5 border-t border-slate-100 dark:border-slate-800 pt-3">
+                  {data.deviceData.map((item, idx) => (
+                    <div key={item.name} className="flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="w-2.5 h-2.5 rounded-full"
+                          style={{ backgroundColor: PIE_COLORS[idx % PIE_COLORS.length] }}
+                        />
+                        <span className="text-slate-600 dark:text-slate-300 font-medium">{item.name}</span>
+                      </div>
+                      <span className="font-bold text-slate-800 dark:text-slate-200">{item.value} scans</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
 
           {/* Sistemas Operacionais (Bar) */}
@@ -277,26 +303,32 @@ export default function AnalyticsPage() {
               <p className="text-xs text-slate-400">iOS, Android, Windows, macOS</p>
             </div>
 
-            <div className="space-y-3 my-auto py-4">
-              {(data?.osData || []).slice(0, 5).map((os, idx) => {
-                const total = data?.metrics.totalScans || 1;
-                const pct = Math.round((os.value / total) * 100);
-                return (
-                  <div key={os.name} className="space-y-1">
-                    <div className="flex justify-between text-xs font-semibold">
-                      <span className="text-slate-700 dark:text-slate-300">{os.name}</span>
-                      <span className="text-slate-400">{os.value} ({pct}%)</span>
+            {(!data?.osData || data.osData.length === 0) ? (
+              <div className="h-48 w-full my-auto flex items-center justify-center text-xs text-slate-400">
+                Nenhum scan registrado no período
+              </div>
+            ) : (
+              <div className="space-y-3 my-auto py-4">
+                {data.osData.slice(0, 5).map((os) => {
+                  const total = data.metrics.totalScans || 1;
+                  const pct = Math.round((os.value / total) * 100);
+                  return (
+                    <div key={os.name} className="space-y-1">
+                      <div className="flex justify-between text-xs font-semibold">
+                        <span className="text-slate-700 dark:text-slate-300">{os.name}</span>
+                        <span className="text-slate-400">{os.value} ({pct}%)</span>
+                      </div>
+                      <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-indigo-500 to-cyan-400 rounded-full"
+                          style={{ width: `${Math.max(5, pct)}%` }}
+                        />
+                      </div>
                     </div>
-                    <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
-                      <div
-                        className="h-full bg-gradient-to-r from-indigo-500 to-cyan-400 rounded-full"
-                        style={{ width: `${Math.max(5, pct)}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Navegadores */}
@@ -309,26 +341,32 @@ export default function AnalyticsPage() {
               <p className="text-xs text-slate-400">Chrome, Safari, Edge, Firefox</p>
             </div>
 
-            <div className="space-y-3 my-auto py-4">
-              {(data?.browserData || []).slice(0, 5).map((b) => {
-                const total = data?.metrics.totalScans || 1;
-                const pct = Math.round((b.value / total) * 100);
-                return (
-                  <div key={b.name} className="space-y-1">
-                    <div className="flex justify-between text-xs font-semibold">
-                      <span className="text-slate-700 dark:text-slate-300">{b.name}</span>
-                      <span className="text-slate-400">{b.value} ({pct}%)</span>
+            {(!data?.browserData || data.browserData.length === 0) ? (
+              <div className="h-48 w-full my-auto flex items-center justify-center text-xs text-slate-400">
+                Nenhum scan registrado no período
+              </div>
+            ) : (
+              <div className="space-y-3 my-auto py-4">
+                {data.browserData.slice(0, 5).map((b) => {
+                  const total = data.metrics.totalScans || 1;
+                  const pct = Math.round((b.value / total) * 100);
+                  return (
+                    <div key={b.name} className="space-y-1">
+                      <div className="flex justify-between text-xs font-semibold">
+                        <span className="text-slate-700 dark:text-slate-300">{b.name}</span>
+                        <span className="text-slate-400">{b.value} ({pct}%)</span>
+                      </div>
+                      <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full"
+                          style={{ width: `${Math.max(5, pct)}%` }}
+                        />
+                      </div>
                     </div>
-                    <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
-                      <div
-                        className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full"
-                        style={{ width: `${Math.max(5, pct)}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
 
