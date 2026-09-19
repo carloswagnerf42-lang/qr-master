@@ -92,8 +92,8 @@ export async function getSession(req?: Request | NextRequest): Promise<SessionUs
   }
 }
 
-export async function getCurrentUser() {
-  const session = await getSession();
+export async function getCurrentUser(req?: Request | NextRequest) {
+  const session = await getSession(req);
   if (!session) return null;
 
   try {

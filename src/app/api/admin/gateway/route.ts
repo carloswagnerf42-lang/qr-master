@@ -7,9 +7,9 @@ import { getMercadoPagoConfigAsync } from "@/lib/mercadopago";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const auth = await requireAdmin();
+    const auth = await requireAdmin(req);
     if (!auth.success) return auth.errorResponse;
 
     const config = await getMercadoPagoConfigAsync();
@@ -63,7 +63,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const auth = await requireAdmin();
+    const auth = await requireAdmin(req);
     if (!auth.success) return auth.errorResponse;
 
     const body = await req.json();

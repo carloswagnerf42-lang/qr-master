@@ -7,7 +7,7 @@ export const revalidate = 0;
 
 export async function GET(req: NextRequest) {
   try {
-    const auth = await requireAdmin();
+    const auth = await requireAdmin(req);
     if (!auth.success) return auth.errorResponse;
 
     const { searchParams } = new URL(req.url);

@@ -200,45 +200,100 @@ export async function POST(req: NextRequest) {
     }
     const finalDestination = destValidation.sanitizedUrl;
 
-    let shortCode = null;
-    if (isDynamic) {
-      shortCode = await generateUniqueShortCode(prisma);
+    // Criação transacional protegida por lock transacional contra race conditions
+    const createdQrCode = await prisma.$transaction(async (tx) => {
+      // 1. Lock transacional por usuário no PostgreSQL para garantir que chamadas simultâneas
+      // do mesmo usuário não ultrapassem a cota mensal
+      try {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${session.id}))`;
+      } catch {
+        // Fallback gracioso para ambientes que não utilizem PostgreSQL direto
+      }
+
+      // 2. Re-avaliação da cota mensal dentro da transação protegida
+      if (userContext.role !== "ADMIN") {
+        const currentMonthStart = userContext.currentMonthStart || new Date();
+        const currentCount = await tx.qRCode.count({
+          where: {
+            userId: session.id,
+            deletedAt: null,
+            createdAt: {
+              gte: currentMonthStart,
+            },
+          },
+        });
+
+        const effectiveLimit = userContext.currentMonthLimit ?? userContext.plan?.maxQRCodes ?? 5;
+        if (currentCount >= effectiveLimit) {
+          const resetDateStr = userContext.currentMonthEnd
+            ? new Date(userContext.currentMonthEnd).toLocaleDateString("pt-BR")
+            : "o próximo ciclo";
+
+          const reason = `Você atingiu o limite mensal de ${effectiveLimit} QR Codes do plano ${userContext.plan?.name || "FREE"}. Sua cota renova em ${resetDateStr}.`;
+          const limitErr: any = new Error(reason);
+          limitErr.code = "LIMIT_REACHED";
+          limitErr.status = 403;
+          limitErr.limit = effectiveLimit;
+          limitErr.current = currentCount;
+          limitErr.requiredPlan = userContext.plan?.name === "FREE" ? "PRO" : "BUSINESS";
+          throw limitErr;
+        }
+      }
+
+      let shortCode = null;
+      if (isDynamic) {
+        shortCode = await generateUniqueShortCode(tx as any);
+      }
+
+      const qrCode = await tx.qRCode.create({
+        data: {
+          userId: session.id,
+          name: name.trim(),
+          description: description ? description.trim() : null,
+          type: type || "url",
+          isDynamic: !!isDynamic,
+          shortCode,
+          destination: finalDestination,
+          content: typeof content === "string" ? content : JSON.stringify(content || {}),
+          styleConfig: typeof styleConfig === "string" ? styleConfig : JSON.stringify(styleConfig || {}),
+          categoryId: categoryId || null,
+          campaignId: campaignId || null,
+          logoUrl: logoUrl || null,
+          status: "ACTIVE",
+        },
+        include: {
+          category: true,
+          campaign: true,
+        },
+      });
+
+      // Registra log
+      await tx.activityLog.create({
+        data: {
+          userId: session.id,
+          action: "CREATE_QR",
+          entityId: qrCode.id,
+          description: `QR Code "${qrCode.name}" (${isDynamic ? "Dinâmico" : "Estático"}) foi criado.`,
+        },
+      });
+
+      return qrCode;
+    });
+
+    return NextResponse.json({ success: true, qrCode: createdQrCode });
+  } catch (error: any) {
+    if (error?.code === "LIMIT_REACHED") {
+      return NextResponse.json(
+        {
+          error: error.message,
+          code: "LIMIT_REACHED",
+          requiredPlan: error.requiredPlan,
+          limit: error.limit,
+          current: error.current,
+        },
+        { status: 403 }
+      );
     }
-
-    const qrCode = await prisma.qRCode.create({
-      data: {
-        userId: session.id,
-        name: name.trim(),
-        description: description ? description.trim() : null,
-        type: type || "url",
-        isDynamic: !!isDynamic,
-        shortCode,
-        destination: finalDestination,
-        content: typeof content === "string" ? content : JSON.stringify(content || {}),
-        styleConfig: typeof styleConfig === "string" ? styleConfig : JSON.stringify(styleConfig || {}),
-        categoryId: categoryId || null,
-        campaignId: campaignId || null,
-        logoUrl: logoUrl || null,
-        status: "ACTIVE",
-      },
-      include: {
-        category: true,
-        campaign: true,
-      },
-    });
-
-    // Registra log
-    await prisma.activityLog.create({
-      data: {
-        userId: session.id,
-        action: "CREATE_QR",
-        entityId: qrCode.id,
-        description: `QR Code "${qrCode.name}" (${isDynamic ? "Dinâmico" : "Estático"}) foi criado.`,
-      },
-    });
-
-    return NextResponse.json({ success: true, qrCode });
-  } catch (error) {
     console.error("Erro ao criar QR Code:", error);
     return NextResponse.json({ error: "Erro ao salvar QR Code" }, { status: 500 });
   }

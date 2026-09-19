@@ -185,6 +185,8 @@ export async function getUserPlanAndUsage(userId: string): Promise<UserPlanConte
         select: {
           id: true,
           status: true,
+          planId: true,
+          plan: true,
           gateway: true,
           gatewayCustomerId: true,
           gatewaySubscriptionId: true,
@@ -241,16 +243,21 @@ export async function getUserPlanAndUsage(userId: string): Promise<UserPlanConte
     };
   }
 
-  // Se o plano for pago (não FREE), exige assinatura ativa no ciclo
-  let plan: PlanDetails = user.plan || DEFAULT_FREE_PLAN;
+  // Resolução rigorosa do plano efetivo:
+  // Se houver assinatura ativa com plano associado, utiliza o plano da assinatura
+  const active = isSubscriptionActive(user.subscription);
+  let plan: PlanDetails = DEFAULT_FREE_PLAN;
 
-  if (plan.name !== "FREE") {
-    const active = isSubscriptionActive(user.subscription);
-    if (!active) {
-      // Assinatura inexistente, expirada ou suspensa -> recai com segurança no FREE
-      const freePlan = await prisma.plan.findUnique({ where: { name: "FREE" } });
-      plan = freePlan || DEFAULT_FREE_PLAN;
-    }
+  if (active && user.subscription?.plan) {
+    plan = user.subscription.plan;
+  } else if (user.plan && user.plan.name === "FREE") {
+    plan = user.plan;
+  } else if (active && user.plan) {
+    plan = user.plan;
+  } else {
+    // Sem assinatura ativa e plano pago -> recai com segurança no FREE
+    const freePlan = await prisma.plan.findUnique({ where: { name: "FREE" } });
+    plan = freePlan || DEFAULT_FREE_PLAN;
   }
 
   // Determina o limite mensal aplicável

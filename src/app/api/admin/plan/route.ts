@@ -6,9 +6,9 @@ import { requireAdmin, logAdminAction } from "@/lib/admin";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const auth = await requireAdmin();
+    const auth = await requireAdmin(req);
     if (!auth.success) return auth.errorResponse;
 
     const plans = await prisma.plan.findMany({
@@ -41,7 +41,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const auth = await requireAdmin();
+    const auth = await requireAdmin(req);
     if (!auth.success) return auth.errorResponse;
     const admin = auth.admin;
 
@@ -158,7 +158,7 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const auth = await requireAdmin();
+    const auth = await requireAdmin(req);
     if (!auth.success) return auth.errorResponse;
     const admin = auth.admin;
 

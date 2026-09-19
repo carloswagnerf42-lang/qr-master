@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "./auth";
 import { prisma } from "./db";
 
@@ -13,11 +13,11 @@ export interface AdminContext {
  * Validação centralizada de autorização administrativa no servidor.
  * Retorna o administrador autenticado ou uma resposta JSON de erro com status 401 ou 403.
  */
-export async function requireAdmin(): Promise<
+export async function requireAdmin(req?: Request | NextRequest): Promise<
   | { success: true; admin: AdminContext; errorResponse?: never }
   | { success: false; admin?: never; errorResponse: NextResponse }
 > {
-  const user = await getCurrentUser();
+  const user = await getCurrentUser(req);
 
   if (!user) {
     return {
