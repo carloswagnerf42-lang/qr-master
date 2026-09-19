@@ -133,6 +133,7 @@ export async function PATCH(req: NextRequest) {
     const {
       planId,
       priceMonth,
+      priceYear,
       displayName,
       maxQRCodes,
       dynamicQRs,
@@ -171,6 +172,23 @@ export async function PATCH(req: NextRequest) {
       dataToUpdate.priceMonth = numPrice;
     }
 
+    if (priceYear !== undefined) {
+      const numPriceYear = Number(priceYear);
+      if (isNaN(numPriceYear) || numPriceYear < 0) {
+        return NextResponse.json(
+          { error: "O preço anual deve ser um valor numérico válido maior ou igual a zero." },
+          { status: 400 }
+        );
+      }
+      if (plan.name === "FREE" && numPriceYear !== 0) {
+        return NextResponse.json(
+          { error: "O plano FREE não pode ter cobrança anual maior que zero." },
+          { status: 400 }
+        );
+      }
+      dataToUpdate.priceYear = numPriceYear;
+    }
+
     if (displayName !== undefined && typeof displayName === "string" && displayName.trim()) {
       dataToUpdate.displayName = displayName.trim();
     }
@@ -198,7 +216,7 @@ export async function PATCH(req: NextRequest) {
       adminId: admin.id,
       action: "ADMIN_PLAN_UPDATE",
       entityId: plan.id,
-      description: `Plano "${plan.name}" atualizado pelo Administrador (${admin.name}). Preço: R$ ${updatedPlan.priceMonth.toFixed(2)}.`,
+      description: `Plano "${plan.name}" atualizado pelo Administrador (${admin.name}). Preço: R$ ${updatedPlan.priceMonth.toFixed(2)}/mês | R$ ${updatedPlan.priceYear.toFixed(2)}/ano.`,
     });
 
     return NextResponse.json({

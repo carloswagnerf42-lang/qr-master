@@ -47,6 +47,7 @@ export async function GET(req: NextRequest) {
             name: true,
             displayName: true,
             priceMonth: true,
+            priceYear: true,
           },
         },
         subscription: {

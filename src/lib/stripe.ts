@@ -26,6 +26,7 @@ export interface CreateCheckoutSessionParams {
   userEmail: string;
   userName: string;
   planName: "PRO" | "BUSINESS";
+  billingCycle?: "month" | "year";
   successUrl: string;
   cancelUrl: string;
 }
@@ -74,7 +75,8 @@ export async function getOrCreateStripeCustomer(userId: string, email: string, n
  */
 export async function createBillingCheckoutSession(params: CreateCheckoutSessionParams): Promise<{ url: string; sessionId: string }> {
   const stripe = getStripeClient();
-  const { userId, userEmail, userName, planName, successUrl, cancelUrl } = params;
+  const { userId, userEmail, userName, planName, successUrl, cancelUrl, billingCycle = "month" } = params;
+  const isYearly = billingCycle === "year";
 
   const targetPlan = await prisma.plan.findUnique({
     where: { name: planName },
@@ -91,7 +93,7 @@ export async function createBillingCheckoutSession(params: CreateCheckoutSession
 
   let lineItems: Stripe.Checkout.SessionCreateParams.LineItem[];
 
-  if (priceEnvKey && priceEnvKey.trim() !== "") {
+  if (priceEnvKey && priceEnvKey.trim() !== "" && !isYearly) {
     lineItems = [
       {
         price: priceEnvKey.trim(),
@@ -99,19 +101,23 @@ export async function createBillingCheckoutSession(params: CreateCheckoutSession
       },
     ];
   } else {
-    // Se não houver Price ID estático cadastrado, utiliza o valor em reais cadastrado no Plan
-    const unitAmountCents = Math.round(targetPlan.priceMonth * 100);
+    // Se não houver Price ID estático ou se for ciclo anual, calcula o valor correspondente
+    const priceInReais = isYearly
+      ? (targetPlan.priceYear > 0 ? targetPlan.priceYear : Math.round(targetPlan.priceMonth * 10))
+      : targetPlan.priceMonth;
+    const unitAmountCents = Math.round(priceInReais * 100);
+
     lineItems = [
       {
         price_data: {
           currency: "brl",
           product_data: {
-            name: `QR MASTER — ${targetPlan.displayName}`,
-            description: `Assinatura mensal do plano ${targetPlan.name} com ${targetPlan.maxQRCodes} QR Codes e recursos avançados.`,
+            name: `QR MASTER — ${targetPlan.displayName} (${isYearly ? "Anual" : "Mensal"})`,
+            description: `Assinatura ${isYearly ? "anual" : "mensal"} do plano ${targetPlan.name} com ${targetPlan.maxQRCodes > 9999 ? "ilimitados" : targetPlan.maxQRCodes} QR Codes e recursos avançados.`,
           },
           unit_amount: unitAmountCents,
           recurring: {
-            interval: "month",
+            interval: isYearly ? "year" : "month",
           },
         },
         quantity: 1,
@@ -130,12 +136,14 @@ export async function createBillingCheckoutSession(params: CreateCheckoutSession
       userId,
       planId: targetPlan.id,
       planName: targetPlan.name,
+      billingCycle: isYearly ? "year" : "month",
     },
     subscription_data: {
       metadata: {
         userId,
         planId: targetPlan.id,
         planName: targetPlan.name,
+        billingCycle: isYearly ? "year" : "month",
       },
     },
     allow_promotion_codes: true,
@@ -235,8 +243,10 @@ export async function processStripeWebhookEvent(event: Stripe.Event): Promise<{ 
         const subscriptionId = typeof session.subscription === "string" ? session.subscription : session.subscription?.id;
 
         // Se houver ID de assinatura, busca o período vigente na Stripe
+        const isYearlyPlan = session.metadata?.billingCycle === "year";
+        const fallbackDays = isYearlyPlan ? 365 : 30;
         let periodStart = new Date();
-        let periodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+        let periodEnd = new Date(Date.now() + fallbackDays * 24 * 60 * 60 * 1000);
 
         if (subscriptionId) {
           const stripe = getStripeClient();

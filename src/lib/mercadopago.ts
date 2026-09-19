@@ -29,6 +29,7 @@ export interface CreateMPPreferenceParams {
   userEmail: string;
   userName: string;
   planName: "PRO" | "BUSINESS";
+  billingCycle?: "month" | "year";
   successUrl?: string;
   cancelUrl?: string;
 }
@@ -38,13 +39,14 @@ export interface CreateMPPixParams {
   userEmail: string;
   userName: string;
   planName: "PRO" | "BUSINESS";
+  billingCycle?: "month" | "year";
 }
 
 /**
  * Cria preferência de pagamento no Mercado Pago (Checkout Pro com Pix, Cartão de Crédito e Boleto)
  */
 export async function createMercadoPagoPreference(params: CreateMPPreferenceParams) {
-  const { userId, userEmail, userName, planName, successUrl, cancelUrl } = params;
+  const { userId, userEmail, userName, planName, successUrl, cancelUrl, billingCycle = "month" } = params;
   const config = getMercadoPagoConfig();
 
   if (!config.isConfigured) {
@@ -59,7 +61,11 @@ export async function createMercadoPagoPreference(params: CreateMPPreferencePara
     throw new Error(`Plano ${planName} não encontrado no sistema.`);
   }
 
-  const price = Number(plan.priceMonth) || (planName === "PRO" ? 39.9 : 99.9);
+  const isYearly = billingCycle === "year";
+  const price = isYearly
+    ? (Number(plan.priceYear) > 0 ? Number(plan.priceYear) : (planName === "PRO" ? 399 : 999))
+    : (Number(plan.priceMonth) > 0 ? Number(plan.priceMonth) : (planName === "PRO" ? 39.9 : 99.9));
+
   const baseUrl = getAppUrl();
   const finalSuccessUrl = successUrl || `${baseUrl}/settings?payment=success&gateway=mercadopago`;
   const finalCancelUrl = cancelUrl || `${baseUrl}/settings?payment=canceled&gateway=mercadopago`;
@@ -69,8 +75,8 @@ export async function createMercadoPagoPreference(params: CreateMPPreferencePara
     items: [
       {
         id: plan.id,
-        title: `QR MASTER - ${plan.displayName} (Mensal)`,
-        description: `Acesso completo ao plano ${plan.displayName} na plataforma QR MASTER SaaS`,
+        title: `QR MASTER - ${plan.displayName} (${isYearly ? "Anual" : "Mensal"})`,
+        description: `Acesso completo ao plano ${plan.displayName} (${isYearly ? "anual" : "mensal"}) na plataforma QR MASTER SaaS`,
         quantity: 1,
         unit_price: price,
         currency_id: "BRL",
@@ -90,6 +96,7 @@ export async function createMercadoPagoPreference(params: CreateMPPreferencePara
       userId,
       planId: plan.id,
       planName: plan.name,
+      billingCycle: isYearly ? "year" : "month",
     }),
     notification_url: notificationUrl,
     statement_descriptor: "QR MASTER",
@@ -122,6 +129,7 @@ export async function createMercadoPagoPreference(params: CreateMPPreferencePara
     sandboxInitPoint: data.sandbox_init_point,
     price,
     planName: plan.displayName,
+    billingCycle: isYearly ? "year" : "month",
   };
 }
 
@@ -129,7 +137,7 @@ export async function createMercadoPagoPreference(params: CreateMPPreferencePara
  * Cria cobrança instantânea via Pix direto com QR Code e Copia-e-Cola
  */
 export async function createMercadoPagoPixPayment(params: CreateMPPixParams) {
-  const { userId, userEmail, userName, planName } = params;
+  const { userId, userEmail, userName, planName, billingCycle = "month" } = params;
   const config = getMercadoPagoConfig();
 
   if (!config.isConfigured) {
@@ -141,13 +149,17 @@ export async function createMercadoPagoPixPayment(params: CreateMPPixParams) {
     throw new Error(`Plano ${planName} não encontrado.`);
   }
 
-  const price = Number(plan.priceMonth) || (planName === "PRO" ? 39.9 : 99.9);
+  const isYearly = billingCycle === "year";
+  const price = isYearly
+    ? (Number(plan.priceYear) > 0 ? Number(plan.priceYear) : (planName === "PRO" ? 399 : 999))
+    : (Number(plan.priceMonth) > 0 ? Number(plan.priceMonth) : (planName === "PRO" ? 39.9 : 99.9));
+
   const baseUrl = getAppUrl();
   const notificationUrl = `${baseUrl}/api/webhooks/mercadopago`;
 
   const payload = {
     transaction_amount: price,
-    description: `QR MASTER - ${plan.displayName}`,
+    description: `QR MASTER - ${plan.displayName} (${isYearly ? "Anual" : "Mensal"})`,
     payment_method_id: "pix",
     payer: {
       email: userEmail,
@@ -158,6 +170,7 @@ export async function createMercadoPagoPixPayment(params: CreateMPPixParams) {
       userId,
       planId: plan.id,
       planName: plan.name,
+      billingCycle: isYearly ? "year" : "month",
     }),
     notification_url: notificationUrl,
   };
@@ -248,7 +261,7 @@ export async function processMercadoPagoNotification(paymentId: string | number)
 
   // Se o pagamento foi aprovado, ativa o plano do usuário
   if (payment.status === "approved") {
-    let metadata: { userId?: string; planId?: string; planName?: string } = {};
+    let metadata: { userId?: string; planId?: string; planName?: string; billingCycle?: string } = {};
 
     try {
       if (payment.external_reference) {
@@ -274,8 +287,10 @@ export async function processMercadoPagoNotification(paymentId: string | number)
       }
 
       if (targetPlan) {
+        const isYearly = metadata.billingCycle === "year";
+        const durationDays = isYearly ? 365 : 30;
         const now = new Date();
-        const periodEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 dias
+        const periodEnd = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
 
         // Atualiza usuário
         await prisma.user.update({

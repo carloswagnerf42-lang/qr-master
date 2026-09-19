@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { planName } = body;
+    const { planName, billingCycle } = body;
 
     if (!planName || !["PRO", "BUSINESS"].includes(planName)) {
       return NextResponse.json(
@@ -29,6 +29,7 @@ export async function POST(req: NextRequest) {
       userEmail: session.email,
       userName: session.name || "Cliente QR MASTER",
       planName: planName as "PRO" | "BUSINESS",
+      billingCycle: billingCycle === "year" ? "year" : "month",
       successUrl,
       cancelUrl,
     });

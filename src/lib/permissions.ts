@@ -14,6 +14,7 @@ export interface PlanDetails {
   name: string;
   displayName?: string;
   priceMonth?: number;
+  priceYear?: number;
   maxQRCodes: number;
   dynamicQRs: boolean;
   analytics: boolean;
@@ -95,6 +96,7 @@ export const DEFAULT_FREE_PLAN: PlanDetails = {
   name: "FREE",
   displayName: "Plano Grátis",
   priceMonth: 0,
+  priceYear: 0,
   maxQRCodes: 5,
   dynamicQRs: false,
   analytics: false,

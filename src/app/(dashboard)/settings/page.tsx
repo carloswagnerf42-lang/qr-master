@@ -47,6 +47,7 @@ export default function SettingsPage() {
     name: string;
     displayName: string;
     priceMonth: number;
+    priceYear?: number;
     maxQRCodes: number;
     dynamicQRs: boolean;
     analytics: boolean;
@@ -55,6 +56,7 @@ export default function SettingsPage() {
     customLogo: boolean;
     campaigns: boolean;
   } | null>(null);
+  const [billingCycle, setBillingCycle] = useState<"month" | "year">("month");
   const [usage, setUsage] = useState<{ qrCodes: number; maxQRCodes: number; remainingQRCodes: number } | null>(null);
   const [subscription, setSubscription] = useState<{
     id?: string;
@@ -165,7 +167,7 @@ export default function SettingsPage() {
       const res = await fetch("/api/billing/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planName }),
+        body: JSON.stringify({ planName, billingCycle }),
       });
       const data = await res.json();
       if (res.ok && data.checkoutUrl) {
@@ -1090,9 +1092,46 @@ export default function SettingsPage() {
               {/* Cards de Upgrade de Plano (quando no FREE ou sem assinatura ativa) */}
               {(!userPlan || userPlan.name === "FREE" || !subscription?.isActive) && (
                 <div className="space-y-4 pt-2">
-                  <h5 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                    Faça Upgrade e Desbloqueie Todo o Potencial:
-                  </h5>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1">
+                    <div>
+                      <h5 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                        Faça Upgrade e Desbloqueie Todo o Potencial:
+                      </h5>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Escolha entre cobrança mensal ou anual com desconto exclusivo de 2 meses grátis.
+                      </p>
+                    </div>
+
+                    {/* Toggle Seletor Mensal / Anual */}
+                    <div className="inline-flex p-1 bg-slate-100 dark:bg-slate-800/90 rounded-xl border border-slate-200 dark:border-slate-700/80 self-start sm:self-auto">
+                      <button
+                        type="button"
+                        onClick={() => setBillingCycle("month")}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                          billingCycle === "month"
+                            ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm"
+                            : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                        }`}
+                      >
+                        Mensal
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBillingCycle("year")}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
+                          billingCycle === "year"
+                            ? "bg-indigo-600 text-white shadow-sm"
+                            : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                        }`}
+                      >
+                        <span>Anual</span>
+                        <span className="px-1.5 py-0.2 rounded text-[10px] bg-emerald-500 text-white font-extrabold tracking-tight">
+                          2 Meses Grátis
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* Card Plano PRO */}
                     <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border-2 border-indigo-600/60 dark:border-indigo-500/60 shadow-md flex flex-col justify-between space-y-4">
@@ -1101,14 +1140,20 @@ export default function SettingsPage() {
                           <span className="px-2.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-[10px] font-extrabold uppercase">
                             Mais Popular
                           </span>
-                          <span className="text-xs text-slate-400">Mensal</span>
+                          <span className="text-xs text-slate-400 font-medium">
+                            {billingCycle === "year" ? "Anual (~17% OFF)" : "Mensal"}
+                          </span>
                         </div>
                         <h4 className="text-xl font-extrabold text-slate-900 dark:text-white">
                           Plano PRO
                         </h4>
                         <div className="flex items-baseline gap-1">
-                          <span className="text-3xl font-black text-slate-900 dark:text-white">R$ 39,90</span>
-                          <span className="text-xs text-slate-500">/mês</span>
+                          <span className="text-3xl font-black text-slate-900 dark:text-white">
+                            {billingCycle === "year" ? "R$ 399,00" : "R$ 39,90"}
+                          </span>
+                          <span className="text-xs text-slate-500">
+                            {billingCycle === "year" ? "/ano (equiv. a R$ 33,25/mês)" : "/mês"}
+                          </span>
                         </div>
                         <p className="text-xs text-slate-500 leading-relaxed">
                           Ideal para negócios, restaurantes e profissionais liberais que precisam de QR Codes dinâmicos com alteração de link em tempo real.
@@ -1148,7 +1193,9 @@ export default function SettingsPage() {
                         ) : (
                           <Sparkles className="w-4 h-4" />
                         )}
-                        <span>Assinar Plano PRO</span>
+                        <span>
+                          Assinar Plano PRO {billingCycle === "year" ? "Anual" : "Mensal"}
+                        </span>
                       </button>
                     </div>
 
@@ -1159,14 +1206,20 @@ export default function SettingsPage() {
                           <span className="px-2.5 py-0.5 rounded-full bg-violet-500/10 text-violet-600 dark:text-violet-400 text-[10px] font-extrabold uppercase">
                             Para Empresas
                           </span>
-                          <span className="text-xs text-slate-400">Mensal</span>
+                          <span className="text-xs text-slate-400 font-medium">
+                            {billingCycle === "year" ? "Anual (~17% OFF)" : "Mensal"}
+                          </span>
                         </div>
                         <h4 className="text-xl font-extrabold text-slate-900 dark:text-white">
                           Plano BUSINESS
                         </h4>
                         <div className="flex items-baseline gap-1">
-                          <span className="text-3xl font-black text-slate-900 dark:text-white">R$ 99,90</span>
-                          <span className="text-xs text-slate-500">/mês</span>
+                          <span className="text-3xl font-black text-slate-900 dark:text-white">
+                            {billingCycle === "year" ? "R$ 999,00" : "R$ 99,90"}
+                          </span>
+                          <span className="text-xs text-slate-500">
+                            {billingCycle === "year" ? "/ano (equiv. a R$ 83,25/mês)" : "/mês"}
+                          </span>
                         </div>
                         <p className="text-xs text-slate-500 leading-relaxed">
                           Para redes, agências e franquias com alto volume de campanhas e gestão em grande escala.
@@ -1202,7 +1255,9 @@ export default function SettingsPage() {
                         ) : (
                           <Sparkles className="w-4 h-4" />
                         )}
-                        <span>Assinar Plano BUSINESS</span>
+                        <span>
+                          Assinar Plano BUSINESS {billingCycle === "year" ? "Anual" : "Mensal"}
+                        </span>
                       </button>
                     </div>
                   </div>

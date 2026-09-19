@@ -41,6 +41,7 @@ export default async function AdminPage() {
         name: true,
         displayName: true,
         priceMonth: true,
+        priceYear: true,
         maxQRCodes: true,
         dynamicQRs: true,
         analytics: true,

@@ -36,6 +36,7 @@ const freePlan: PlanDetails = {
   name: "FREE",
   displayName: "Plano Grátis",
   priceMonth: 0,
+  priceYear: 0,
   maxQRCodes: 5,
   dynamicQRs: false,
   analytics: false,
@@ -50,6 +51,7 @@ const proPlan: PlanDetails = {
   name: "PRO",
   displayName: "Plano Pro",
   priceMonth: 39.9,
+  priceYear: 399.0,
   maxQRCodes: 100,
   dynamicQRs: true,
   analytics: true,
@@ -64,6 +66,7 @@ const businessPlan: PlanDetails = {
   name: "BUSINESS",
   displayName: "Plano Business",
   priceMonth: 99.9,
+  priceYear: 999.0,
   maxQRCodes: 999999,
   dynamicQRs: true,
   analytics: true,
@@ -386,11 +389,27 @@ async function runBillingAndSubscriptionTests() {
     const bizCents = calcCents(businessPlan.priceMonth || 0);
     assert(bizCents === 9990, "Plano BUSINESS calculado com precisão em centavos: 9990 (R$ 99,90)");
 
+    // Testes de Precificação Anual (com desconto)
+    const proYearCents = calcCents(proPlan.priceYear || 0);
+    assert(proYearCents === 39900, "Plano PRO Anual calculado com precisão em centavos: 39900 (R$ 399,00)");
+
+    const bizYearCents = calcCents(businessPlan.priceYear || 0);
+    assert(bizYearCents === 99900, "Plano BUSINESS Anual calculado com precisão em centavos: 99900 (R$ 999,00)");
+
     // Simulação do gerador de payload do checkout Stripe
-    const buildStripeCheckoutPayload = (user: { id: string; email: string }, plan: PlanDetails) => {
+    const buildStripeCheckoutPayload = (
+      user: { id: string; email: string },
+      plan: PlanDetails,
+      billingCycle: "month" | "year" = "month"
+    ) => {
       if (plan.name !== "PRO" && plan.name !== "BUSINESS") {
         throw new Error("Plano inválido para checkout pago.");
       }
+
+      const isYearly = billingCycle === "year";
+      const unitAmount = isYearly
+        ? Math.round((plan.priceYear || (plan.priceMonth || 0) * 10) * 100)
+        : Math.round((plan.priceMonth || 0) * 100);
 
       return {
         mode: "subscription",
@@ -400,11 +419,11 @@ async function runBillingAndSubscriptionTests() {
             price_data: {
               currency: "brl",
               product_data: {
-                name: `QR MASTER — ${plan.displayName}`,
-                description: `Assinatura mensal do plano ${plan.name}`,
+                name: `QR MASTER — ${plan.displayName} (${isYearly ? "Anual" : "Mensal"})`,
+                description: `Assinatura ${isYearly ? "anual" : "mensal"} do plano ${plan.name}`,
               },
-              unit_amount: Math.round((plan.priceMonth || 0) * 100),
-              recurring: { interval: "month" },
+              unit_amount: unitAmount,
+              recurring: { interval: isYearly ? "year" : "month" },
             },
             quantity: 1,
           },
@@ -413,24 +432,49 @@ async function runBillingAndSubscriptionTests() {
           userId: user.id,
           planId: plan.id,
           planName: plan.name,
+          billingCycle: isYearly ? "year" : "month",
         },
         subscription_data: {
           metadata: {
             userId: user.id,
             planId: plan.id,
             planName: plan.name,
+            billingCycle: isYearly ? "year" : "month",
           },
         },
       };
     };
 
-    const payloadPro = buildStripeCheckoutPayload({ id: "usr_test_1", email: "user@test.com" }, proPlan);
+    const payloadPro = buildStripeCheckoutPayload({ id: "usr_test_1", email: "user@test.com" }, proPlan, "month");
     assert(payloadPro.mode === "subscription", "Modo do checkout Stripe configurado como 'subscription'");
     assert(payloadPro.line_items[0].price_data.currency === "brl", "Moeda do checkout fixada em 'brl'");
-    assert(payloadPro.line_items[0].price_data.unit_amount === 3990, "Valor unitário do PRO é 3990 centavos");
+    assert(payloadPro.line_items[0].price_data.unit_amount === 3990, "Valor unitário do PRO Mensal é 3990 centavos");
+    assert(payloadPro.line_items[0].price_data.recurring.interval === "month", "Intervalo mensal configurado como 'month'");
     assert(payloadPro.metadata.userId === "usr_test_1", "Metadata do checkout vincula userId");
     assert(payloadPro.metadata.planName === "PRO", "Metadata do checkout vincula planName");
+    assert(payloadPro.metadata.billingCycle === "month", "Metadata do checkout vincula billingCycle='month'");
     assert(payloadPro.subscription_data.metadata.userId === "usr_test_1", "Subscription_data vincula userId para faturas recorrentes");
+
+    // Checkout Anual PRO
+    const payloadProYear = buildStripeCheckoutPayload({ id: "usr_test_1", email: "user@test.com" }, proPlan, "year");
+    assert(payloadProYear.line_items[0].price_data.unit_amount === 39900, "Valor unitário do PRO Anual é 39900 centavos (R$ 399,00)");
+    assert(payloadProYear.line_items[0].price_data.recurring.interval === "year", "Intervalo anual configurado como 'year'");
+    assert(payloadProYear.metadata.billingCycle === "year", "Metadata do checkout anual vincula billingCycle='year'");
+
+    // Cálculo de Vigência: 365 dias para anual vs 30 dias para mensal
+    const calcPeriodEnd = (startDate: Date, cycle: "month" | "year") => {
+      const days = cycle === "year" ? 365 : 30;
+      return new Date(startDate.getTime() + days * 24 * 60 * 60 * 1000);
+    };
+
+    const startDate = new Date("2026-01-01T00:00:00Z");
+    const monthlyEnd = calcPeriodEnd(startDate, "month");
+    const yearlyEnd = calcPeriodEnd(startDate, "year");
+    const diffMonthlyDays = Math.round((monthlyEnd.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000));
+    const diffYearlyDays = Math.round((yearlyEnd.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000));
+
+    assert(diffMonthlyDays === 30, "Ciclo mensal concede exatamente 30 dias de vigência");
+    assert(diffYearlyDays === 365, "Ciclo anual concede exatamente 365 dias de vigência");
 
     // Tentativa de checkout com plano FREE deve lançar erro
     let errored = false;

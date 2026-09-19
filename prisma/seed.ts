@@ -16,6 +16,7 @@ async function main() {
       name: "FREE",
       displayName: "Plano Grátis",
       priceMonth: 0,
+      priceYear: 0,
       maxQRCodes: 5,
       dynamicQRs: false,
       analytics: false,
@@ -28,11 +29,14 @@ async function main() {
 
   const proPlan = await prisma.plan.upsert({
     where: { name: "PRO" },
-    update: {},
+    update: {
+      priceYear: 399.0,
+    },
     create: {
       name: "PRO",
       displayName: "Plano Pro",
       priceMonth: 39.9,
+      priceYear: 399.0,
       maxQRCodes: 100,
       dynamicQRs: true,
       analytics: true,
@@ -45,11 +49,14 @@ async function main() {
 
   const businessPlan = await prisma.plan.upsert({
     where: { name: "BUSINESS" },
-    update: {},
+    update: {
+      priceYear: 999.0,
+    },
     create: {
       name: "BUSINESS",
       displayName: "Plano Business",
       priceMonth: 99.9,
+      priceYear: 999.0,
       maxQRCodes: 999999,
       dynamicQRs: true,
       analytics: true,

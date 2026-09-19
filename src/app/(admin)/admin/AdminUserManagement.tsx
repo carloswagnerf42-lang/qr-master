@@ -48,6 +48,7 @@ interface UserItem {
     name: string;
     displayName: string;
     priceMonth: number;
+    priceYear?: number;
   } | null;
   subscription?: {
     id: string;
@@ -66,6 +67,7 @@ interface PlanItem {
   name: string;
   displayName: string;
   priceMonth: number;
+  priceYear: number;
   maxQRCodes?: number;
   dynamicQRs?: boolean;
   analytics?: boolean;
@@ -156,6 +158,7 @@ export function AdminUserManagement({
   const [selectedPlanForEdit, setSelectedPlanForEdit] = useState<PlanItem | null>(null);
   const [isEditPlanModalOpen, setIsEditPlanModalOpen] = useState(false);
   const [editPriceMonth, setEditPriceMonth] = useState<number>(0);
+  const [editPriceYear, setEditPriceYear] = useState<number>(0);
   const [editDisplayName, setEditDisplayName] = useState<string>("");
   const [editMaxQRCodes, setEditMaxQRCodes] = useState<number>(5);
   const [editDynamicQRs, setEditDynamicQRs] = useState<boolean>(false);
@@ -405,6 +408,7 @@ export function AdminUserManagement({
   const handleOpenEditPlan = (plan: PlanItem) => {
     setSelectedPlanForEdit(plan);
     setEditPriceMonth(Number(plan.priceMonth) || 0);
+    setEditPriceYear(Number(plan.priceYear) || 0);
     setEditDisplayName(plan.displayName);
     setEditMaxQRCodes(plan.maxQRCodes ?? 5);
     setEditDynamicQRs(Boolean(plan.dynamicQRs));
@@ -428,6 +432,7 @@ export function AdminUserManagement({
         body: JSON.stringify({
           planId: selectedPlanForEdit.id,
           priceMonth: editPriceMonth,
+          priceYear: editPriceYear,
           displayName: editDisplayName,
           maxQRCodes: editMaxQRCodes,
           dynamicQRs: editDynamicQRs,
@@ -447,7 +452,7 @@ export function AdminUserManagement({
 
       toast.success(
         "Plano atualizado!",
-        `${data.plan.displayName} agora custa R$ ${Number(data.plan.priceMonth).toFixed(2)}/mês.`
+        `${data.plan.displayName} agora custa R$ ${Number(data.plan.priceMonth).toFixed(2)}/mês | R$ ${Number(data.plan.priceYear || 0).toFixed(2)}/ano.`
       );
       setPlanItems((prev) =>
         prev.map((p) => (p.id === data.plan.id ? { ...p, ...data.plan } : p))
@@ -787,11 +792,23 @@ export function AdminUserManagement({
 
                     <div>
                       <h4 className="text-lg font-bold text-white">{plan.displayName}</h4>
-                      <div className="mt-2 flex items-baseline gap-1">
-                        <span className="text-3xl font-extrabold text-white">
-                          R$ {Number(plan.priceMonth).toFixed(2)}
-                        </span>
-                        <span className="text-xs text-slate-400">/mês</span>
+                      <div className="mt-2 space-y-1">
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-2xl font-extrabold text-white">
+                            R$ {Number(plan.priceMonth).toFixed(2)}
+                          </span>
+                          <span className="text-xs text-slate-400">/mês</span>
+                        </div>
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-xs font-semibold text-emerald-400">
+                            R$ {Number(plan.priceYear || 0).toFixed(2)}/ano
+                          </span>
+                          {plan.name !== "FREE" && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
+                              Economize ~17%
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
 
@@ -1351,20 +1368,20 @@ export function AdminUserManagement({
             </div>
 
             <form onSubmit={handleSavePlan} className="space-y-4 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-semibold text-slate-300 mb-1.5">
-                    Nome de Exibição:
-                  </label>
-                  <input
-                    type="text"
-                    value={editDisplayName}
-                    onChange={(e) => setEditDisplayName(e.target.value)}
-                    required
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-rose-500"
-                  />
-                </div>
+              <div>
+                <label className="block font-semibold text-slate-300 mb-1.5">
+                  Nome de Exibição:
+                </label>
+                <input
+                  type="text"
+                  value={editDisplayName}
+                  onChange={(e) => setEditDisplayName(e.target.value)}
+                  required
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-rose-500"
+                />
+              </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block font-semibold text-slate-300 mb-1.5">
                     Preço Mensal (R$):
@@ -1387,6 +1404,36 @@ export function AdminUserManagement({
                   {selectedPlanForEdit.name === "FREE" && (
                     <span className="text-[10px] text-slate-500 mt-1 block">
                       O plano FREE é sempre gratuito (R$ 0,00).
+                    </span>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-300 mb-1.5">
+                    Preço Anual (R$):
+                  </label>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500 font-bold">
+                      R$
+                    </span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={editPriceYear}
+                      onChange={(e) => setEditPriceYear(Number(e.target.value))}
+                      disabled={selectedPlanForEdit.name === "FREE"}
+                      required
+                      className="w-full pl-9 pr-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white font-bold focus:outline-none focus:border-rose-500 disabled:opacity-50"
+                    />
+                  </div>
+                  {selectedPlanForEdit.name === "FREE" ? (
+                    <span className="text-[10px] text-slate-500 mt-1 block">
+                      O plano FREE não possui cobrança anual.
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-emerald-400 mt-1 block">
+                      Eq. a R$ {(editPriceYear / 12).toFixed(2)}/mês
                     </span>
                   )}
                 </div>

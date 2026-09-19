@@ -55,6 +55,7 @@ model Plan {
   name        String         @unique // FREE, PRO, BUSINESS
   displayName String
   priceMonth  Float          @default(0)
+  priceYear   Float          @default(0)
   maxQRCodes  Int            @default(5)
   dynamicQRs  Boolean        @default(false)
   analytics   Boolean        @default(false)
