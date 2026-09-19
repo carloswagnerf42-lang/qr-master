@@ -110,6 +110,33 @@ export async function PUT(
       finalDestination = destValidation.sanitizedUrl;
     }
 
+    // Validação de propriedade de categoria e campanha pertencentes ao mesmo usuário
+    let finalCategoryId = existing.categoryId;
+    if (categoryId !== undefined) {
+      if (categoryId) {
+        const cat = await prisma.category.findFirst({
+          where: { id: categoryId, userId: session.id },
+          select: { id: true },
+        });
+        finalCategoryId = cat ? cat.id : null;
+      } else {
+        finalCategoryId = null;
+      }
+    }
+
+    let finalCampaignId = existing.campaignId;
+    if (campaignId !== undefined) {
+      if (campaignId) {
+        const camp = await prisma.campaign.findFirst({
+          where: { id: campaignId, userId: session.id },
+          select: { id: true },
+        });
+        finalCampaignId = camp ? camp.id : null;
+      } else {
+        finalCampaignId = null;
+      }
+    }
+
     const updated = await prisma.qRCode.update({
       where: { id: params.id },
       data: {
@@ -118,8 +145,8 @@ export async function PUT(
         destination: finalDestination,
         content: content !== undefined ? (typeof content === "string" ? content : JSON.stringify(content)) : existing.content,
         styleConfig: styleConfig !== undefined ? (typeof styleConfig === "string" ? styleConfig : JSON.stringify(styleConfig)) : existing.styleConfig,
-        categoryId: categoryId !== undefined ? categoryId || null : existing.categoryId,
-        campaignId: campaignId !== undefined ? campaignId || null : existing.campaignId,
+        categoryId: finalCategoryId,
+        campaignId: finalCampaignId,
         status: status !== undefined ? status : existing.status,
         favorite: favorite !== undefined ? !!favorite : existing.favorite,
         logoUrl: logoUrl !== undefined ? logoUrl : existing.logoUrl,

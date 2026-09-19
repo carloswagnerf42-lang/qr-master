@@ -39,8 +39,8 @@ export function validateAndNormalizeDestination(
     }
   }
 
-  // 3. Verificação de esquemas especiais válidos (tel:, mailto:, sms:, geo:, whatsapp:)
-  if (/^(tel:|mailto:|sms:|geo:|whatsapp:)/i.test(trimmed)) {
+  // 3. Verificação de esquemas especiais válidos (tel:, mailto:, sms:, geo:, whatsapp:, wifi:, begin:vcard, mecard:)
+  if (/^(tel:|mailto:|sms:|geo:|whatsapp:|wifi:|begin:vcard|mecard:)/i.test(trimmed)) {
     return { valid: true, sanitizedUrl: trimmed };
   }
 

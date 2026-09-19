@@ -62,11 +62,23 @@ export default function MyQRsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
 
-  // Categories for filter dropdown
+  // Categories and Campaigns for dropdowns
   const [categories, setCategories] = useState<Array<{ id: string; name: string }>>([]);
+  const [campaigns, setCampaigns] = useState<Array<{ id: string; name: string }>>([]);
 
   // Selected QR for Preview / Download Modal
   const [activeModalQr, setActiveModalQr] = useState<QRItem | null>(null);
+
+  // Edit QR Modal state
+  const [editingQr, setEditingQr] = useState<QRItem | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editDestination, setEditDestination] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editCategoryId, setEditCategoryId] = useState("");
+  const [editCampaignId, setEditCampaignId] = useState("");
+  const [editStatus, setEditStatus] = useState("ACTIVE");
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [editError, setEditError] = useState("");
   const [permissions, setPermissions] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
@@ -116,19 +128,89 @@ export default function MyQRsPage() {
   }, [loadQRs]);
 
   useEffect(() => {
-    async function fetchCats() {
+    async function fetchFilterOptions() {
       try {
-        const res = await fetch("/api/categories");
-        if (res.ok) {
-          const d = await res.json();
+        const [catsRes, campsRes] = await Promise.all([
+          fetch("/api/categories"),
+          fetch("/api/campaigns"),
+        ]);
+        if (catsRes.ok) {
+          const d = await catsRes.json();
           setCategories(d.categories || []);
         }
+        if (campsRes.ok) {
+          const d = await campsRes.json();
+          setCampaigns(d.campaigns || []);
+        }
       } catch (e) {
-        console.error(e);
+        console.error("Erro ao carregar opções de filtro e edição:", e);
       }
     }
-    fetchCats();
+    fetchFilterOptions();
   }, []);
+
+  const handleOpenEdit = (qr: QRItem) => {
+    setEditingQr(qr);
+    setEditName(qr.name || "");
+    setEditDestination(qr.destination || "");
+    setEditDescription(qr.description || "");
+    setEditCategoryId(qr.category?.id || "");
+    setEditCampaignId(qr.campaign?.id || "");
+    setEditStatus(qr.status || "ACTIVE");
+    setEditError("");
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingQr) return;
+    if (!editName.trim()) {
+      setEditError("O nome do QR Code é obrigatório.");
+      return;
+    }
+    if (!editDestination.trim()) {
+      setEditError("O destino do QR Code é obrigatório.");
+      return;
+    }
+
+    setIsSavingEdit(true);
+    setEditError("");
+    try {
+      const payload = {
+        name: editName.trim(),
+        destination: editDestination.trim(),
+        description: editDescription.trim() || null,
+        categoryId: editCategoryId || null,
+        campaignId: editCampaignId || null,
+        status: editStatus,
+      };
+
+      const res = await fetch(`/api/qr/${editingQr.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setEditError(data.error || "Falha ao atualizar QR Code.");
+        return;
+      }
+
+      toast.success(
+        "QR Code Atualizado!",
+        editingQr.isDynamic && editingQr.shortCode
+          ? `Destino alterado com sucesso mantendo o mesmo shortCode (/q/${editingQr.shortCode}).`
+          : "Alterações salvas com sucesso."
+      );
+
+      setEditingQr(null);
+      loadQRs();
+    } catch (err: any) {
+      setEditError(err?.message || "Erro de conexão ao salvar alterações.");
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
 
   const handleToggleStatus = async (id: string) => {
     try {
@@ -360,16 +442,26 @@ export default function MyQRsPage() {
 
                         {/* Nome & Destino */}
                         <td className="py-3 px-4 max-w-xs">
-                          <div className="font-bold text-slate-900 dark:text-white truncate">
-                            {qr.name}
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-bold text-slate-900 dark:text-white truncate">
+                              {qr.name}
+                            </span>
+                            {qr.isDynamic && (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-indigo-50 dark:bg-indigo-950/70 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 shrink-0">
+                                DINÂMICO
+                              </span>
+                            )}
                           </div>
                           <div className="text-[11px] text-slate-400 font-mono truncate mt-0.5 flex items-center gap-1.5">
                             {qr.isDynamic && qr.shortCode ? (
-                              <span className="text-indigo-600 dark:text-indigo-400 font-semibold">
+                              <span className="text-indigo-600 dark:text-indigo-400 font-semibold flex items-center gap-1 truncate">
                                 /q/{qr.shortCode}
+                                <span className="text-slate-400 font-sans text-[10px] truncate max-w-[140px]">
+                                  → {qr.destination}
+                                </span>
                               </span>
                             ) : (
-                              <span>{qr.destination}</span>
+                              <span className="truncate">{qr.destination}</span>
                             )}
                           </div>
                         </td>
@@ -436,6 +528,16 @@ export default function MyQRsPage() {
                         {/* Ações */}
                         <td className="py-3 px-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">
+                            {/* Editar QR Code */}
+                            <button
+                              onClick={() => handleOpenEdit(qr)}
+                              className="p-1.5 rounded-lg text-amber-600 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 hover:scale-105 transition-all font-semibold flex items-center gap-1"
+                              title="Editar QR Code (Alterar Destino e Nome)"
+                            >
+                              <Edit className="w-4 h-4" />
+                              <span className="hidden xl:inline text-[11px]">Editar</span>
+                            </button>
+
                             {/* Copiar Link */}
                             <button
                               onClick={() => handleCopyLink(qr)}
@@ -592,6 +694,199 @@ export default function MyQRsPage() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE EDIÇÃO DE QR CODE */}
+      {editingQr && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in-50">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-xl rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-500 flex items-center justify-center">
+                    <Edit className="w-4 h-4" />
+                  </div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                    {editingQr.isDynamic ? "Editar QR Code Dinâmico" : "Editar QR Code"}
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  {editingQr.isDynamic && editingQr.shortCode
+                    ? `Código /q/${editingQr.shortCode} • Preserva a mesma imagem do QR Code`
+                    : `Tipo: ${editingQr.type} • Estático`}
+                </p>
+              </div>
+              <button
+                onClick={() => setEditingQr(null)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-sm font-bold p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Aviso informativo de preservação do QR Dinâmico */}
+            {editingQr.isDynamic && editingQr.shortCode ? (
+              <div className="p-3.5 rounded-xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/70 dark:border-indigo-800/60 text-xs text-indigo-950 dark:text-indigo-200 flex items-start gap-2.5">
+                <span className="text-base">⚡</span>
+                <div className="space-y-1">
+                  <strong className="block font-bold">Preservação Total do QR Code Impresso:</strong>
+                  <p>
+                    O código <code className="font-mono font-bold text-indigo-700 dark:text-indigo-300">/q/{editingQr.shortCode}</code> e a imagem física do QR Code <strong>NÃO MUDAM</strong>. Ao alterar a URL de destino abaixo, todos os materiais já impressos e acessos redirecionarão instantaneamente para o novo endereço!
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="p-3.5 rounded-xl bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200/70 dark:border-amber-800/60 text-xs text-amber-950 dark:text-amber-200 flex items-start gap-2.5">
+                <span className="text-base">ℹ️</span>
+                <div className="space-y-1">
+                  <strong className="block font-bold">QR Code Estático:</strong>
+                  <p>
+                    Este QR Code grava o destino diretamente nos pixels da imagem. A alteração aqui atualiza seu acervo no painel, mas caso o QR já tenha sido impresso fisicamente, será necessário baixar e imprimir a nova imagem.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Alerta de erro da API */}
+            {editError && (
+              <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-700 dark:text-rose-300">
+                {editError}
+              </div>
+            )}
+
+            {/* Formulário de Edição */}
+            <form onSubmit={handleSaveEdit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Nome de Identificação *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  placeholder="Ex: Cardápio Principal ou Promoção de Verão"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  URL / Endereço de Destino *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editDestination}
+                  onChange={(e) => setEditDestination(e.target.value)}
+                  placeholder="https://seusite.com.br/novo-destino ou wa.me/5511..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+                <span className="text-[11px] text-slate-400 mt-1 block">
+                  Endereço final completo para onde o escaneamento será direcionado.
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Descrição (Opcional)
+                </label>
+                <textarea
+                  rows={2}
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  placeholder="Anotações internas sobre a finalidade deste QR Code..."
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* Categoria */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Categoria
+                  </label>
+                  <select
+                    value={editCategoryId}
+                    onChange={(e) => setEditCategoryId(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
+                  >
+                    <option value="">Sem categoria</option>
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Campanha */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Campanha
+                  </label>
+                  <select
+                    value={editCampaignId}
+                    onChange={(e) => setEditCampaignId(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
+                  >
+                    <option value="">Sem campanha</option>
+                    {campaigns.map((camp) => (
+                      <option key={camp.id} value={camp.id}>
+                        {camp.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Status */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Status
+                  </label>
+                  <select
+                    value={editStatus}
+                    onChange={(e) => setEditStatus(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white font-semibold"
+                  >
+                    <option value="ACTIVE">🟢 Ativo</option>
+                    <option value="INACTIVE">⚪ Pausado</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Botões do Rodapé */}
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  disabled={isSavingEdit}
+                  onClick={() => setEditingQr(null)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingEdit}
+                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold transition-all shadow-md shadow-indigo-600/20 flex items-center gap-1.5"
+                >
+                  {isSavingEdit ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Salvando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4" />
+                      <span>Salvar Alterações</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
