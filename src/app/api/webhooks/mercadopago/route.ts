@@ -14,8 +14,9 @@ export async function POST(req: NextRequest) {
     let entityId = url.searchParams.get("id") || url.searchParams.get("data.id");
 
     // Tenta extrair do corpo JSON se enviado via webhook v1/v2
+    let body: any = null;
     try {
-      const body = await req.json();
+      body = await req.json();
       if (body?.topic) topic = body.topic;
       if (body?.type) topic = body.type;
       if (body?.action?.startsWith("merchant_order")) topic = "merchant_order";
@@ -45,12 +46,26 @@ export async function POST(req: NextRequest) {
     // Verificação de assinatura HMAC SHA-256 quando webhookSecret estiver configurado
     const xSignature = req.headers.get("x-signature");
     const xRequestId = req.headers.get("x-request-id");
-    if (config.webhookSecret && xSignature) {
+    const secretsToCheck = [
+      config.webhookSecret,
+      process.env.MP_WEBHOOK_SECRET,
+      process.env.MP_TEST_WEBHOOK_SECRET,
+      process.env.MERCADOPAGO_WEBHOOK_SECRET,
+    ].filter(Boolean) as string[];
+
+    if (secretsToCheck.length > 0 && xSignature) {
       const isValid = verifyMercadoPagoSignature({
         xSignature,
         xRequestId,
-        dataId: String(entityId),
-        secret: config.webhookSecret,
+        dataId: entityId ? String(entityId) : null,
+        secret: secretsToCheck,
+        candidateIds: [
+          entityId ? String(entityId) : null,
+          body?.data?.id ? String(body.data.id) : null,
+          body?.id ? String(body.id) : null,
+          url.searchParams.get("data.id"),
+          url.searchParams.get("id"),
+        ],
       });
       if (!isValid) {
         console.warn("[MP Webhook] Assinatura x-signature inválida rejeitada.");

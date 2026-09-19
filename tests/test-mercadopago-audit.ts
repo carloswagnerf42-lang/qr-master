@@ -98,6 +98,10 @@ async function runMercadoPagoAuditSuite() {
   await prisma.subscription.deleteMany({
     where: { userId: { in: [userA.id, userB.id] } },
   });
+  await prisma.user.updateMany({
+    where: { id: { in: [userA.id, userB.id] } },
+    data: { planId: freePlan.id },
+  });
   await prisma.webhookEvent.deleteMany({
     where: { eventId: { startsWith: "mp_payment_mock_" } },
   });

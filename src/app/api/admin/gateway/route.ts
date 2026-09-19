@@ -23,6 +23,15 @@ export async function GET() {
       }
     }
 
+    let maskedWebhookSecret = "";
+    if (config.webhookSecret) {
+      if (config.webhookSecret.length > 8) {
+        maskedWebhookSecret = `${config.webhookSecret.slice(0, 4)}...${config.webhookSecret.slice(-4)}`;
+      } else {
+        maskedWebhookSecret = "********";
+      }
+    }
+
     return NextResponse.json(
       {
         success: true,
@@ -30,6 +39,8 @@ export async function GET() {
           isConfigured: config.isConfigured,
           maskedToken,
           publicKey: config.publicKey ? `${config.publicKey.slice(0, 6)}...` : "",
+          hasWebhookSecret: Boolean(config.webhookSecret),
+          maskedWebhookSecret,
           hasEnvToken: Boolean(process.env.MP_ACCESS_TOKEN || process.env.MERCADOPAGO_ACCESS_TOKEN),
         },
       },
@@ -56,7 +67,7 @@ export async function POST(req: NextRequest) {
     if (!auth.success) return auth.errorResponse;
 
     const body = await req.json();
-    const { accessToken, publicKey } = body;
+    const { accessToken, publicKey, webhookSecret } = body;
 
     if (accessToken !== undefined) {
       const cleanToken = typeof accessToken === "string" ? accessToken.trim() : "";
@@ -73,6 +84,15 @@ export async function POST(req: NextRequest) {
         where: { key: "NEXT_PUBLIC_MP_PUBLIC_KEY" },
         create: { key: "NEXT_PUBLIC_MP_PUBLIC_KEY", value: cleanKey },
         update: { value: cleanKey },
+      });
+    }
+
+    if (webhookSecret !== undefined) {
+      const cleanSecret = typeof webhookSecret === "string" ? webhookSecret.trim().replace(/^["']|["']$/g, "").trim() : "";
+      await prisma.systemSetting.upsert({
+        where: { key: "MP_WEBHOOK_SECRET" },
+        create: { key: "MP_WEBHOOK_SECRET", value: cleanSecret },
+        update: { value: cleanSecret },
       });
     }
 
