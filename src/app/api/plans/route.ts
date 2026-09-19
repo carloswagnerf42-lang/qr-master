@@ -15,6 +15,7 @@ export async function GET() {
         priceMonth: true,
         priceYear: true,
         maxQRCodes: true,
+        maxQRCodesYear: true,
         dynamicQRs: true,
         analytics: true,
         exportSvg: true,

@@ -63,11 +63,22 @@ export async function POST(req: NextRequest) {
       mimeType: finalMime,
     });
 
+    let verifiedQrCodeId: string | null = null;
+    if (qrCodeId && typeof qrCodeId === "string") {
+      const userQr = await prisma.qRCode.findFirst({
+        where: { id: qrCodeId, userId: session.id },
+        select: { id: true },
+      });
+      if (userQr) {
+        verifiedQrCodeId = userQr.id;
+      }
+    }
+
     // Save record into Prisma database
     const fileRecord = await prisma.generatedFile.create({
       data: {
         userId: session.id,
-        qrCodeId: qrCodeId || null,
+        qrCodeId: verifiedQrCodeId,
         fileName: normalizedFileName,
         fileType,
         fileSize: uploadResult.fileSize,

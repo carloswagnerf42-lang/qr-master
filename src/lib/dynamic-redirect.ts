@@ -74,10 +74,17 @@ export function validateAndNormalizeDestination(
       };
     }
 
-    // Loop 2: Destino no mesmo host apontando para rota de redirecionamento /q/
+    // Loop 2: Destino no mesmo host ou domínio da plataforma apontando para rota de redirecionamento /q/
     try {
-      const appHost = new URL(appUrl).host;
-      if (parsedUrl.host === appHost && parsedUrl.pathname.toLowerCase().startsWith("/q/")) {
+      const appHost = new URL(appUrl).host.toLowerCase();
+      const targetHost = parsedUrl.host.toLowerCase();
+      const isPlatformHost =
+        targetHost === appHost ||
+        targetHost.includes("qrmasterpro.vercel.app") ||
+        targetHost.includes("localhost:3000") ||
+        targetHost === "localhost";
+
+      if (isPlatformHost && parsedUrl.pathname.toLowerCase().startsWith("/q/")) {
         return {
           valid: false,
           error: "Loop de redirecionamento detectado: não é permitido encadear múltiplos QR Codes.",
