@@ -24,6 +24,51 @@ export function getMercadoPagoConfig(): MercadoPagoConfig {
   };
 }
 
+export async function getMercadoPagoConfigAsync(): Promise<MercadoPagoConfig> {
+  let dbAccessToken = "";
+  let dbPublicKey = "";
+  let dbWebhookSecret = "";
+
+  try {
+    const settings = await prisma.systemSetting.findMany({
+      where: {
+        key: { in: ["MP_ACCESS_TOKEN", "NEXT_PUBLIC_MP_PUBLIC_KEY", "MP_WEBHOOK_SECRET"] },
+      },
+    });
+
+    for (const s of settings) {
+      if (s.key === "MP_ACCESS_TOKEN") dbAccessToken = s.value;
+      if (s.key === "NEXT_PUBLIC_MP_PUBLIC_KEY") dbPublicKey = s.value;
+      if (s.key === "MP_WEBHOOK_SECRET") dbWebhookSecret = s.value;
+    }
+  } catch (err) {
+    // Tabela pode não existir em ambiente de testes ou offline
+  }
+
+  const accessToken =
+    dbAccessToken ||
+    process.env.MP_ACCESS_TOKEN ||
+    process.env.MERCADOPAGO_ACCESS_TOKEN ||
+    "";
+  const publicKey =
+    dbPublicKey ||
+    process.env.NEXT_PUBLIC_MP_PUBLIC_KEY ||
+    process.env.MERCADOPAGO_PUBLIC_KEY ||
+    "";
+  const webhookSecret =
+    dbWebhookSecret ||
+    process.env.MP_WEBHOOK_SECRET ||
+    process.env.MERCADOPAGO_WEBHOOK_SECRET ||
+    "";
+
+  return {
+    isConfigured: Boolean(accessToken && accessToken.trim().length > 10),
+    accessToken: accessToken.trim(),
+    publicKey: publicKey.trim(),
+    webhookSecret: webhookSecret.trim(),
+  };
+}
+
 export interface CreateMPPreferenceParams {
   userId: string;
   userEmail: string;
@@ -47,7 +92,7 @@ export interface CreateMPPixParams {
  */
 export async function createMercadoPagoPreference(params: CreateMPPreferenceParams) {
   const { userId, userEmail, userName, planName, successUrl, cancelUrl, billingCycle = "month" } = params;
-  const config = getMercadoPagoConfig();
+  const config = await getMercadoPagoConfigAsync();
 
   if (!config.isConfigured) {
     throw new Error(
@@ -138,7 +183,7 @@ export async function createMercadoPagoPreference(params: CreateMPPreferencePara
  */
 export async function createMercadoPagoPixPayment(params: CreateMPPixParams) {
   const { userId, userEmail, userName, planName, billingCycle = "month" } = params;
-  const config = getMercadoPagoConfig();
+  const config = await getMercadoPagoConfigAsync();
 
   if (!config.isConfigured) {
     throw new Error("Mercado Pago não configurado. Configure MP_ACCESS_TOKEN.");
@@ -209,7 +254,7 @@ export async function createMercadoPagoPixPayment(params: CreateMPPixParams) {
  * Processa notificação webhook do Mercado Pago com idempotência garantida
  */
 export async function processMercadoPagoNotification(paymentId: string | number) {
-  const config = getMercadoPagoConfig();
+  const config = await getMercadoPagoConfigAsync();
   if (!config.isConfigured) {
     throw new Error("Mercado Pago não configurado.");
   }

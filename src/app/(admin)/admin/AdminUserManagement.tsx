@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Users,
   Search,
@@ -173,6 +173,14 @@ export function AdminUserManagement({
   // State: Maintenance Clean Demo
   const [cleaningDemo, setCleaningDemo] = useState(false);
   const [copiedWebhook, setCopiedWebhook] = useState(false);
+
+  // State: Gateway Mercado Pago
+  const [mpConfigured, setMpConfigured] = useState(false);
+  const [mpMaskedToken, setMpMaskedToken] = useState("");
+  const [inputMpToken, setInputMpToken] = useState("");
+  const [inputMpPublicKey, setInputMpPublicKey] = useState("");
+  const [savingGateway, setSavingGateway] = useState(false);
+  const [loadingGateway, setLoadingGateway] = useState(true);
 
   // State: User Status / Role Modal
   const [selectedUserForStatus, setSelectedUserForStatus] = useState<UserItem | null>(null);
@@ -515,6 +523,63 @@ export function AdminUserManagement({
       toast.error("Erro de conexão", "Falha ao conectar com o servidor.");
     } finally {
       setCleaningDemo(false);
+    }
+  };
+
+  // Carrega status das credenciais do Mercado Pago
+  const loadGatewayConfig = useCallback(async () => {
+    try {
+      setLoadingGateway(true);
+      const res = await fetch("/api/admin/gateway", {
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache" },
+      });
+      const data = await res.json();
+      if (res.ok && data.mercadopago) {
+        setMpConfigured(data.mercadopago.isConfigured);
+        setMpMaskedToken(data.mercadopago.maskedToken || "");
+      }
+    } catch {
+      // Ignora erro transitório
+    } finally {
+      setLoadingGateway(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadGatewayConfig();
+  }, [loadGatewayConfig]);
+
+  const handleSaveGateway = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inputMpToken.trim() && !mpMaskedToken) {
+      toast.error("Campo obrigatório", "Insira o Access Token do Mercado Pago.");
+      return;
+    }
+
+    setSavingGateway(true);
+    try {
+      const res = await fetch("/api/admin/gateway", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          accessToken: inputMpToken.trim() || undefined,
+          publicKey: inputMpPublicKey.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success("Sucesso!", data.message || "Credenciais salvas com sucesso.");
+        setInputMpToken("");
+        setInputMpPublicKey("");
+        loadGatewayConfig();
+      } else {
+        toast.error("Erro ao salvar", data.error || "Não foi possível salvar as credenciais.");
+      }
+    } catch {
+      toast.error("Erro de conexão", "Falha de comunicação com o servidor.");
+    } finally {
+      setSavingGateway(false);
     }
   };
 
@@ -1280,20 +1345,98 @@ export function AdminUserManagement({
 
             {/* Card Mercado Pago */}
             <div className="pt-6 border-t border-slate-800 space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-2.5">
                   <CreditCard className="w-5 h-5 text-sky-400" />
                   <div>
-                    <h4 className="text-sm font-bold text-white">Mercado Pago (Gateway Nacional)</h4>
+                    <h4 className="text-sm font-bold text-white">Mercado Pago (Gateway Oficial Pix & Cartão)</h4>
                     <p className="text-xs text-slate-400">
-                      Suporte completo a pagamentos instantâneos via Pix e Cartão de Crédito
+                      Receba pagamentos instantâneos via Pix e Cartão de Crédito diretamente na sua conta
                     </p>
                   </div>
                 </div>
-                <span className="px-3 py-1 rounded-full text-[11px] font-bold bg-sky-500/20 text-sky-400 border border-sky-500/30">
-                  Pronto para Produção
-                </span>
+                {loadingGateway ? (
+                  <span className="px-3 py-1 rounded-full text-[11px] font-bold bg-slate-800 text-slate-400 border border-slate-700">
+                    Consultando Gateway...
+                  </span>
+                ) : mpConfigured ? (
+                  <span className="px-3 py-1 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    Conectado & Operacional
+                  </span>
+                ) : (
+                  <span className="px-3 py-1 rounded-full text-[11px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center gap-1.5">
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    Aguardando Access Token
+                  </span>
+                )}
               </div>
+
+              {/* Formulário de Configuração do Mercado Pago */}
+              <form onSubmit={handleSaveGateway} className="p-5 rounded-2xl bg-slate-950/70 border border-slate-800 space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-300 flex items-center justify-between">
+                      <span>Access Token de Produção (MP_ACCESS_TOKEN)</span>
+                      {mpMaskedToken && (
+                        <span className="text-[10px] text-emerald-400 font-mono">
+                          Atual: {mpMaskedToken}
+                        </span>
+                      )}
+                    </label>
+                    <input
+                      type="password"
+                      value={inputMpToken}
+                      onChange={(e) => setInputMpToken(e.target.value)}
+                      placeholder={mpMaskedToken ? "Substituir token existente (APP_USR-...)" : "Cole seu Access Token (APP_USR-...)"}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 focus:border-sky-500 text-white font-mono text-xs outline-none transition-all placeholder:text-slate-600"
+                    />
+                    <p className="text-[10px] text-slate-400">
+                      Obtenha em{" "}
+                      <a
+                        href="https://www.mercadopago.com.br/developers/panel"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-sky-400 underline hover:text-sky-300 inline-flex items-center gap-0.5"
+                      >
+                        Painel de Desenvolvedores Mercado Pago <ExternalLink className="w-2.5 h-2.5" />
+                      </a>
+                    </p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-300">
+                      Chave Pública (Public Key - Opcional)
+                    </label>
+                    <input
+                      type="text"
+                      value={inputMpPublicKey}
+                      onChange={(e) => setInputMpPublicKey(e.target.value)}
+                      placeholder="APP_USR-xxxxxx-xxxx-xxxx-xxxx"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 focus:border-sky-500 text-white font-mono text-xs outline-none transition-all placeholder:text-slate-600"
+                    />
+                    <p className="text-[10px] text-slate-400">
+                      Utilizada para identificação transparente do checkout.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 border-t border-slate-800/80">
+                  <div className="flex items-center gap-2 text-xs text-slate-400">
+                    <span className="w-2 h-2 rounded-full bg-sky-400" />
+                    <span>Salva direto no banco de dados e ativa o checkout instantaneamente.</span>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={savingGateway || (!inputMpToken.trim() && !mpMaskedToken)}
+                    className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white font-bold text-xs shadow-lg shadow-sky-950 flex items-center justify-center gap-2 transition-all"
+                  >
+                    <Lock className="w-3.5 h-3.5" />
+                    <span>{savingGateway ? "Salvando..." : "Salvar Credenciais do Mercado Pago"}</span>
+                  </button>
+                </div>
+              </form>
 
               <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 space-y-3">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
@@ -1319,7 +1462,7 @@ export function AdminUserManagement({
                   </div>
                 </div>
                 <p className="text-[11px] text-slate-500">
-                  💡 Para ativar as cobranças em tempo real pelo Mercado Pago, basta cadastrar a chave <code className="text-slate-300">MP_ACCESS_TOKEN</code> nas variáveis de ambiente na Vercel.
+                  💡 Você também pode definir a variável <code className="text-slate-300">MP_ACCESS_TOKEN</code> nas variáveis da Vercel como alternativa.
                 </p>
               </div>
             </div>
