@@ -20,11 +20,19 @@ import {
   Info,
   KeyRound,
   ExternalLink,
+  Copy,
+  CheckCircle2,
+  Zap,
+  ArrowRight,
+  RefreshCw,
+  X,
+  ChevronLeft,
 } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { useToast } from "@/components/ui/Toast";
 import { calculateAnnualDiscountPercent } from "@/lib/permissions";
+import { QRCodeRenderer } from "@/components/qr/QRCodeRenderer";
 
 export default function SettingsPage() {
   const toast = useToast();
@@ -73,6 +81,22 @@ export default function SettingsPage() {
   } | null>(null);
   const [startingCheckout, setStartingCheckout] = useState<string | null>(null);
   const [openingPortal, setOpeningPortal] = useState(false);
+
+  // Estados do Modal de Checkout com 2 Opções (Pix Interno vs Cartão Mercado Pago)
+  const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
+  const [selectedPlanForCheckout, setSelectedPlanForCheckout] = useState<"PRO" | "BUSINESS">("PRO");
+  const [checkoutStep, setCheckoutStep] = useState<"select" | "pix" | "success">("select");
+  const [generatingPix, setGeneratingPix] = useState(false);
+  const [redirectingCard, setRedirectingCard] = useState(false);
+  const [pixData, setPixData] = useState<{
+    paymentId: string | number;
+    qrCodeText: string;
+    qrCodeBase64: string;
+    price: number;
+    planName: string;
+  } | null>(null);
+  const [checkingPix, setCheckingPix] = useState(false);
+  const [copiedPix, setCopiedPix] = useState(false);
 
   // Saving spinners
   const [savingAccount, setSavingAccount] = useState(false);
@@ -214,26 +238,167 @@ export default function SettingsPage() {
     }
   }, [activeTab, loadUserData]);
 
-  // Handlers de Assinatura e Pagamentos
-  const handleUpgrade = async (planName: "PRO" | "BUSINESS") => {
-    setStartingCheckout(planName);
+  // Preço do plano selecionado para o modal de checkout
+  const getSelectedPlanPrice = () => {
+    const proPlan = availablePlans.find((p) => p.name === "PRO");
+    const bizPlan = availablePlans.find((p) => p.name === "BUSINESS");
+    if (selectedPlanForCheckout === "PRO") {
+      if (billingCycle === "year") {
+        return proPlan?.priceYear !== undefined ? Number(proPlan.priceYear) : 99.00;
+      }
+      return proPlan?.priceMonth !== undefined ? Number(proPlan.priceMonth) : 19.90;
+    } else {
+      if (billingCycle === "year") {
+        return bizPlan?.priceYear !== undefined ? Number(bizPlan.priceYear) : 199.00;
+      }
+      return bizPlan?.priceMonth !== undefined ? Number(bizPlan.priceMonth) : 29.90;
+    }
+  };
+
+  // Abertura e fechamento do Modal de Checkout com 2 opções
+  const handleOpenCheckoutModal = (planName: "PRO" | "BUSINESS") => {
+    setSelectedPlanForCheckout(planName);
+    setCheckoutStep("select");
+    setPixData(null);
+    setCopiedPix(false);
+    setCheckoutModalOpen(true);
+  };
+
+  const handleCloseCheckoutModal = () => {
+    setCheckoutModalOpen(false);
+    setCheckoutStep("select");
+    setPixData(null);
+    setCopiedPix(false);
+  };
+
+  const handleUpgrade = (planName: "PRO" | "BUSINESS") => {
+    handleOpenCheckoutModal(planName);
+  };
+
+  // 1. Iniciar Pagamento Pix (Checkout Interno no site)
+  const handleSelectPix = async () => {
+    setGeneratingPix(true);
     try {
       const res = await fetch("/api/billing/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planName, billingCycle }),
+        body: JSON.stringify({
+          planName: selectedPlanForCheckout,
+          billingCycle,
+          paymentMethod: "pix",
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setPixData({
+          paymentId: data.paymentId,
+          qrCodeText: data.qrCodeText,
+          qrCodeBase64: data.qrCodeBase64,
+          price: data.price,
+          planName: data.planName,
+        });
+        setCheckoutStep("pix");
+      } else {
+        toast.error("Erro ao gerar Pix", data.error || "Não foi possível gerar a cobrança Pix.");
+      }
+    } catch {
+      toast.error("Erro de conexão", "Falha ao se comunicar com o servidor de pagamentos.");
+    } finally {
+      setGeneratingPix(false);
+    }
+  };
+
+  // 2. Iniciar Pagamento com Cartão (Redirecionamento Mercado Pago)
+  const handleSelectCard = async () => {
+    setRedirectingCard(true);
+    try {
+      const res = await fetch("/api/billing/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          planName: selectedPlanForCheckout,
+          billingCycle,
+          paymentMethod: "card",
+          gateway: "mercadopago",
+        }),
       });
       const data = await res.json();
       if (res.ok && data.checkoutUrl) {
         window.location.href = data.checkoutUrl;
       } else {
-        toast.error("Erro no checkout", data.error || "Não foi possível iniciar o checkout.");
+        toast.error("Erro no checkout", data.error || "Não foi possível abrir o checkout de cartão.");
+        setRedirectingCard(false);
       }
     } catch {
-      toast.error("Erro de conexão", "Falha de comunicação com o servidor de pagamentos.");
-    } finally {
-      setStartingCheckout(null);
+      toast.error("Erro de conexão", "Falha ao conectar com o servidor.");
+      setRedirectingCard(false);
     }
+  };
+
+  // Polling automático de confirmação do Pix (a cada 3s enquanto aguarda na tela de Pix)
+  useEffect(() => {
+    if (!checkoutModalOpen || checkoutStep !== "pix" || !pixData?.paymentId) return;
+
+    let active = true;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/billing/mercadopago/status?paymentId=${pixData.paymentId}`, {
+          cache: "no-store",
+          headers: { "Cache-Control": "no-cache" },
+        });
+        if (res.ok && active) {
+          const data = await res.json();
+          if (data.isApproved) {
+            clearInterval(interval);
+            setCheckoutStep("success");
+            loadUserData(true);
+            toast.success("Pagamento Confirmado!", "Seu plano foi ativado com sucesso!");
+          }
+        }
+      } catch {
+        // Ignora falhas de rede transitórias no polling
+      }
+    }, 3000);
+
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [checkoutModalOpen, checkoutStep, pixData?.paymentId, loadUserData, toast]);
+
+  // Consulta manual pelo botão "Já realizei o pagamento"
+  const handleCheckPixManual = async () => {
+    if (!pixData?.paymentId) return;
+    setCheckingPix(true);
+    try {
+      const res = await fetch(`/api/billing/mercadopago/status?paymentId=${pixData.paymentId}`, {
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache" },
+      });
+      const data = await res.json();
+      if (res.ok && data.isApproved) {
+        setCheckoutStep("success");
+        loadUserData(true);
+        toast.success("Pagamento Confirmado!", "Seu plano foi ativado com sucesso!");
+      } else {
+        toast.info(
+          "Aguardando confirmação",
+          "O pagamento ainda está sendo processado pelo banco. Aguarde alguns instantes."
+        );
+      }
+    } catch {
+      toast.error("Erro de conexão", "Falha ao consultar status do Pix.");
+    } finally {
+      setCheckingPix(false);
+    }
+  };
+
+  const handleCopyPix = () => {
+    if (!pixData?.qrCodeText) return;
+    navigator.clipboard.writeText(pixData.qrCodeText);
+    setCopiedPix(true);
+    toast.success("Código Copiado!", "Código Pix Copia-e-Cola copiado com sucesso!");
+    setTimeout(() => setCopiedPix(false), 3000);
   };
 
   const handleOpenPortal = async () => {
@@ -1424,6 +1589,262 @@ export default function SettingsPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* ==================================================================== */}
+      {/* MODAL DE CHECKOUT: 2 OPÇÕES (PIX INTERNO VS CARTÃO MERCADO PAGO)     */}
+      {/* ==================================================================== */}
+      {checkoutModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="relative w-full max-w-md sm:max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[92vh]">
+            {/* Top Bar com Título e Fechar */}
+            <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {checkoutStep === "pix" && (
+                  <button
+                    type="button"
+                    onClick={() => setCheckoutStep("select")}
+                    className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors mr-1"
+                    title="Voltar e escolher outro método"
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+                )}
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
+                    {checkoutStep === "success"
+                      ? "Assinatura Confirmada"
+                      : checkoutStep === "pix"
+                      ? "Pagamento via Pix Instantâneo"
+                      : `Assinar Plano ${selectedPlanForCheckout}`}
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    {billingCycle === "year" ? "Cobrança Anual com Desconto" : "Cobrança Mensal Recorrente"}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleCloseCheckoutModal}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                title="Fechar"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Corpo do Modal */}
+            <div className="p-6 overflow-y-auto space-y-5">
+              {/* PASSO 1: SELEÇÃO DE MÉTODO (PIX OU CARTÃO) */}
+              {checkoutStep === "select" && (
+                <div className="space-y-4">
+                  {/* Card com Resumo do Valor */}
+                  <div className="p-4 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/50 flex items-center justify-between">
+                    <div>
+                      <span className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
+                        Plano Selecionado
+                      </span>
+                      <h4 className="text-lg font-black text-slate-900 dark:text-white">
+                        Plano {selectedPlanForCheckout}
+                      </h4>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-2xl font-black text-indigo-600 dark:text-indigo-400">
+                        R$ {getSelectedPlanPrice().toFixed(2).replace(".", ",")}
+                      </span>
+                      <p className="text-[11px] text-slate-500">
+                        {billingCycle === "year" ? "/ano" : "/mês"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    Como você prefere realizar o pagamento?
+                  </p>
+
+                  <div className="space-y-3">
+                    {/* OPÇÃO 1: PIX INSTANTÂNEO (INTERNO) */}
+                    <button
+                      type="button"
+                      onClick={handleSelectPix}
+                      disabled={generatingPix || redirectingCard}
+                      className="w-full p-4 rounded-2xl border-2 border-emerald-500/60 dark:border-emerald-500/50 bg-emerald-50/40 dark:bg-emerald-950/20 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 hover:border-emerald-500 transition-all text-left flex items-start justify-between gap-3 group relative overflow-hidden disabled:opacity-60"
+                    >
+                      <div className="flex items-start gap-3.5">
+                        <div className="w-11 h-11 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-emerald-500/30">
+                          {generatingPix ? <Loader2 className="w-5 h-5 animate-spin" /> : <Zap className="w-5 h-5" />}
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-extrabold text-sm text-slate-900 dark:text-white">
+                              Pix Instantâneo
+                            </span>
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500 text-white tracking-wide uppercase">
+                              Sem sair do site
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                            QR Code e Copia-e-Cola direto na tela. Liberação imediata em segundos assim que pago no banco.
+                          </p>
+                        </div>
+                      </div>
+                      <ArrowRight className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-3 group-hover:translate-x-1 transition-transform" />
+                    </button>
+
+                    {/* OPÇÃO 2: CARTÃO DE CRÉDITO (REDIRECIONAMENTO MERCADO PAGO) */}
+                    <button
+                      type="button"
+                      onClick={handleSelectCard}
+                      disabled={generatingPix || redirectingCard}
+                      className="w-full p-4 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-indigo-500/60 dark:hover:border-indigo-500/60 bg-slate-50/50 dark:bg-slate-900/50 hover:bg-indigo-50/30 dark:hover:bg-indigo-950/20 transition-all text-left flex items-start justify-between gap-3 group disabled:opacity-60"
+                    >
+                      <div className="flex items-start gap-3.5">
+                        <div className="w-11 h-11 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-indigo-600/30">
+                          {redirectingCard ? <Loader2 className="w-5 h-5 animate-spin" /> : <CreditCard className="w-5 h-5" />}
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-extrabold text-sm text-slate-900 dark:text-white">
+                              Cartão de Crédito
+                            </span>
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+                              Até 12x
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                            Pague com segurança no checkout oficial do Mercado Pago com cartão de crédito parcelado.
+                          </p>
+                        </div>
+                      </div>
+                      <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-indigo-500 shrink-0 mt-3 group-hover:translate-x-1 transition-transform" />
+                    </button>
+                  </div>
+
+                  <div className="pt-2 flex items-center justify-center gap-1.5 text-[11px] text-slate-400">
+                    <Lock className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Pagamento 100% seguro processado via Mercado Pago</span>
+                  </div>
+                </div>
+              )}
+
+              {/* PASSO 2: CHECKOUT INTERNO DO PIX */}
+              {checkoutStep === "pix" && pixData && (
+                <div className="space-y-5 text-center">
+                  <div className="space-y-1">
+                    <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                      Total a Pagar
+                    </span>
+                    <h3 className="text-3xl font-black text-slate-900 dark:text-white">
+                      R$ {pixData.price.toFixed(2).replace(".", ",")}
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Plano {pixData.planName} ({billingCycle === "year" ? "Anual" : "Mensal"})
+                    </p>
+                  </div>
+
+                  {/* QR Code Pix */}
+                  <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-inner inline-block mx-auto">
+                    {pixData.qrCodeBase64 ? (
+                      <img
+                        src={
+                          pixData.qrCodeBase64.startsWith("data:")
+                            ? pixData.qrCodeBase64
+                            : `data:image/png;base64,${pixData.qrCodeBase64}`
+                        }
+                        alt="QR Code Pix"
+                        className="w-48 h-48 sm:w-52 sm:h-52 object-contain mx-auto"
+                      />
+                    ) : (
+                      <QRCodeRenderer value={pixData.qrCodeText} size={200} />
+                    )}
+                  </div>
+
+                  <p className="text-xs text-slate-600 dark:text-slate-400 max-w-xs mx-auto">
+                    Abra o aplicativo do seu banco, escolha <strong>Pagar via Pix</strong> e aponte a câmera para o QR Code acima.
+                  </p>
+
+                  {/* Pix Copia e Cola */}
+                  <div className="space-y-2 text-left">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Ou pague pelo Pix Copia-e-Cola:
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        readOnly
+                        value={pixData.qrCodeText}
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 font-mono text-[11px] text-slate-600 dark:text-slate-300 outline-none select-all"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleCopyPix}
+                        className={`px-4 py-2 rounded-xl text-xs font-bold shrink-0 flex items-center gap-1.5 transition-all shadow-sm ${
+                          copiedPix
+                            ? "bg-emerald-600 text-white"
+                            : "bg-indigo-600 hover:bg-indigo-500 text-white"
+                        }`}
+                      >
+                        {copiedPix ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                        <span>{copiedPix ? "Copiado!" : "Copiar"}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Status de Confirmação em Tempo Real */}
+                  <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-800 space-y-3">
+                    <div className="flex items-center justify-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+                      <span className="relative flex h-2.5 w-2.5">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                      </span>
+                      <span className="font-medium">
+                        Aguardando confirmação do pagamento pelo banco...
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleCheckPixManual}
+                      disabled={checkingPix}
+                      className="w-full py-2.5 px-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center justify-center gap-2 transition-all disabled:opacity-60"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${checkingPix ? "animate-spin text-indigo-500" : ""}`} />
+                      <span>{checkingPix ? "Consultando banco..." : "Já realizei o pagamento / Verificar agora"}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* PASSO 3: SUCESSO E LIBERAÇÃO DO PLANO */}
+              {checkoutStep === "success" && (
+                <div className="py-6 text-center space-y-4 animate-in zoom-in-95">
+                  <div className="w-16 h-16 rounded-full bg-emerald-500/10 text-emerald-500 border-2 border-emerald-500/30 flex items-center justify-center mx-auto shadow-lg shadow-emerald-500/20">
+                    <CheckCircle2 className="w-9 h-9" />
+                  </div>
+
+                  <div className="space-y-1">
+                    <h3 className="text-xl font-extrabold text-slate-900 dark:text-white">
+                      Pagamento Aprovado com Sucesso! 🎉
+                    </h3>
+                    <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                      Sua assinatura do <strong>Plano {selectedPlanForCheckout}</strong> foi ativada. Todas as ferramentas e cotas já estão disponíveis para uso imediato.
+                    </p>
+                  </div>
+
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={handleCloseCheckoutModal}
+                      className="w-full py-3.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-lg shadow-emerald-600/30 transition-all hover:scale-[1.02]"
+                    >
+                      Começar a Usar Agora
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

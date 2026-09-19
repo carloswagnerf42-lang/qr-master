@@ -77,6 +77,7 @@ export interface CreateMPPreferenceParams {
   billingCycle?: "month" | "year";
   successUrl?: string;
   cancelUrl?: string;
+  preferredPaymentMethod?: "card" | "all";
 }
 
 export interface CreateMPPixParams {
@@ -91,7 +92,16 @@ export interface CreateMPPixParams {
  * Cria preferência de pagamento no Mercado Pago (Checkout Pro com Pix, Cartão de Crédito e Boleto)
  */
 export async function createMercadoPagoPreference(params: CreateMPPreferenceParams) {
-  const { userId, userEmail, userName, planName, successUrl, cancelUrl, billingCycle = "month" } = params;
+  const {
+    userId,
+    userEmail,
+    userName,
+    planName,
+    successUrl,
+    cancelUrl,
+    billingCycle = "month",
+    preferredPaymentMethod = "all",
+  } = params;
   const config = await getMercadoPagoConfigAsync();
 
   if (!config.isConfigured) {
@@ -146,8 +156,11 @@ export async function createMercadoPagoPreference(params: CreateMPPreferencePara
     notification_url: notificationUrl,
     statement_descriptor: "QR MASTER",
     payment_methods: {
-      excluded_payment_types: [],
-      installments: 1,
+      excluded_payment_types:
+        preferredPaymentMethod === "card"
+          ? [{ id: "ticket" }, { id: "bank_transfer" }]
+          : [],
+      installments: 12,
     },
   };
 
@@ -389,4 +402,52 @@ export async function processMercadoPagoNotification(paymentId: string | number)
   }
 
   return { status: payment.status, paymentId };
+}
+
+/**
+ * Consulta o status de um pagamento e ativa a conta se aprovado (para polling em tempo real do Pix)
+ */
+export async function getMercadoPagoPaymentStatus(paymentId: string | number) {
+  const config = await getMercadoPagoConfigAsync();
+  if (!config.isConfigured) {
+    throw new Error("Mercado Pago não configurado.");
+  }
+
+  const response = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${config.accessToken}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Não foi possível consultar status do pagamento ${paymentId}`);
+  }
+
+  const payment = await response.json();
+  const isApproved = payment.status === "approved";
+
+  // Se já foi aprovado, processa a notificação para garantir que o usuário e a assinatura estejam ativos
+  if (isApproved) {
+    await processMercadoPagoNotification(paymentId);
+  }
+
+  let planDisplayName = "PRO";
+  try {
+    if (payment.external_reference) {
+      const parsed = JSON.parse(payment.external_reference);
+      if (parsed.planName) planDisplayName = parsed.planName;
+    }
+  } catch {
+    // Silently ignore parse error
+  }
+
+  return {
+    paymentId: payment.id,
+    status: payment.status,
+    statusDetail: payment.status_detail,
+    isApproved,
+    planName: planDisplayName,
+    dateApproved: payment.date_approved,
+  };
 }

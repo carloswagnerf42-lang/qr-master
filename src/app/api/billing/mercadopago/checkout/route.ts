@@ -3,9 +3,12 @@ import { getSession } from "@/lib/auth";
 import {
   createMercadoPagoPreference,
   createMercadoPagoPixPayment,
-  getMercadoPagoConfig,
+  getMercadoPagoConfigAsync,
 } from "@/lib/mercadopago";
 import { getAppUrl } from "@/lib/app-url";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,12 +17,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
     }
 
-    const config = getMercadoPagoConfig();
+    const config = await getMercadoPagoConfigAsync();
     if (!config.isConfigured) {
       return NextResponse.json(
         {
           error:
-            "O gateway Mercado Pago ainda não está configurado neste ambiente. Solicite ao administrador a inclusão de MP_ACCESS_TOKEN.",
+            "O gateway Mercado Pago aguarda a inserção do Access Token no Painel de Admin ou variáveis de ambiente. Entre em contato com o suporte ou administrador.",
           configured: false,
         },
         { status: 503 }
@@ -40,7 +43,7 @@ export async function POST(req: NextRequest) {
     const successUrl = `${appUrl}/settings?tab=plan&payment=success&gateway=mercadopago`;
     const cancelUrl = `${appUrl}/settings?tab=plan&payment=canceled&gateway=mercadopago`;
 
-    // 1. Pagamento direto via Pix
+    // 1. Pagamento direto via Pix (Checkout Interno)
     if (paymentMethod === "pix") {
       const pixData = await createMercadoPagoPixPayment({
         userId: session.id,
@@ -57,7 +60,8 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 2. Checkout Pro (Pix, Cartão de Crédito, Boleto, etc.)
+    // 2. Checkout Pro (Cartão de Crédito ou Geral)
+    const isCard = paymentMethod === "card";
     const preference = await createMercadoPagoPreference({
       userId: session.id,
       userEmail: session.email,
@@ -66,6 +70,7 @@ export async function POST(req: NextRequest) {
       billingCycle: billingCycle === "year" ? "year" : "month",
       successUrl,
       cancelUrl,
+      preferredPaymentMethod: isCard ? "card" : "all",
     });
 
     return NextResponse.json({

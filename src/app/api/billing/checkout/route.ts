@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { createBillingCheckoutSession } from "@/lib/stripe";
-import { createMercadoPagoPreference, getMercadoPagoConfigAsync } from "@/lib/mercadopago";
+import {
+  createMercadoPagoPreference,
+  createMercadoPagoPixPayment,
+  getMercadoPagoConfigAsync,
+} from "@/lib/mercadopago";
 import { getAppUrl } from "@/lib/app-url";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +19,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { planName, billingCycle, gateway } = body;
+    const { planName, billingCycle, gateway, paymentMethod } = body;
 
     if (!planName || !["PRO", "BUSINESS"].includes(planName)) {
       return NextResponse.json(
@@ -28,8 +32,36 @@ export async function POST(req: NextRequest) {
     const mpConfig = await getMercadoPagoConfigAsync();
     const hasStripe = Boolean(process.env.STRIPE_SECRET_KEY && process.env.STRIPE_SECRET_KEY.trim() !== "");
 
+    // 0. Pagamento direto via Pix
+    if (paymentMethod === "pix") {
+      if (!mpConfig.isConfigured) {
+        return NextResponse.json(
+          {
+            error:
+              "O gateway Mercado Pago não está configurado para pagamentos Pix. Adicione o Access Token no Painel de Admin.",
+            configured: false,
+          },
+          { status: 503 }
+        );
+      }
+
+      const pixData = await createMercadoPagoPixPayment({
+        userId: session.id,
+        userEmail: session.email,
+        userName: session.name || "Cliente QR MASTER",
+        planName: planName as "PRO" | "BUSINESS",
+        billingCycle: billingCycle === "year" ? "year" : "month",
+      });
+
+      return NextResponse.json({
+        success: true,
+        type: "pix",
+        ...pixData,
+      });
+    }
+
     // 1. Prioriza Mercado Pago se solicitado ou se Stripe não estiver configurado mas MP estiver
-    if ((gateway === "mercadopago" || (!hasStripe && mpConfig.isConfigured)) && mpConfig.isConfigured) {
+    if ((gateway === "mercadopago" || paymentMethod === "card" || (!hasStripe && mpConfig.isConfigured)) && mpConfig.isConfigured) {
       const successUrl = `${appUrl}/settings?tab=plan&payment=success&gateway=mercadopago`;
       const cancelUrl = `${appUrl}/settings?tab=plan&payment=canceled&gateway=mercadopago`;
 
@@ -41,6 +73,7 @@ export async function POST(req: NextRequest) {
         billingCycle: billingCycle === "year" ? "year" : "month",
         successUrl,
         cancelUrl,
+        preferredPaymentMethod: paymentMethod === "card" ? "card" : "all",
       });
 
       return NextResponse.json({
