@@ -11,13 +11,19 @@ async function main() {
   // 1. Planos
   const freePlan = await prisma.plan.upsert({
     where: { name: "FREE" },
-    update: {},
+    update: {
+      priceMonth: 0,
+      priceYear: 0,
+      maxQRCodes: 5,
+      maxQRCodesYear: 5,
+    },
     create: {
       name: "FREE",
       displayName: "Plano Grátis",
       priceMonth: 0,
       priceYear: 0,
       maxQRCodes: 5,
+      maxQRCodesYear: 5,
       dynamicQRs: false,
       analytics: false,
       exportSvg: false,
@@ -30,14 +36,18 @@ async function main() {
   const proPlan = await prisma.plan.upsert({
     where: { name: "PRO" },
     update: {
-      priceYear: 399.0,
+      priceMonth: 19.9,
+      priceYear: 99.0,
+      maxQRCodes: 15,
+      maxQRCodesYear: 15,
     },
     create: {
       name: "PRO",
       displayName: "Plano Pro",
-      priceMonth: 39.9,
-      priceYear: 399.0,
-      maxQRCodes: 100,
+      priceMonth: 19.9,
+      priceYear: 99.0,
+      maxQRCodes: 15,
+      maxQRCodesYear: 15,
       dynamicQRs: true,
       analytics: true,
       exportSvg: true,
@@ -50,14 +60,18 @@ async function main() {
   const businessPlan = await prisma.plan.upsert({
     where: { name: "BUSINESS" },
     update: {
-      priceYear: 999.0,
+      priceMonth: 29.9,
+      priceYear: 199.0,
+      maxQRCodes: 999999,
+      maxQRCodesYear: 999999,
     },
     create: {
       name: "BUSINESS",
       displayName: "Plano Business",
-      priceMonth: 99.9,
-      priceYear: 999.0,
+      priceMonth: 29.9,
+      priceYear: 199.0,
       maxQRCodes: 999999,
+      maxQRCodesYear: 999999,
       dynamicQRs: true,
       analytics: true,
       exportSvg: true,

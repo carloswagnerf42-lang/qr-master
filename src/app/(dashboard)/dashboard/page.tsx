@@ -10,6 +10,8 @@ import {
   Calendar,
   Clock,
   ArrowUpRight,
+  ArrowDownRight,
+  Minus,
   Sparkles,
   ExternalLink,
   ChevronRight,
@@ -179,9 +181,21 @@ export default function DashboardPage() {
                 {data?.cards.totalQRs.value ?? (loading ? "..." : 0)}
               </span>
             </div>
-            <div className="mt-3 flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
-              <ArrowUpRight className="w-3.5 h-3.5" />
-              <span>{data?.cards.totalQRs.change ?? "+2 este mês"}</span>
+            <div className={`mt-3 flex items-center gap-1.5 text-xs font-medium ${
+              data?.cards.totalQRs.trend === "down"
+                ? "text-rose-600 dark:text-rose-400"
+                : data?.cards.totalQRs.trend === "up"
+                ? "text-emerald-600 dark:text-emerald-400"
+                : "text-slate-500 dark:text-slate-400"
+            }`}>
+              {data?.cards.totalQRs.trend === "down" ? (
+                <ArrowDownRight className="w-3.5 h-3.5" />
+              ) : data?.cards.totalQRs.trend === "up" ? (
+                <ArrowUpRight className="w-3.5 h-3.5" />
+              ) : (
+                <Minus className="w-3.5 h-3.5" />
+              )}
+              <span>{data?.cards.totalQRs.change ?? "Sem variação"}</span>
             </div>
           </div>
 
@@ -200,9 +214,21 @@ export default function DashboardPage() {
                 {data?.cards.activeQRs.value ?? (loading ? "..." : 0)}
               </span>
             </div>
-            <div className="mt-3 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 font-medium">
-              <Zap className="w-3.5 h-3.5 text-emerald-500" />
-              <span>{data?.cards.activeQRs.change ?? "100% operacionais"}</span>
+            <div className={`mt-3 flex items-center gap-1.5 text-xs font-medium ${
+              data?.cards.activeQRs.trend === "down"
+                ? "text-rose-600 dark:text-rose-400"
+                : data?.cards.activeQRs.trend === "up"
+                ? "text-emerald-600 dark:text-emerald-400"
+                : "text-slate-500 dark:text-slate-400"
+            }`}>
+              {data?.cards.activeQRs.trend === "down" ? (
+                <ArrowDownRight className="w-3.5 h-3.5" />
+              ) : data?.cards.activeQRs.trend === "up" ? (
+                <ArrowUpRight className="w-3.5 h-3.5" />
+              ) : (
+                <Minus className="w-3.5 h-3.5" />
+              )}
+              <span>{data?.cards.activeQRs.change ?? "Sem variação"}</span>
             </div>
           </div>
 
@@ -221,9 +247,21 @@ export default function DashboardPage() {
                 {data?.cards.totalScans.value?.toLocaleString("pt-BR") ?? (loading ? "..." : 0)}
               </span>
             </div>
-            <div className="mt-3 flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
-              <ArrowUpRight className="w-3.5 h-3.5" />
-              <span>{data?.cards.totalScans.change ?? "+14.2% vs mês anterior"}</span>
+            <div className={`mt-3 flex items-center gap-1.5 text-xs font-medium ${
+              data?.cards.totalScans.trend === "down"
+                ? "text-rose-600 dark:text-rose-400"
+                : data?.cards.totalScans.trend === "up"
+                ? "text-emerald-600 dark:text-emerald-400"
+                : "text-slate-500 dark:text-slate-400"
+            }`}>
+              {data?.cards.totalScans.trend === "down" ? (
+                <ArrowDownRight className="w-3.5 h-3.5" />
+              ) : data?.cards.totalScans.trend === "up" ? (
+                <ArrowUpRight className="w-3.5 h-3.5" />
+              ) : (
+                <Minus className="w-3.5 h-3.5" />
+              )}
+              <span>{data?.cards.totalScans.change ?? "Sem variação"}</span>
             </div>
           </div>
 
@@ -242,9 +280,21 @@ export default function DashboardPage() {
                 {data?.cards.scansToday.value ?? (loading ? "..." : 0)}
               </span>
             </div>
-            <div className="mt-3 flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
-              <ArrowUpRight className="w-3.5 h-3.5" />
-              <span>{data?.cards.scansToday.change ?? "+8% vs ontem"}</span>
+            <div className={`mt-3 flex items-center gap-1.5 text-xs font-medium ${
+              data?.cards.scansToday.trend === "down"
+                ? "text-rose-600 dark:text-rose-400"
+                : data?.cards.scansToday.trend === "up"
+                ? "text-emerald-600 dark:text-emerald-400"
+                : "text-slate-500 dark:text-slate-400"
+            }`}>
+              {data?.cards.scansToday.trend === "down" ? (
+                <ArrowDownRight className="w-3.5 h-3.5" />
+              ) : data?.cards.scansToday.trend === "up" ? (
+                <ArrowUpRight className="w-3.5 h-3.5" />
+              ) : (
+                <Minus className="w-3.5 h-3.5" />
+              )}
+              <span>{data?.cards.scansToday.change ?? "Sem variação"}</span>
             </div>
           </div>
 
@@ -263,9 +313,21 @@ export default function DashboardPage() {
                 {data?.cards.scans7Days.value ?? (loading ? "..." : 0)}
               </span>
             </div>
-            <div className="mt-3 flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
-              <ArrowUpRight className="w-3.5 h-3.5" />
-              <span>{data?.cards.scans7Days.change ?? "+19.5% vs semana anterior"}</span>
+            <div className={`mt-3 flex items-center gap-1.5 text-xs font-medium ${
+              data?.cards.scans7Days.trend === "down"
+                ? "text-rose-600 dark:text-rose-400"
+                : data?.cards.scans7Days.trend === "up"
+                ? "text-emerald-600 dark:text-emerald-400"
+                : "text-slate-500 dark:text-slate-400"
+            }`}>
+              {data?.cards.scans7Days.trend === "down" ? (
+                <ArrowDownRight className="w-3.5 h-3.5" />
+              ) : data?.cards.scans7Days.trend === "up" ? (
+                <ArrowUpRight className="w-3.5 h-3.5" />
+              ) : (
+                <Minus className="w-3.5 h-3.5" />
+              )}
+              <span>{data?.cards.scans7Days.change ?? "Sem variação"}</span>
             </div>
           </div>
 
@@ -284,9 +346,21 @@ export default function DashboardPage() {
                 {data?.cards.scans30Days.value ?? (loading ? "..." : 0)}
               </span>
             </div>
-            <div className="mt-3 flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
-              <ArrowUpRight className="w-3.5 h-3.5" />
-              <span>{data?.cards.scans30Days.change ?? "+24.8% no período"}</span>
+            <div className={`mt-3 flex items-center gap-1.5 text-xs font-medium ${
+              data?.cards.scans30Days.trend === "down"
+                ? "text-rose-600 dark:text-rose-400"
+                : data?.cards.scans30Days.trend === "up"
+                ? "text-emerald-600 dark:text-emerald-400"
+                : "text-slate-500 dark:text-slate-400"
+            }`}>
+              {data?.cards.scans30Days.trend === "down" ? (
+                <ArrowDownRight className="w-3.5 h-3.5" />
+              ) : data?.cards.scans30Days.trend === "up" ? (
+                <ArrowUpRight className="w-3.5 h-3.5" />
+              ) : (
+                <Minus className="w-3.5 h-3.5" />
+              )}
+              <span>{data?.cards.scans30Days.change ?? "Sem variação"}</span>
             </div>
           </div>
         </div>

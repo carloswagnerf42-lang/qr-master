@@ -109,6 +109,34 @@ export function calculateAnnualDiscountPercent(priceMonth: number, priceYear: nu
 }
 
 /**
+ * Calcula variação e tendência entre período atual e período anterior
+ */
+export function computeComparison(
+  current: number,
+  previous: number,
+  periodLabel: string
+): { change: string; trend: "up" | "down" | "neutral" } {
+  if (previous === 0 && current === 0) {
+    return { change: "Sem variação", trend: "neutral" };
+  }
+  if (previous === 0 && current > 0) {
+    return { change: "Novo período", trend: "up" };
+  }
+  if (current === previous) {
+    return { change: `0% vs ${periodLabel}`, trend: "neutral" };
+  }
+  const diff = current - previous;
+  const pct = Math.round((diff / previous) * 100);
+  if (pct > 0) {
+    return { change: `+${pct}% vs ${periodLabel}`, trend: "up" };
+  } else if (pct < 0) {
+    return { change: `${pct}% vs ${periodLabel}`, trend: "down" };
+  } else {
+    return { change: `0% vs ${periodLabel}`, trend: "neutral" };
+  }
+}
+
+/**
  * Definição padrão dos limites caso o plano não seja encontrado no banco
  */
 export const DEFAULT_FREE_PLAN: PlanDetails = {

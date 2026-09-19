@@ -34,14 +34,25 @@ import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { useToast } from "@/components/ui/Toast";
 import { calculateAnnualDiscountPercent } from "@/lib/permissions";
 import { QRCodeRenderer } from "@/components/qr/QRCodeRenderer";
+import { useSearchParams } from "next/navigation";
 
-export default function SettingsPage() {
+function SettingsContent() {
   const toast = useToast();
+  const searchParams = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [activeTab, setActiveTab] = useState<
     "account" | "appearance" | "notifications" | "privacy" | "security" | "plan"
-  >("account");
+  >(() => {
+    if (typeof window !== "undefined") {
+      const urlTab = new URLSearchParams(window.location.search).get("tab");
+      if (urlTab === "plan") return "plan";
+      if (urlTab && ["account", "appearance", "notifications", "privacy", "security"].includes(urlTab)) {
+        return urlTab as any;
+      }
+    }
+    return "account";
+  });
 
   const [loading, setLoading] = useState(true);
 
@@ -254,13 +265,22 @@ export default function SettingsPage() {
 
   // Tratamento de URLs de retorno de pagamento e seleção de aba via querystring
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    const tab = params.get("tab");
-    const payment = params.get("payment");
+    const tab = searchParams?.get("tab") || (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("tab") : null);
+    const payment = searchParams?.get("payment") || (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("payment") : null);
+
+    const validTabs: Array<"account" | "appearance" | "notifications" | "privacy" | "security" | "plan"> = [
+      "account",
+      "appearance",
+      "notifications",
+      "privacy",
+      "security",
+      "plan",
+    ];
 
     if (tab === "plan" || payment) {
       setActiveTab("plan");
+    } else if (tab && validTabs.includes(tab as any)) {
+      setActiveTab(tab as any);
     }
 
     if (payment === "success") {
@@ -269,15 +289,19 @@ export default function SettingsPage() {
         "Seu plano foi atualizado com sucesso! Aproveite todos os recursos."
       );
       loadUserData(true);
-      window.history.replaceState({}, "", window.location.pathname + "?tab=plan");
+      if (typeof window !== "undefined") {
+        window.history.replaceState({}, "", window.location.pathname + "?tab=plan");
+      }
     } else if (payment === "canceled") {
       toast.info(
         "Pagamento não concluído",
         "O pagamento foi cancelado ou aguarda conclusão. Caso precise de ajuda, entre em contato."
       );
-      window.history.replaceState({}, "", window.location.pathname + "?tab=plan");
+      if (typeof window !== "undefined") {
+        window.history.replaceState({}, "", window.location.pathname + "?tab=plan");
+      }
     }
-  }, [loadUserData, toast]);
+  }, [searchParams, loadUserData, toast]);
 
   // Preço do plano selecionado para o modal de checkout
   const getSelectedPlanPrice = () => {
@@ -1269,53 +1293,213 @@ export default function SettingsPage() {
               </div>
 
               {/* Tabela de Recursos Liberados no seu Plano */}
-              <div className="space-y-3">
-                <h5 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                  Recursos Habilitados no seu Plano:
-                </h5>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs">
-                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 flex items-center gap-2">
-                    <Check className={`w-4 h-4 ${userPlan?.dynamicQRs ? "text-emerald-500" : "text-slate-400"}`} />
-                    <span className={userPlan?.dynamicQRs ? "font-semibold text-slate-800 dark:text-slate-200" : "text-slate-400"}>
-                      QR Codes Dinâmicos
-                    </span>
-                  </div>
-
-                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 flex items-center gap-2">
-                    <Check className={`w-4 h-4 ${userPlan?.analytics ? "text-emerald-500" : "text-slate-400"}`} />
-                    <span className={userPlan?.analytics ? "font-semibold text-slate-800 dark:text-slate-200" : "text-slate-400"}>
-                      Gráficos de Analytics
-                    </span>
-                  </div>
-
-                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 flex items-center gap-2">
-                    <Check className={`w-4 h-4 ${userPlan?.exportSvg ? "text-emerald-500" : "text-slate-400"}`} />
-                    <span className={userPlan?.exportSvg ? "font-semibold text-slate-800 dark:text-slate-200" : "text-slate-400"}>
-                      Exportação em Vetor SVG
-                    </span>
-                  </div>
-
-                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 flex items-center gap-2">
-                    <Check className={`w-4 h-4 ${userPlan?.exportPdf ? "text-emerald-500" : "text-slate-400"}`} />
-                    <span className={userPlan?.exportPdf ? "font-semibold text-slate-800 dark:text-slate-200" : "text-slate-400"}>
-                      Exportação em PDF Vetorial
-                    </span>
-                  </div>
-
-                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 flex items-center gap-2">
-                    <Check className={`w-4 h-4 ${userPlan?.customLogo ? "text-emerald-500" : "text-slate-400"}`} />
-                    <span className={userPlan?.customLogo ? "font-semibold text-slate-800 dark:text-slate-200" : "text-slate-400"}>
-                      Logotipo Central Customizado
-                    </span>
-                  </div>
-
-                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 flex items-center gap-2">
-                    <Check className={`w-4 h-4 ${userPlan?.campaigns ? "text-emerald-500" : "text-slate-400"}`} />
-                    <span className={userPlan?.campaigns ? "font-semibold text-slate-800 dark:text-slate-200" : "text-slate-400"}>
-                      Campanhas Promocionais
-                    </span>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <h5 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Recursos Habilitados no seu Plano ({userPlan?.displayName || userPlan?.name || "FREE"}):
+                  </h5>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs">
+                    {/* Recursos efetivamente habilitados */}
+                    {userPlan?.name === "FREE" ? (
+                      <>
+                        <div className="p-3 rounded-xl bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-2">
+                          <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">
+                            QR Codes Estáticos (até 5/mês)
+                          </span>
+                        </div>
+                        <div className="p-3 rounded-xl bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-2">
+                          <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">
+                            Download em Imagem PNG
+                          </span>
+                        </div>
+                        <div className="p-3 rounded-xl bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-2">
+                          <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">
+                            Organização em Categorias
+                          </span>
+                        </div>
+                        <div className="p-3 rounded-xl bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-2">
+                          <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">
+                            Histórico de Criações
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="p-3 rounded-xl bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-2">
+                          <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">
+                            {userPlan?.name === "BUSINESS" ? "QR Codes Ilimitados" : "15 QR Codes por Mês"}
+                          </span>
+                        </div>
+                        {userPlan?.dynamicQRs && (
+                          <div className="p-3 rounded-xl bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-2">
+                            <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+                            <span className="font-semibold text-slate-800 dark:text-slate-200">
+                              QR Codes Dinâmicos
+                            </span>
+                          </div>
+                        )}
+                        {userPlan?.analytics && (
+                          <div className="p-3 rounded-xl bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-2">
+                            <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+                            <span className="font-semibold text-slate-800 dark:text-slate-200">
+                              Gráficos de Analytics
+                            </span>
+                          </div>
+                        )}
+                        {userPlan?.exportSvg && (
+                          <div className="p-3 rounded-xl bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-2">
+                            <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+                            <span className="font-semibold text-slate-800 dark:text-slate-200">
+                              Exportação em Vetor SVG
+                            </span>
+                          </div>
+                        )}
+                        {userPlan?.exportPdf && (
+                          <div className="p-3 rounded-xl bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-2">
+                            <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+                            <span className="font-semibold text-slate-800 dark:text-slate-200">
+                              Exportação em PDF Vetorial
+                            </span>
+                          </div>
+                        )}
+                        {userPlan?.customLogo && (
+                          <div className="p-3 rounded-xl bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-2">
+                            <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+                            <span className="font-semibold text-slate-800 dark:text-slate-200">
+                              Logotipo Central Customizado
+                            </span>
+                          </div>
+                        )}
+                        {userPlan?.campaigns && (
+                          <div className="p-3 rounded-xl bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-2">
+                            <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+                            <span className="font-semibold text-slate-800 dark:text-slate-200">
+                              Campanhas Promocionais
+                            </span>
+                          </div>
+                        )}
+                      </>
+                    )}
                   </div>
                 </div>
+
+                {/* Recursos Bloqueados no Plano Atual / Disponíveis com Upgrade */}
+                {userPlan?.name === "FREE" && (
+                  <div className="space-y-2 pt-2">
+                    <div className="flex items-center justify-between">
+                      <h5 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                        Recursos Disponíveis com Upgrade:
+                      </h5>
+                      <span className="text-[10px] font-semibold text-indigo-500 uppercase tracking-wider">
+                        Disponível no PRO e BUSINESS
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs">
+                      <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 flex items-center justify-between gap-2 opacity-75">
+                        <div className="flex items-center gap-2">
+                          <Lock className="w-4 h-4 text-amber-500 shrink-0" />
+                          <span className="text-slate-600 dark:text-slate-400">
+                            QR Codes Dinâmicos
+                          </span>
+                        </div>
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                          PRO
+                        </span>
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 flex items-center justify-between gap-2 opacity-75">
+                        <div className="flex items-center gap-2">
+                          <Lock className="w-4 h-4 text-amber-500 shrink-0" />
+                          <span className="text-slate-600 dark:text-slate-400">
+                            Gráficos de Analytics
+                          </span>
+                        </div>
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                          PRO
+                        </span>
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 flex items-center justify-between gap-2 opacity-75">
+                        <div className="flex items-center gap-2">
+                          <Lock className="w-4 h-4 text-amber-500 shrink-0" />
+                          <span className="text-slate-600 dark:text-slate-400">
+                            Exportação em Vetor SVG
+                          </span>
+                        </div>
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                          PRO
+                        </span>
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 flex items-center justify-between gap-2 opacity-75">
+                        <div className="flex items-center gap-2">
+                          <Lock className="w-4 h-4 text-amber-500 shrink-0" />
+                          <span className="text-slate-600 dark:text-slate-400">
+                            Exportação em PDF Vetorial
+                          </span>
+                        </div>
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                          PRO
+                        </span>
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 flex items-center justify-between gap-2 opacity-75">
+                        <div className="flex items-center gap-2">
+                          <Lock className="w-4 h-4 text-amber-500 shrink-0" />
+                          <span className="text-slate-600 dark:text-slate-400">
+                            Logotipo Central Customizado
+                          </span>
+                        </div>
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                          PRO
+                        </span>
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 flex items-center justify-between gap-2 opacity-75">
+                        <div className="flex items-center gap-2">
+                          <Lock className="w-4 h-4 text-amber-500 shrink-0" />
+                          <span className="text-slate-600 dark:text-slate-400">
+                            Campanhas Promocionais
+                          </span>
+                        </div>
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                          PRO
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {userPlan?.name === "PRO" && (
+                  <div className="space-y-2 pt-2">
+                    <div className="flex items-center justify-between">
+                      <h5 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                        Recursos Exclusivos do Plano BUSINESS:
+                      </h5>
+                      <span className="text-[10px] font-semibold text-indigo-500 uppercase tracking-wider">
+                        Upgrade para Ilimitado
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs">
+                      <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 flex items-center justify-between gap-2 opacity-75">
+                        <div className="flex items-center gap-2">
+                          <Lock className="w-4 h-4 text-indigo-500 shrink-0" />
+                          <span className="text-slate-600 dark:text-slate-400">
+                            QR Codes Ilimitados sem cota mensal
+                          </span>
+                        </div>
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+                          BUSINESS
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Detalhes da Assinatura & Gerenciamento Stripe */}
@@ -1943,5 +2127,13 @@ export default function SettingsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <React.Suspense fallback={<div className="p-8 text-center text-slate-400">Carregando configurações...</div>}>
+      <SettingsContent />
+    </React.Suspense>
   );
 }
