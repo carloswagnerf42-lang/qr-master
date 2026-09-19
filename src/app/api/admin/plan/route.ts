@@ -122,3 +122,96 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const auth = await requireAdmin();
+    if (!auth.success) return auth.errorResponse;
+    const admin = auth.admin;
+
+    const body = await req.json();
+    const {
+      planId,
+      priceMonth,
+      displayName,
+      maxQRCodes,
+      dynamicQRs,
+      analytics,
+      exportSvg,
+      exportPdf,
+      customLogo,
+      campaigns,
+    } = body;
+
+    if (!planId) {
+      return NextResponse.json({ error: "ID do plano não especificado." }, { status: 400 });
+    }
+
+    const plan = await prisma.plan.findUnique({ where: { id: planId } });
+    if (!plan) {
+      return NextResponse.json({ error: "Plano não encontrado." }, { status: 404 });
+    }
+
+    const dataToUpdate: Record<string, any> = {};
+
+    if (priceMonth !== undefined) {
+      const numPrice = Number(priceMonth);
+      if (isNaN(numPrice) || numPrice < 0) {
+        return NextResponse.json(
+          { error: "O preço mensal deve ser um valor numérico válido maior ou igual a zero." },
+          { status: 400 }
+        );
+      }
+      if (plan.name === "FREE" && numPrice !== 0) {
+        return NextResponse.json(
+          { error: "O plano FREE não pode ter cobrança mensal maior que zero." },
+          { status: 400 }
+        );
+      }
+      dataToUpdate.priceMonth = numPrice;
+    }
+
+    if (displayName !== undefined && typeof displayName === "string" && displayName.trim()) {
+      dataToUpdate.displayName = displayName.trim();
+    }
+
+    if (maxQRCodes !== undefined) {
+      const numMax = Number(maxQRCodes);
+      if (!isNaN(numMax) && numMax > 0) {
+        dataToUpdate.maxQRCodes = numMax;
+      }
+    }
+
+    if (dynamicQRs !== undefined) dataToUpdate.dynamicQRs = Boolean(dynamicQRs);
+    if (analytics !== undefined) dataToUpdate.analytics = Boolean(analytics);
+    if (exportSvg !== undefined) dataToUpdate.exportSvg = Boolean(exportSvg);
+    if (exportPdf !== undefined) dataToUpdate.exportPdf = Boolean(exportPdf);
+    if (customLogo !== undefined) dataToUpdate.customLogo = Boolean(customLogo);
+    if (campaigns !== undefined) dataToUpdate.campaigns = Boolean(campaigns);
+
+    const updatedPlan = await prisma.plan.update({
+      where: { id: planId },
+      data: dataToUpdate,
+    });
+
+    await logAdminAction({
+      adminId: admin.id,
+      action: "ADMIN_PLAN_UPDATE",
+      entityId: plan.id,
+      description: `Plano "${plan.name}" atualizado pelo Administrador (${admin.name}). Preço: R$ ${updatedPlan.priceMonth.toFixed(2)}.`,
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: `Plano ${updatedPlan.displayName} atualizado com sucesso!`,
+      plan: updatedPlan,
+    });
+  } catch (error) {
+    console.error("Erro ao atualizar plano administrativo:", error);
+    return NextResponse.json(
+      { error: "Erro interno no servidor ao atualizar plano." },
+      { status: 500 }
+    );
+  }
+}
+

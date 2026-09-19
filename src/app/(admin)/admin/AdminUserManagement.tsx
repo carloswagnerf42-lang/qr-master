@@ -29,6 +29,10 @@ import {
   Server,
   Database,
   Lock,
+  Trash2,
+  Edit3,
+  Copy,
+  Check,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 
@@ -65,6 +69,10 @@ interface PlanItem {
   maxQRCodes?: number;
   dynamicQRs?: boolean;
   analytics?: boolean;
+  exportSvg?: boolean;
+  exportPdf?: boolean;
+  customLogo?: boolean;
+  campaigns?: boolean;
   _count?: { users: number };
 }
 
@@ -124,7 +132,7 @@ interface AdminUserManagementProps {
   currentAdminId?: string;
 }
 
-type TabType = "users" | "metrics" | "qrcodes" | "campaigns" | "logs" | "settings";
+type TabType = "users" | "plans" | "metrics" | "qrcodes" | "campaigns" | "logs" | "settings";
 
 export function AdminUserManagement({
   initialUsers,
@@ -137,11 +145,30 @@ export function AdminUserManagement({
   const toast = useToast();
   const [activeTab, setActiveTab] = useState<TabType>("users");
 
-  // State: Users & Plans
+  // State: Users
   const [users, setUsers] = useState<UserItem[]>(initialUsers);
   const [searchUsers, setSearchUsers] = useState("");
   const [selectedUserForPlan, setSelectedUserForPlan] = useState<UserItem | null>(null);
   const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
+
+  // State: Plan Pricing & Edit Modal
+  const [planItems, setPlanItems] = useState<PlanItem[]>(plans);
+  const [selectedPlanForEdit, setSelectedPlanForEdit] = useState<PlanItem | null>(null);
+  const [isEditPlanModalOpen, setIsEditPlanModalOpen] = useState(false);
+  const [editPriceMonth, setEditPriceMonth] = useState<number>(0);
+  const [editDisplayName, setEditDisplayName] = useState<string>("");
+  const [editMaxQRCodes, setEditMaxQRCodes] = useState<number>(5);
+  const [editDynamicQRs, setEditDynamicQRs] = useState<boolean>(false);
+  const [editAnalytics, setEditAnalytics] = useState<boolean>(false);
+  const [editExportSvg, setEditExportSvg] = useState<boolean>(false);
+  const [editExportPdf, setEditExportPdf] = useState<boolean>(false);
+  const [editCustomLogo, setEditCustomLogo] = useState<boolean>(false);
+  const [editCampaigns, setEditCampaigns] = useState<boolean>(false);
+  const [savingPlan, setSavingPlan] = useState(false);
+
+  // State: Maintenance Clean Demo
+  const [cleaningDemo, setCleaningDemo] = useState(false);
+  const [copiedWebhook, setCopiedWebhook] = useState(false);
 
   // State: User Status / Role Modal
   const [selectedUserForStatus, setSelectedUserForStatus] = useState<UserItem | null>(null);
@@ -374,6 +401,103 @@ export function AdminUserManagement({
     }
   };
 
+  // Plan Edit Handlers
+  const handleOpenEditPlan = (plan: PlanItem) => {
+    setSelectedPlanForEdit(plan);
+    setEditPriceMonth(Number(plan.priceMonth) || 0);
+    setEditDisplayName(plan.displayName);
+    setEditMaxQRCodes(plan.maxQRCodes ?? 5);
+    setEditDynamicQRs(Boolean(plan.dynamicQRs));
+    setEditAnalytics(Boolean(plan.analytics));
+    setEditExportSvg(Boolean(plan.exportSvg));
+    setEditExportPdf(Boolean(plan.exportPdf));
+    setEditCustomLogo(Boolean(plan.customLogo));
+    setEditCampaigns(Boolean(plan.campaigns));
+    setIsEditPlanModalOpen(true);
+  };
+
+  const handleSavePlan = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedPlanForEdit) return;
+
+    setSavingPlan(true);
+    try {
+      const res = await fetch("/api/admin/plan", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          planId: selectedPlanForEdit.id,
+          priceMonth: editPriceMonth,
+          displayName: editDisplayName,
+          maxQRCodes: editMaxQRCodes,
+          dynamicQRs: editDynamicQRs,
+          analytics: editAnalytics,
+          exportSvg: editExportSvg,
+          exportPdf: editExportPdf,
+          customLogo: editCustomLogo,
+          campaigns: editCampaigns,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error("Erro ao salvar", data.error || "Não foi possível atualizar o plano.");
+        return;
+      }
+
+      toast.success(
+        "Plano atualizado!",
+        `${data.plan.displayName} agora custa R$ ${Number(data.plan.priceMonth).toFixed(2)}/mês.`
+      );
+      setPlanItems((prev) =>
+        prev.map((p) => (p.id === data.plan.id ? { ...p, ...data.plan } : p))
+      );
+      setIsEditPlanModalOpen(false);
+    } catch (err) {
+      console.error(err);
+      toast.error("Erro de conexão", "Falha ao se comunicar com o servidor.");
+    } finally {
+      setSavingPlan(false);
+    }
+  };
+
+  // Clean Demo Data Handler
+  const handleCleanDemoData = async () => {
+    if (
+      !confirm(
+        "Atenção: Deseja limpar todos os dados não reais / demo do banco de dados? Usuários reais serão preservados rigorosamente."
+      )
+    ) {
+      return;
+    }
+
+    setCleaningDemo(true);
+    try {
+      const res = await fetch("/api/admin/maintenance/clean-demo", {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error("Erro na limpeza", data.error || "Falha ao executar limpeza.");
+        return;
+      }
+
+      toast.success(
+        "Limpeza concluída!",
+        `${data.deletedCount.users} usuário(s), ${data.deletedCount.qrCodes} QR(s) e ${data.deletedCount.scans} scan(s) removidos com sucesso.`
+      );
+      setUsers((prev) => prev.filter((u) => u.email !== "carlos@qrmaster.com"));
+      setQrcodes((prev) =>
+        prev.filter((q) => !q.name.includes("[DEMO DATA]") && q.user.email !== "carlos@qrmaster.com")
+      );
+    } catch (err) {
+      console.error(err);
+      toast.error("Erro de conexão", "Falha ao conectar com o servidor.");
+    } finally {
+      setCleaningDemo(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Tab Navigation Menu */}
@@ -388,6 +512,18 @@ export function AdminUserManagement({
         >
           <Users className="w-4 h-4" />
           <span>Usuários & Contas ({users.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab("plans")}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+            activeTab === "plans"
+              ? "bg-rose-600 text-white shadow-md shadow-rose-950"
+              : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+          }`}
+        >
+          <CreditCard className="w-4 h-4" />
+          <span>Planos & Preços ({planItems.length})</span>
         </button>
 
         <button
@@ -587,6 +723,133 @@ export function AdminUserManagement({
                 </tbody>
               </table>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==================================================================== */}
+      {/* ABA: PLANOS & PREÇOS                                                 */}
+      {/* ==================================================================== */}
+      {activeTab === "plans" && (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-6 rounded-2xl bg-slate-900 border border-slate-800">
+            <div>
+              <div className="flex items-center gap-2">
+                <CreditCard className="w-5 h-5 text-rose-500" />
+                <h3 className="text-base font-bold text-white">
+                  Gestão Comercial dos Planos & Precificação
+                </h3>
+              </div>
+              <p className="text-xs text-slate-400 mt-1">
+                Altere os valores de cobrança em R$, limites de QR Codes e recursos disponíveis para cada plano do SaaS em tempo real.
+              </p>
+            </div>
+            <div className="text-xs text-slate-400">
+              Total de Planos Ativos: <strong className="text-white">{planItems.length}</strong>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {planItems.map((plan) => {
+              const isFree = plan.name === "FREE";
+              const isPro = plan.name === "PRO";
+              const isBiz = plan.name === "BUSINESS";
+
+              return (
+                <div
+                  key={plan.id}
+                  className={`p-6 rounded-3xl bg-slate-900 border flex flex-col justify-between space-y-6 relative overflow-hidden transition-all ${
+                    isBiz
+                      ? "border-amber-500/40 shadow-lg shadow-amber-950/20"
+                      : isPro
+                      ? "border-indigo-500/40 shadow-lg shadow-indigo-950/20"
+                      : "border-slate-800"
+                  }`}
+                >
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span
+                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
+                          isBiz
+                            ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                            : isPro
+                            ? "bg-indigo-500/20 text-indigo-400 border border-indigo-500/30"
+                            : "bg-slate-800 text-slate-300 border border-slate-700"
+                        }`}
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        {plan.name}
+                      </span>
+                      <span className="text-xs text-slate-400">
+                        {users.filter((u) => (u.plan?.name || "FREE") === plan.name).length} assinante(s)
+                      </span>
+                    </div>
+
+                    <div>
+                      <h4 className="text-lg font-bold text-white">{plan.displayName}</h4>
+                      <div className="mt-2 flex items-baseline gap-1">
+                        <span className="text-3xl font-extrabold text-white">
+                          R$ {Number(plan.priceMonth).toFixed(2)}
+                        </span>
+                        <span className="text-xs text-slate-400">/mês</span>
+                      </div>
+                    </div>
+
+                    <div className="pt-4 border-t border-slate-800/80 space-y-2.5 text-xs">
+                      <div className="flex items-center justify-between text-slate-300">
+                        <span className="text-slate-400">Limite de QR Codes:</span>
+                        <strong className="text-white">
+                          {plan.maxQRCodes && plan.maxQRCodes > 9999 ? "Ilimitado" : `${plan.maxQRCodes ?? 5} QRs`}
+                        </strong>
+                      </div>
+
+                      <div className="flex items-center justify-between text-slate-300">
+                        <span className="text-slate-400">QR Codes Dinâmicos:</span>
+                        <span className={plan.dynamicQRs ? "text-emerald-400 font-semibold" : "text-slate-500"}>
+                          {plan.dynamicQRs ? "✓ Habilitado" : "✗ Bloqueado"}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between text-slate-300">
+                        <span className="text-slate-400">Métricas & Analytics:</span>
+                        <span className={plan.analytics ? "text-emerald-400 font-semibold" : "text-slate-500"}>
+                          {plan.analytics ? "✓ Habilitado" : "✗ Bloqueado"}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between text-slate-300">
+                        <span className="text-slate-400">Exportação SVG/PDF:</span>
+                        <span className={plan.exportSvg || plan.exportPdf ? "text-emerald-400 font-semibold" : "text-slate-500"}>
+                          {plan.exportSvg || plan.exportPdf ? "✓ Vetorial HD" : "✗ Bloqueado"}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between text-slate-300">
+                        <span className="text-slate-400">Logotipo Central:</span>
+                        <span className={plan.customLogo ? "text-emerald-400 font-semibold" : "text-slate-500"}>
+                          {plan.customLogo ? "✓ Customizável" : "✗ Bloqueado"}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between text-slate-300">
+                        <span className="text-slate-400">Módulo Campanhas:</span>
+                        <span className={plan.campaigns ? "text-emerald-400 font-semibold" : "text-slate-500"}>
+                          {plan.campaigns ? "✓ Habilitado" : "✗ Bloqueado"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => handleOpenEditPlan(plan)}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-rose-600 hover:text-white text-xs font-semibold text-slate-200 border border-slate-700 transition-colors"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                    <span>Editar Preço & Limites</span>
+                  </button>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -978,6 +1241,259 @@ export function AdminUserManagement({
                 </div>
               </div>
             </div>
+
+            {/* Card Mercado Pago */}
+            <div className="pt-6 border-t border-slate-800 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <CreditCard className="w-5 h-5 text-sky-400" />
+                  <div>
+                    <h4 className="text-sm font-bold text-white">Mercado Pago (Gateway Nacional)</h4>
+                    <p className="text-xs text-slate-400">
+                      Suporte completo a pagamentos instantâneos via Pix e Cartão de Crédito
+                    </p>
+                  </div>
+                </div>
+                <span className="px-3 py-1 rounded-full text-[11px] font-bold bg-sky-500/20 text-sky-400 border border-sky-500/30">
+                  Pronto para Produção
+                </span>
+              </div>
+
+              <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                  <span className="text-slate-400">URL do Webhook Oficial para Cadastrar no Mercado Pago:</span>
+                  <div className="flex items-center gap-2">
+                    <code className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-sky-300 font-mono text-[11px]">
+                      {typeof window !== "undefined" ? window.location.origin : ""}/api/webhooks/mercadopago
+                    </code>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const url = `${window.location.origin}/api/webhooks/mercadopago`;
+                        navigator.clipboard.writeText(url);
+                        setCopiedWebhook(true);
+                        setTimeout(() => setCopiedWebhook(false), 2000);
+                        toast.success("Copiado!", "URL do Webhook copiada para a área de transferência.");
+                      }}
+                      className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors"
+                      title="Copiar URL do Webhook"
+                    >
+                      {copiedWebhook ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  💡 Para ativar as cobranças em tempo real pelo Mercado Pago, basta cadastrar a chave <code className="text-slate-300">MP_ACCESS_TOKEN</code> nas variáveis de ambiente na Vercel.
+                </p>
+              </div>
+            </div>
+
+            {/* Card Manutenção & Limpeza de Dados Demo */}
+            <div className="pt-6 border-t border-slate-800 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <Trash2 className="w-5 h-5 text-rose-400" />
+                  <div>
+                    <h4 className="text-sm font-bold text-white">Manutenção & Purga de Registros Demo</h4>
+                    <p className="text-xs text-slate-400">
+                      Remove dados de demonstração, QR codes de teste e histórico simulado de scans
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-xl bg-slate-950/60 border border-rose-950/40 space-y-3">
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Esta operação varre o banco de dados e remove definitivamente contas de demonstração (ex: <code className="text-slate-400">carlos@qrmaster.com</code>), QR codes marcados como demo e scans gerados artificialmente. Contas reais criadas por usuários (como <strong className="text-white">joaolucas</strong> e administradores) e os planos oficiais são 100% preservados.
+                </p>
+
+                <div className="pt-1 flex items-center justify-end">
+                  <button
+                    type="button"
+                    onClick={handleCleanDemoData}
+                    disabled={cleaningDemo}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-rose-600/20 hover:bg-rose-600/40 text-rose-300 hover:text-white text-xs font-bold border border-rose-500/30 transition-all disabled:opacity-50"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span>{cleaningDemo ? "Executando Limpeza..." : "Limpar Dados Não Reais / Demo"}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==================================================================== */}
+      {/* MODAL: EDITAR VALOR E CONFIGURAÇÃO DO PLANO                          */}
+      {/* ==================================================================== */}
+      {isEditPlanModalOpen && selectedPlanForEdit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
+          <div className="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-6">
+            <div className="flex items-start justify-between pb-4 border-b border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-rose-600/20 text-rose-400 flex items-center justify-center border border-rose-500/30">
+                  <CreditCard className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Editar Valor e Recursos do Plano</h3>
+                  <p className="text-xs text-slate-400">
+                    Plano: <strong className="text-white">{selectedPlanForEdit.name}</strong>
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsEditPlanModalOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSavePlan} className="space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-semibold text-slate-300 mb-1.5">
+                    Nome de Exibição:
+                  </label>
+                  <input
+                    type="text"
+                    value={editDisplayName}
+                    onChange={(e) => setEditDisplayName(e.target.value)}
+                    required
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-rose-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-300 mb-1.5">
+                    Preço Mensal (R$):
+                  </label>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500 font-bold">
+                      R$
+                    </span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={editPriceMonth}
+                      onChange={(e) => setEditPriceMonth(Number(e.target.value))}
+                      disabled={selectedPlanForEdit.name === "FREE"}
+                      required
+                      className="w-full pl-9 pr-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white font-bold focus:outline-none focus:border-rose-500 disabled:opacity-50"
+                    />
+                  </div>
+                  {selectedPlanForEdit.name === "FREE" && (
+                    <span className="text-[10px] text-slate-500 mt-1 block">
+                      O plano FREE é sempre gratuito (R$ 0,00).
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-300 mb-1.5">
+                  Limite Máximo de QR Codes:
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  value={editMaxQRCodes}
+                  onChange={(e) => setEditMaxQRCodes(Number(e.target.value))}
+                  required
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-rose-500"
+                />
+                <span className="text-[10px] text-slate-500 mt-1 block">
+                  Use valores altos como 999999 para plano Ilimitado.
+                </span>
+              </div>
+
+              <div className="pt-2 border-t border-slate-800/80 space-y-2">
+                <span className="block font-semibold text-slate-300 mb-1">
+                  Recursos Habilitados no Plano:
+                </span>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="flex items-center gap-2 p-2 rounded-lg bg-slate-950/60 border border-slate-800 cursor-pointer text-slate-300 hover:text-white">
+                    <input
+                      type="checkbox"
+                      checked={editDynamicQRs}
+                      onChange={(e) => setEditDynamicQRs(e.target.checked)}
+                      className="rounded border-slate-700 text-rose-600 focus:ring-rose-500"
+                    />
+                    <span>QR Codes Dinâmicos</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 p-2 rounded-lg bg-slate-950/60 border border-slate-800 cursor-pointer text-slate-300 hover:text-white">
+                    <input
+                      type="checkbox"
+                      checked={editAnalytics}
+                      onChange={(e) => setEditAnalytics(e.target.checked)}
+                      className="rounded border-slate-700 text-rose-600 focus:ring-rose-500"
+                    />
+                    <span>Analytics / Métricas</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 p-2 rounded-lg bg-slate-950/60 border border-slate-800 cursor-pointer text-slate-300 hover:text-white">
+                    <input
+                      type="checkbox"
+                      checked={editExportSvg}
+                      onChange={(e) => setEditExportSvg(e.target.checked)}
+                      className="rounded border-slate-700 text-rose-600 focus:ring-rose-500"
+                    />
+                    <span>Exportação SVG</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 p-2 rounded-lg bg-slate-950/60 border border-slate-800 cursor-pointer text-slate-300 hover:text-white">
+                    <input
+                      type="checkbox"
+                      checked={editExportPdf}
+                      onChange={(e) => setEditExportPdf(e.target.checked)}
+                      className="rounded border-slate-700 text-rose-600 focus:ring-rose-500"
+                    />
+                    <span>Exportação PDF A4</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 p-2 rounded-lg bg-slate-950/60 border border-slate-800 cursor-pointer text-slate-300 hover:text-white">
+                    <input
+                      type="checkbox"
+                      checked={editCustomLogo}
+                      onChange={(e) => setEditCustomLogo(e.target.checked)}
+                      className="rounded border-slate-700 text-rose-600 focus:ring-rose-500"
+                    />
+                    <span>Logotipo Customizado</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 p-2 rounded-lg bg-slate-950/60 border border-slate-800 cursor-pointer text-slate-300 hover:text-white">
+                    <input
+                      type="checkbox"
+                      checked={editCampaigns}
+                      onChange={(e) => setEditCampaigns(e.target.checked)}
+                      className="rounded border-slate-700 text-rose-600 focus:ring-rose-500"
+                    />
+                    <span>Módulo Campanhas</span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsEditPlanModalOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingPlan}
+                  className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-xs font-bold text-white shadow-lg shadow-rose-950 disabled:opacity-50"
+                >
+                  {savingPlan ? "Salvando..." : "Salvar Preço & Configurações"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
