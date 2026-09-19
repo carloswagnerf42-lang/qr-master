@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { requireAdmin, logAdminAction } from "@/lib/admin";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export async function GET() {
   try {
@@ -16,7 +20,16 @@ export async function GET() {
       },
     });
 
-    return NextResponse.json({ success: true, plans });
+    return NextResponse.json(
+      { success: true, plans },
+      {
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+          Pragma: "no-cache",
+          Expires: "0",
+        },
+      }
+    );
   } catch (error) {
     console.error("Erro ao listar planos administrativos:", error);
     return NextResponse.json(
@@ -103,17 +116,37 @@ export async function POST(req: NextRequest) {
       description: `Plano "${selectedPlan.displayName}" ativado manualmente pelo Administrador (${admin.name}) para o usuário "${targetUser.name}"${noteText}. Validade: ${periodEnd.toLocaleDateString("pt-BR")}.`,
     });
 
-    return NextResponse.json({
-      success: true,
-      message: `Plano ${selectedPlan.displayName} ativado com sucesso para ${targetUser.name}!`,
-      user: {
-        id: updatedUser.id,
-        name: updatedUser.name,
-        email: updatedUser.email,
-        plan: selectedPlan,
-        subscription,
+    try {
+      revalidatePath("/settings");
+      revalidatePath("/dashboard");
+      revalidatePath("/admin");
+      revalidatePath("/create");
+      revalidatePath("/profile");
+      revalidatePath("/");
+    } catch {
+      // Ignora erro em ambientes sem contexto de rota
+    }
+
+    return NextResponse.json(
+      {
+        success: true,
+        message: `Plano ${selectedPlan.displayName} ativado com sucesso para ${targetUser.name}!`,
+        user: {
+          id: updatedUser.id,
+          name: updatedUser.name,
+          email: updatedUser.email,
+          plan: selectedPlan,
+          subscription,
+        },
       },
-    });
+      {
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+          Pragma: "no-cache",
+          Expires: "0",
+        },
+      }
+    );
   } catch (error) {
     console.error("Erro na ativação manual de plano:", error);
     return NextResponse.json(
@@ -219,11 +252,31 @@ export async function PATCH(req: NextRequest) {
       description: `Plano "${plan.name}" atualizado pelo Administrador (${admin.name}). Preço: R$ ${updatedPlan.priceMonth.toFixed(2)}/mês | R$ ${updatedPlan.priceYear.toFixed(2)}/ano.`,
     });
 
-    return NextResponse.json({
-      success: true,
-      message: `Plano ${updatedPlan.displayName} atualizado com sucesso!`,
-      plan: updatedPlan,
-    });
+    try {
+      revalidatePath("/settings");
+      revalidatePath("/dashboard");
+      revalidatePath("/admin");
+      revalidatePath("/create");
+      revalidatePath("/profile");
+      revalidatePath("/");
+    } catch {
+      // Ignora erro em ambientes sem contexto de rota
+    }
+
+    return NextResponse.json(
+      {
+        success: true,
+        message: `Plano ${updatedPlan.displayName} atualizado com sucesso!`,
+        plan: updatedPlan,
+      },
+      {
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+          Pragma: "no-cache",
+          Expires: "0",
+        },
+      }
+    );
   } catch (error) {
     console.error("Erro ao atualizar plano administrativo:", error);
     return NextResponse.json(

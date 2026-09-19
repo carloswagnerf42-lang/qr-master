@@ -458,6 +458,20 @@ export function AdminUserManagement({
       setPlanItems((prev) =>
         prev.map((p) => (p.id === data.plan.id ? { ...p, ...data.plan } : p))
       );
+      setUsers((prev) =>
+        prev.map((u) => {
+          if (u.planId === data.plan.id || u.plan?.id === data.plan.id) {
+            return {
+              ...u,
+              plan: {
+                ...u.plan,
+                ...data.plan,
+              },
+            };
+          }
+          return u;
+        })
+      );
       setIsEditPlanModalOpen(false);
     } catch (err) {
       console.error(err);

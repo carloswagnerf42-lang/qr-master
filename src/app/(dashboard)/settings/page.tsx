@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Settings,
   User,
@@ -101,69 +101,118 @@ export default function SettingsPage() {
   const [deleteConfirmationText, setDeleteConfirmationText] = useState("");
 
   // Carrega os dados reais do usuário autenticado e suas configurações
-  useEffect(() => {
-    async function loadUserData() {
-      setLoading(true);
-      try {
-        const res = await fetch("/api/auth/me");
-        if (res.ok) {
-          const data = await res.json();
-          if (data.user) {
-            setUserName(data.user.name || "");
-            setUserEmail(data.user.email || "");
-            setUserCompany(data.user.company || "");
-            setUserPhone(data.user.phone || "");
-            setUserAvatarUrl(data.user.avatarUrl || null);
-            setUserRole(data.user.role || "USER");
+  const loadUserData = useCallback(async (isInitial = false) => {
+    if (isInitial) setLoading(true);
+    try {
+      const res = await fetch("/api/auth/me", {
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache" },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.user) {
+          setUserName(data.user.name || "");
+          setUserEmail(data.user.email || "");
+          setUserCompany(data.user.company || "");
+          setUserPhone(data.user.phone || "");
+          setUserAvatarUrl(data.user.avatarUrl || null);
+          setUserRole(data.user.role || "USER");
 
-            if (data.plan) {
-              setUserPlan(data.plan);
-            }
-            if (data.usage) {
-              setUsage(data.usage);
-            }
+          if (data.plan) {
+            setUserPlan(data.plan);
+          }
+          if (data.availablePlans) {
+            setAvailablePlans(data.availablePlans);
+          }
+          if (data.usage) {
+            setUsage(data.usage);
+          }
 
-            // Popula preferências reais do UserSettings
-            if (data.user.settings) {
-              setNotifyScans(data.user.settings.notifyNewScans ?? true);
-              setNotifyWeekly(data.user.settings.notifyWeeklyReport ?? true);
-              setNotifyLimits(data.user.settings.notifyLimitAlert ?? true);
-              setConsent(data.user.settings.analyticsConsent ?? true);
-              setRetentionDays(data.user.settings.dataRetentionDays ?? 365);
-              setLanguage(data.user.settings.language || "pt-BR");
-            }
+          // Popula preferências reais do UserSettings
+          if (data.user.settings) {
+            setNotifyScans(data.user.settings.notifyNewScans ?? true);
+            setNotifyWeekly(data.user.settings.notifyWeeklyReport ?? true);
+            setNotifyLimits(data.user.settings.notifyLimitAlert ?? true);
+            setConsent(data.user.settings.analyticsConsent ?? true);
+            setRetentionDays(data.user.settings.dataRetentionDays ?? 365);
+            setLanguage(data.user.settings.language || "pt-BR");
           }
         }
-        // Carrega status detalhado de assinatura
+      }
+
+      // Carrega status detalhado de assinatura e planos disponíveis
+      try {
+        const billingRes = await fetch("/api/billing/subscription", {
+          cache: "no-store",
+          headers: { "Cache-Control": "no-cache" },
+        });
+        if (billingRes.ok) {
+          const billingData = await billingRes.json();
+          if (billingData.subscription) {
+            setSubscription(billingData.subscription);
+          }
+          if (billingData.plan) {
+            setUserPlan(billingData.plan);
+          }
+          if (billingData.availablePlans && billingData.availablePlans.length > 0) {
+            setAvailablePlans(billingData.availablePlans);
+          }
+          if (billingData.usage) {
+            setUsage(billingData.usage);
+          }
+        }
+      } catch {
+        // Fallback para rota pública de planos caso assinatura falhe
         try {
-          const billingRes = await fetch("/api/billing/subscription");
-          if (billingRes.ok) {
-            const billingData = await billingRes.json();
-            if (billingData.subscription) {
-              setSubscription(billingData.subscription);
-            }
-            if (billingData.plan) {
-              setUserPlan(billingData.plan);
-            }
-            if (billingData.availablePlans) {
-              setAvailablePlans(billingData.availablePlans);
-            }
-            if (billingData.usage) {
-              setUsage(billingData.usage);
+          const plansRes = await fetch("/api/plans", {
+            cache: "no-store",
+            headers: { "Cache-Control": "no-cache" },
+          });
+          if (plansRes.ok) {
+            const plansData = await plansRes.json();
+            if (plansData.plans && plansData.plans.length > 0) {
+              setAvailablePlans(plansData.plans);
             }
           }
         } catch {
-          // Fallback silencioso
+          // Silencioso
         }
-      } catch (err) {
-        console.error("Erro ao carregar dados do usuário:", err);
-      } finally {
-        setLoading(false);
       }
+    } catch (err) {
+      console.error("Erro ao carregar dados do usuário:", err);
+    } finally {
+      if (isInitial) setLoading(false);
     }
-
-    loadUserData();
   }, []);
+
+  useEffect(() => {
+    loadUserData(true);
+
+    const handleWindowFocus = () => {
+      loadUserData(false);
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        loadUserData(false);
+      }
+    };
+
+    window.addEventListener("focus", handleWindowFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("focus", handleWindowFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [loadUserData]);
+
+  // Recarrega dados sempre que o usuário clica na aba de Planos
+  useEffect(() => {
+    if (activeTab === "plan") {
+      loadUserData(false);
+    }
+  }, [activeTab, loadUserData]);
 
   // Handlers de Assinatura e Pagamentos
   const handleUpgrade = async (planName: "PRO" | "BUSINESS") => {
@@ -956,9 +1005,14 @@ export default function SettingsPage() {
                 </div>
                 <div className="text-right">
                   <span className="text-3xl font-extrabold">
-                    R$ {(userPlan?.priceMonth || 0).toFixed(2)}
+                    R$ {Number(userPlan?.priceMonth ?? 0).toFixed(2).replace(".", ",")}
                   </span>
                   <span className="text-xs text-indigo-200 block">/mês</span>
+                  {Number(userPlan?.priceYear ?? 0) > 0 && (
+                    <span className="text-[11px] text-indigo-300 block">
+                      ou R$ {Number(userPlan?.priceYear).toFixed(2).replace(".", ",")}/ano
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -967,7 +1021,7 @@ export default function SettingsPage() {
                 <div className="flex items-center justify-between text-xs font-bold text-slate-800 dark:text-slate-200">
                   <span>Utilização de Códigos:</span>
                   <span>
-                    {usage?.qrCodes || 0} de {usage?.maxQRCodes || 5} códigos criados
+                    {usage?.qrCodes || 0} de {usage?.maxQRCodes ?? userPlan?.maxQRCodes ?? 5} códigos criados
                   </span>
                 </div>
                 <div className="w-full h-2.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
@@ -976,13 +1030,15 @@ export default function SettingsPage() {
                     style={{
                       width: `${Math.min(
                         100,
-                        Math.round(((usage?.qrCodes || 0) / (usage?.maxQRCodes || 5)) * 100)
+                        Math.round(((usage?.qrCodes || 0) / (usage?.maxQRCodes ?? userPlan?.maxQRCodes ?? 5)) * 100)
                       )}%`,
                     }}
                   />
                 </div>
                 <p className="text-[11px] text-slate-500">
-                  {usage?.remainingQRCodes || 0} slots restantes para criação de novos QR Codes.
+                  {usage?.remainingQRCodes !== undefined
+                    ? usage.remainingQRCodes
+                    : Math.max(0, (usage?.maxQRCodes ?? userPlan?.maxQRCodes ?? 5) - (usage?.qrCodes || 0))} slots restantes para criação de novos QR Codes.
                 </p>
               </div>
 
@@ -1099,12 +1155,12 @@ export default function SettingsPage() {
                 const proPlanData = availablePlans.find((p) => p.name === "PRO");
                 const bizPlanData = availablePlans.find((p) => p.name === "BUSINESS");
 
-                const proMonthPrice = Number(proPlanData?.priceMonth) || 19.90;
-                const proYearPrice = Number(proPlanData?.priceYear) || 99.00;
+                const proMonthPrice = proPlanData?.priceMonth !== undefined ? Number(proPlanData.priceMonth) : 19.90;
+                const proYearPrice = proPlanData?.priceYear !== undefined ? Number(proPlanData.priceYear) : 99.00;
                 const proDiscount = calculateAnnualDiscountPercent(proMonthPrice, proYearPrice);
 
-                const bizMonthPrice = Number(bizPlanData?.priceMonth) || 29.90;
-                const bizYearPrice = Number(bizPlanData?.priceYear) || 199.00;
+                const bizMonthPrice = bizPlanData?.priceMonth !== undefined ? Number(bizPlanData.priceMonth) : 29.90;
+                const bizYearPrice = bizPlanData?.priceYear !== undefined ? Number(bizPlanData.priceYear) : 199.00;
                 const bizDiscount = calculateAnnualDiscountPercent(bizMonthPrice, bizYearPrice);
 
                 const maxDiscount = Math.max(proDiscount, bizDiscount);
@@ -1258,7 +1314,7 @@ export default function SettingsPage() {
                           <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-300 pt-2">
                             <li className="flex items-center gap-2">
                               <Check className="w-4 h-4 text-emerald-500" />
-                              <span><strong>QR Codes Ilimitados</strong></span>
+                              <span><strong>{bizPlanData?.maxQRCodes && bizPlanData.maxQRCodes > 9999 ? "QR Codes Ilimitados" : `Até ${bizPlanData?.maxQRCodes ?? "Ilimitados"} QR Codes`}</strong></span>
                             </li>
                             <li className="flex items-center gap-2">
                               <Check className="w-4 h-4 text-emerald-500" />

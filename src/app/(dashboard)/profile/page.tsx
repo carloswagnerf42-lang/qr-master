@@ -40,7 +40,10 @@ export default function ProfilePage() {
   useEffect(() => {
     async function loadUser() {
       try {
-        const res = await fetch("/api/auth/me");
+        const res = await fetch("/api/auth/me", {
+          cache: "no-store",
+          headers: { "Cache-Control": "no-cache" },
+        });
         if (res.ok) {
           const data = await res.json();
           if (data.user) {
@@ -64,7 +67,21 @@ export default function ProfilePage() {
         setLoading(false);
       }
     }
+
     loadUser();
+
+    const handleFocus = () => loadUser();
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") loadUser();
+    };
+
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
   }, []);
 
   const handleSave = async (e: React.FormEvent) => {

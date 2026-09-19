@@ -79,7 +79,10 @@ export default function DashboardPage() {
   useEffect(() => {
     async function loadDashboard() {
       try {
-        const res = await fetch("/api/dashboard");
+        const res = await fetch("/api/dashboard", {
+          cache: "no-store",
+          headers: { "Cache-Control": "no-cache" },
+        });
         if (res.ok) {
           const json = await res.json();
           setData(json);
@@ -90,7 +93,21 @@ export default function DashboardPage() {
         setLoading(false);
       }
     }
+
     loadDashboard();
+
+    const handleFocus = () => loadDashboard();
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") loadDashboard();
+    };
+
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
   }, []);
 
   useEffect(() => {

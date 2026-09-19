@@ -114,9 +114,9 @@ export default function CreateQRCodePage() {
     async function loadMeta() {
       try {
         const [catRes, campRes, meRes] = await Promise.all([
-          fetch("/api/categories"),
-          fetch("/api/campaigns"),
-          fetch("/api/auth/me"),
+          fetch("/api/categories", { cache: "no-store", headers: { "Cache-Control": "no-cache" } }),
+          fetch("/api/campaigns", { cache: "no-store", headers: { "Cache-Control": "no-cache" } }),
+          fetch("/api/auth/me", { cache: "no-store", headers: { "Cache-Control": "no-cache" } }),
         ]);
         if (catRes.ok) {
           const c = await catRes.json();
@@ -142,7 +142,21 @@ export default function CreateQRCodePage() {
         console.error("Erro ao carregar metadados e permissões:", err);
       }
     }
+
     loadMeta();
+
+    const handleFocus = () => loadMeta();
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") loadMeta();
+    };
+
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
   }, []);
 
   // Compute Destination String based on type & content

@@ -3,6 +3,9 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { getUserPlanAndUsage } from "@/lib/permissions";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function GET() {
   try {
     const session = await getSession();
@@ -52,28 +55,37 @@ export async function GET() {
     ]);
 
     const userContext = await getUserPlanAndUsage(session.id);
-    const planMax = userContext?.plan?.maxQRCodes || 5;
+    const planMax = userContext?.plan?.maxQRCodes ?? 5;
 
-    return NextResponse.json({
-      userName: session.name,
-      plan: {
-        name: userContext?.plan?.name || "FREE",
-        displayName: userContext?.plan?.displayName || "Plano Grátis",
-        maxQRCodes: planMax,
-        usedQRCodes: totalQRs,
-        remainingQRCodes: Math.max(0, planMax - totalQRs),
+    return NextResponse.json(
+      {
+        userName: session.name,
+        plan: {
+          name: userContext?.plan?.name || "FREE",
+          displayName: userContext?.plan?.displayName || "Plano Grátis",
+          maxQRCodes: planMax,
+          usedQRCodes: totalQRs,
+          remainingQRCodes: Math.max(0, planMax - totalQRs),
+        },
+        cards: {
+          totalQRs: { value: totalQRs, change: "+2 este mês", trend: "up" },
+          activeQRs: { value: activeQRs, change: `${Math.round((activeQRs / (totalQRs || 1)) * 100)}% ativos`, trend: "up" },
+          totalScans: { value: totalScans, change: "+14.2% vs mês anterior", trend: "up" },
+          scansToday: { value: scansToday, change: "+8% vs ontem", trend: "up" },
+          scans7Days: { value: scans7Days, change: "+19.5% vs semana anterior", trend: "up" },
+          scans30Days: { value: scans30Days, change: "+24.8% vs período anterior", trend: "up" },
+        },
+        topQRs: userQrs.slice(0, 5),
+        recentActivity,
       },
-      cards: {
-        totalQRs: { value: totalQRs, change: "+2 este mês", trend: "up" },
-        activeQRs: { value: activeQRs, change: `${Math.round((activeQRs / (totalQRs || 1)) * 100)}% ativos`, trend: "up" },
-        totalScans: { value: totalScans, change: "+14.2% vs mês anterior", trend: "up" },
-        scansToday: { value: scansToday, change: "+8% vs ontem", trend: "up" },
-        scans7Days: { value: scans7Days, change: "+19.5% vs semana anterior", trend: "up" },
-        scans30Days: { value: scans30Days, change: "+24.8% vs período anterior", trend: "up" },
-      },
-      topQRs: userQrs.slice(0, 5),
-      recentActivity,
-    });
+      {
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+          Pragma: "no-cache",
+          Expires: "0",
+        },
+      }
+    );
   } catch (error) {
     console.error("Erro na API do dashboard:", error);
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });

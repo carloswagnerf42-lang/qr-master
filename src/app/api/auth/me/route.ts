@@ -3,35 +3,68 @@ import { getCurrentUser, getSession, signToken, setSessionCookie } from "@/lib/a
 import { prisma } from "@/lib/db";
 import { getUserPlanAndUsage, can } from "@/lib/permissions";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function GET() {
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ authenticated: false, user: null }, { status: 401 });
   }
 
-  const userContext = await getUserPlanAndUsage(user.id);
-  const maxQRs = userContext?.plan?.maxQRCodes || 5;
+  const [userContext, availablePlans] = await Promise.all([
+    getUserPlanAndUsage(user.id),
+    prisma.plan.findMany({
+      orderBy: { priceMonth: "asc" },
+      select: {
+        id: true,
+        name: true,
+        displayName: true,
+        priceMonth: true,
+        priceYear: true,
+        maxQRCodes: true,
+        dynamicQRs: true,
+        analytics: true,
+        exportSvg: true,
+        exportPdf: true,
+        customLogo: true,
+        campaigns: true,
+      },
+    }),
+  ]);
+
+  const maxQRs = userContext?.plan?.maxQRCodes ?? 5;
   const currentQRs = userContext?.qrCodeCount || 0;
 
-  return NextResponse.json({
-    authenticated: true,
-    user,
-    plan: userContext?.plan || null,
-    usage: {
-      qrCodes: currentQRs,
-      maxQRCodes: maxQRs,
-      remainingQRCodes: Math.max(0, maxQRs - currentQRs),
+  return NextResponse.json(
+    {
+      authenticated: true,
+      user,
+      plan: userContext?.plan || null,
+      availablePlans,
+      usage: {
+        qrCodes: currentQRs,
+        maxQRCodes: maxQRs,
+        remainingQRCodes: Math.max(0, maxQRs - currentQRs),
+      },
+      permissions: {
+        create_qr: can(userContext, "create_qr"),
+        dynamic_qr: can(userContext, "dynamic_qr"),
+        analytics: can(userContext, "analytics"),
+        export_svg: can(userContext, "export_svg"),
+        export_pdf: can(userContext, "export_pdf"),
+        customLogo: can(userContext, "custom_logo"),
+        campaigns: can(userContext, "campaigns"),
+      },
     },
-    permissions: {
-      create_qr: can(userContext, "create_qr"),
-      dynamic_qr: can(userContext, "dynamic_qr"),
-      analytics: can(userContext, "analytics"),
-      export_svg: can(userContext, "export_svg"),
-      export_pdf: can(userContext, "export_pdf"),
-      custom_logo: can(userContext, "custom_logo"),
-      campaigns: can(userContext, "campaigns"),
-    },
-  });
+    {
+      headers: {
+        "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+        Pragma: "no-cache",
+        Expires: "0",
+      },
+    }
+  );
 }
 
 export async function PATCH(req: NextRequest) {

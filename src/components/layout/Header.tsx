@@ -37,33 +37,51 @@ export function Header({ title, subtitle, user: propUser }: HeaderProps) {
 
   useEffect(() => {
     let isMounted = true;
-    fetch("/api/auth/me")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (!isMounted || !data?.authenticated || !data.user) return;
-        const u = data.user;
-        const p = data.plan || u.plan;
-        const resolvedPlanName =
-          p?.displayName ||
-          (p?.name === "FREE"
-            ? "Plano Grátis"
-            : p?.name === "PRO"
-            ? "Plano Pro"
-            : p?.name === "BUSINESS"
-            ? "Plano Business"
-            : p?.name);
 
-        setUserData({
-          name: u.name,
-          email: u.email,
-          role: u.role,
-          planName: resolvedPlanName,
-        });
+    const fetchUserData = () => {
+      fetch("/api/auth/me", {
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache" },
       })
-      .catch(() => {});
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (!isMounted || !data?.authenticated || !data.user) return;
+          const u = data.user;
+          const p = data.plan || u.plan;
+          const resolvedPlanName =
+            p?.displayName ||
+            (p?.name === "FREE"
+              ? "Plano Grátis"
+              : p?.name === "PRO"
+              ? "Plano Pro"
+              : p?.name === "BUSINESS"
+              ? "Plano Business"
+              : p?.name);
+
+          setUserData({
+            name: u.name,
+            email: u.email,
+            role: u.role,
+            planName: resolvedPlanName,
+          });
+        })
+        .catch(() => {});
+    };
+
+    fetchUserData();
+
+    const handleFocus = () => fetchUserData();
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") fetchUserData();
+    };
+
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleVisibility);
 
     return () => {
       isMounted = false;
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleVisibility);
     };
   }, []);
 
