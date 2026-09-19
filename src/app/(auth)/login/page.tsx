@@ -115,13 +115,6 @@ export default function LoginPage() {
             </p>
           </div>
 
-          {/* Dica de DEMO DATA (apenas em desenvolvimento) */}
-          {process.env.NODE_ENV === "development" && (
-            <div className="bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/50 p-3 rounded-xl text-xs text-indigo-700 dark:text-indigo-300">
-              <p className="font-semibold">Credenciais de Demonstração (Modo Dev):</p>
-              <p className="mt-0.5">Usuário: <code className="bg-white/80 dark:bg-slate-900 px-1 py-0.5 rounded">carlos@qrmaster.com</code> | Senha: <code className="bg-white/80 dark:bg-slate-900 px-1 py-0.5 rounded">senha123</code></p>
-            </div>
-          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
