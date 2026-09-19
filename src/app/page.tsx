@@ -15,6 +15,9 @@ import {
 } from "lucide-react";
 import { QRCodeRenderer } from "@/components/qr/QRCodeRenderer";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default async function HomePage() {
   const user = await getCurrentUser();
 
@@ -81,12 +84,6 @@ export default async function HomePage() {
             >
               <span>Começar Agora Gratuitamente</span>
               <ArrowRight className="w-4 h-4" />
-            </Link>
-            <Link
-              href="/login"
-              className="w-full sm:w-auto px-8 py-3.5 rounded-xl border border-slate-800 hover:border-slate-700 bg-slate-900/60 hover:bg-slate-900 text-slate-300 font-bold text-sm transition-colors"
-            >
-              Entrar na Minha Conta
             </Link>
           </div>
 
