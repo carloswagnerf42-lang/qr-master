@@ -605,6 +605,7 @@ export async function processMercadoPagoNotification(
             data: {
               userId,
               action: "SUBSCRIPTION_ACTIVATE",
+              entityId: String(payment.id),
               description: `Assinatura ativada via Mercado Pago (${targetPlan.displayName}) - Pagamento #${payment.id}`,
             },
           });

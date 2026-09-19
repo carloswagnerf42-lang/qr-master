@@ -34,6 +34,7 @@ import {
   Copy,
   Check,
   Info,
+  Loader2,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { calculateAnnualDiscountPercent } from "@/lib/permissions";
@@ -208,9 +209,66 @@ export function AdminUserManagement({
   const [searchCampaigns, setSearchCampaigns] = useState("");
 
   // State: Logs
-  const [logs] = useState<LogItem[]>(initialLogs);
+  const [logs, setLogs] = useState<LogItem[]>(initialLogs);
   const [searchLogs, setSearchLogs] = useState("");
   const [filterAction, setFilterAction] = useState<string>("ALL");
+  const [loadingLogs, setLoadingLogs] = useState(false);
+  const [logsError, setLogsError] = useState<string | null>(null);
+
+  // Efeito de busca de logs com debounce de 400ms e AbortController
+  useEffect(() => {
+    // Se a busca estiver vazia e todas as ações selecionadas, restaura os logs padrão sem chamada de rede
+    if (!searchLogs.trim() && filterAction === "ALL") {
+      setLogs(initialLogs);
+      setLoadingLogs(false);
+      setLogsError(null);
+      return;
+    }
+
+    setLoadingLogs(true);
+    setLogsError(null);
+
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      try {
+        const params = new URLSearchParams();
+        if (searchLogs.trim()) {
+          params.set("search", searchLogs.trim());
+        }
+        if (filterAction !== "ALL") {
+          params.set("action", filterAction);
+        }
+
+        const res = await fetch(`/api/admin/logs?${params.toString()}`, {
+          signal: controller.signal,
+        });
+
+        if (!res.ok) {
+          throw new Error(`Erro HTTP ${res.status}`);
+        }
+
+        const data = await res.json();
+        if (data.success && Array.isArray(data.logs)) {
+          setLogs(data.logs);
+        } else {
+          setLogs([]);
+        }
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === "AbortError") {
+          return;
+        }
+        console.error("Erro ao pesquisar logs de auditoria:", err);
+        setLogsError("Não foi possível carregar os logs do servidor. Tente novamente.");
+      } finally {
+        setLoadingLogs(false);
+      }
+    }, 400);
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [searchLogs, filterAction, initialLogs]);
 
   // Filtered Users
   const filteredUsers = users.filter((u) => {
@@ -245,17 +303,6 @@ export function AdminUserManagement({
     );
   });
 
-  // Filtered Logs
-  const filteredLogs = logs.filter((l) => {
-    const q = searchLogs.toLowerCase();
-    const matchesSearch =
-      l.description.toLowerCase().includes(q) ||
-      l.action.toLowerCase().includes(q) ||
-      l.user.name.toLowerCase().includes(q) ||
-      l.user.email.toLowerCase().includes(q);
-    const matchesAction = filterAction === "ALL" || l.action === filterAction;
-    return matchesSearch && matchesAction;
-  });
 
   // Modal handlers
   const openActivationModal = (user: UserItem) => {
@@ -1220,11 +1267,15 @@ export function AdminUserManagement({
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
             <div className="relative flex-1 max-w-md">
               <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                <Search className="w-4 h-4" />
+                {loadingLogs ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-rose-500" />
+                ) : (
+                  <Search className="w-4 h-4" />
+                )}
               </div>
               <input
                 type="text"
-                placeholder="Filtrar logs por descrição, usuário ou ação..."
+                placeholder="Pesquisar por descrição, usuário, e-mail, ID do pagamento ou ação..."
                 value={searchLogs}
                 onChange={(e) => setSearchLogs(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-rose-500"
@@ -1237,8 +1288,10 @@ export function AdminUserManagement({
                 className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-rose-500"
               >
                 <option value="ALL">Todas as Ações</option>
-                <option value="ADMIN_PLAN_ACTIVATION">Ativação de Plano</option>
-                <option value="ADMIN_ROLE_CHANGE">Mudança de Role</option>
+                <option value="SUBSCRIPTION_ACTIVATE">Ativação de Assinatura (Mercado Pago)</option>
+                <option value="SUBSCRIPTION_CANCEL">Cancelamento de Assinatura</option>
+                <option value="ADMIN_PLAN_ACTIVATION">Ativação Manual de Plano</option>
+                <option value="ADMIN_ROLE_CHANGE">Mudança de Papel (Role)</option>
                 <option value="ADMIN_ACCOUNT_STATUS_CHANGE">Status da Conta</option>
                 <option value="ADMIN_ACTIVATE_QR">Ativação de QR</option>
                 <option value="ADMIN_DEACTIVATE_QR">Desativação de QR</option>
@@ -1259,14 +1312,32 @@ export function AdminUserManagement({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60">
-                  {filteredLogs.length === 0 ? (
+                  {loadingLogs ? (
+                    <tr>
+                      <td colSpan={4} className="py-12 text-center text-slate-400">
+                        <div className="inline-flex items-center gap-2">
+                          <Loader2 className="w-4 h-4 animate-spin text-rose-500" />
+                          <span>Consultando logs no servidor...</span>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : logsError ? (
+                    <tr>
+                      <td colSpan={4} className="py-10 text-center text-rose-400">
+                        <div className="inline-flex items-center gap-2">
+                          <AlertCircle className="w-4 h-4 text-rose-500" />
+                          <span>{logsError}</span>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : logs.length === 0 ? (
                     <tr>
                       <td colSpan={4} className="py-8 text-center text-slate-500">
                         Nenhum log encontrado para o critério selecionado.
                       </td>
                     </tr>
                   ) : (
-                    filteredLogs.map((l) => (
+                    logs.map((l) => (
                       <tr key={l.id} className="hover:bg-slate-800/40 transition-colors">
                         <td className="py-3.5 px-4 text-slate-400 font-mono text-[11px] whitespace-nowrap">
                           {new Date(l.createdAt).toLocaleString("pt-BR")}
@@ -1277,10 +1348,17 @@ export function AdminUserManagement({
                           </span>
                         </td>
                         <td className="py-3.5 px-4">
-                          <div className="text-white font-medium">{l.user.name}</div>
-                          <div className="text-[10px] text-slate-500">{l.user.email}</div>
+                          <div className="text-white font-medium">{l.user?.name || "Sistema"}</div>
+                          <div className="text-[10px] text-slate-500">{l.user?.email || "-"}</div>
                         </td>
-                        <td className="py-3.5 px-4 text-slate-300">{l.description}</td>
+                        <td className="py-3.5 px-4 text-slate-300">
+                          <div>{l.description}</div>
+                          {l.entityId && (
+                            <div className="text-[10px] text-slate-500 font-mono mt-0.5">
+                              ID Ref: {l.entityId}
+                            </div>
+                          )}
+                        </td>
                       </tr>
                     ))
                   )}
