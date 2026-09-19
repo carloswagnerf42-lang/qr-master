@@ -252,6 +252,33 @@ export default function SettingsPage() {
     }
   }, [activeTab, loadUserData]);
 
+  // Tratamento de URLs de retorno de pagamento e seleção de aba via querystring
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get("tab");
+    const payment = params.get("payment");
+
+    if (tab === "plan" || payment) {
+      setActiveTab("plan");
+    }
+
+    if (payment === "success") {
+      toast.success(
+        "Pagamento Confirmado!",
+        "Seu plano foi atualizado com sucesso! Aproveite todos os recursos."
+      );
+      loadUserData(true);
+      window.history.replaceState({}, "", window.location.pathname + "?tab=plan");
+    } else if (payment === "canceled") {
+      toast.info(
+        "Pagamento não concluído",
+        "O pagamento foi cancelado ou aguarda conclusão. Caso precise de ajuda, entre em contato."
+      );
+      window.history.replaceState({}, "", window.location.pathname + "?tab=plan");
+    }
+  }, [loadUserData, toast]);
+
   // Preço do plano selecionado para o modal de checkout
   const getSelectedPlanPrice = () => {
     const proPlan = availablePlans.find((p) => p.name === "PRO");

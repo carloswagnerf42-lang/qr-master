@@ -83,8 +83,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 1. Prioriza Mercado Pago se solicitado ou se Stripe não estiver configurado mas MP estiver
-    if ((gateway === "mercadopago" || paymentMethod === "card" || (!hasStripe && mpConfig.isConfigured)) && mpConfig.isConfigured) {
+    // 1. Prioriza Mercado Pago se solicitado ou se Stripe não estiver configurado (a menos que stripe tenha sido expressamente solicitado)
+    if (gateway !== "stripe" && (gateway === "mercadopago" || paymentMethod === "card" || !hasStripe) && mpConfig.isConfigured) {
       const successUrl = `${appUrl}/settings?tab=plan&payment=success&gateway=mercadopago`;
       const cancelUrl = `${appUrl}/settings?tab=plan&payment=canceled&gateway=mercadopago`;
 

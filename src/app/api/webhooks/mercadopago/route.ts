@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { processMercadoPagoNotification, getMercadoPagoConfigAsync } from "@/lib/mercadopago";
+import {
+  processMercadoPagoNotification,
+  getMercadoPagoConfigAsync,
+  verifyMercadoPagoSignature,
+} from "@/lib/mercadopago";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +38,24 @@ export async function POST(req: NextRequest) {
     if (!entityId) {
       // Responde 200 para testes de ping do Mercado Pago
       return NextResponse.json({ received: true, note: "Webhook recebido sem ID específico" }, { status: 200 });
+    }
+
+    const config = await getMercadoPagoConfigAsync();
+
+    // Verificação de assinatura HMAC SHA-256 quando webhookSecret estiver configurado
+    const xSignature = req.headers.get("x-signature");
+    const xRequestId = req.headers.get("x-request-id");
+    if (config.webhookSecret && xSignature) {
+      const isValid = verifyMercadoPagoSignature({
+        xSignature,
+        xRequestId,
+        dataId: String(entityId),
+        secret: config.webhookSecret,
+      });
+      if (!isValid) {
+        console.warn("[MP Webhook] Assinatura x-signature inválida rejeitada.");
+        return NextResponse.json({ error: "Assinatura do webhook inválida" }, { status: 401 });
+      }
     }
 
     // Caso 1: Notificação de Merchant Order (Checkout Pro)

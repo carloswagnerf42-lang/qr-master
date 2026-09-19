@@ -13,7 +13,7 @@
     "db:migrate": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
     "db:clean": "tsx prisma/clean-history.ts",
-    "test": "tsx tests/run-tests.ts && tsx tests/test-authorization.ts && tsx tests/test-plans-and-permissions.ts && tsx tests/test-dynamic-qrs.ts && tsx tests/test-pix-technical.ts && tsx tests/test-admin-security.ts && tsx tests/test-settings-and-security.ts && tsx tests/test-routes-and-integration.ts && tsx tests/test-vercel-production-flow.ts && tsx tests/test-custom-domain.ts && tsx tests/test-billing-and-subscriptions.ts && tsx tests/test-audit-fixes.ts && tsx tests/test-security-sweep.ts && tsx tests/test-dynamic-qr-edit.ts && tsx tests/test-dynamic-qr-lifecycle.ts && tsx tests/test-analytics-suite.ts && tsx tests/test-monetization-audit.ts",
+    "test": "tsx tests/run-tests.ts && tsx tests/test-authorization.ts && tsx tests/test-plans-and-permissions.ts && tsx tests/test-dynamic-qrs.ts && tsx tests/test-pix-technical.ts && tsx tests/test-admin-security.ts && tsx tests/test-settings-and-security.ts && tsx tests/test-routes-and-integration.ts && tsx tests/test-vercel-production-flow.ts && tsx tests/test-custom-domain.ts && tsx tests/test-billing-and-subscriptions.ts && tsx tests/test-audit-fixes.ts && tsx tests/test-security-sweep.ts && tsx tests/test-dynamic-qr-edit.ts && tsx tests/test-dynamic-qr-lifecycle.ts && tsx tests/test-analytics-suite.ts && tsx tests/test-monetization-audit.ts && tsx tests/test-mercadopago-audit.ts",
     "test:auth": "tsx tests/test-authorization.ts",
     "test:plans": "tsx tests/test-plans-and-permissions.ts",
     "test:dynamic": "tsx tests/test-dynamic-qrs.ts",
@@ -28,7 +28,8 @@
     "test:security": "tsx tests/test-security-sweep.ts",
     "test:edit": "tsx tests/test-dynamic-qr-edit.ts",
     "test:analytics": "tsx tests/test-analytics-suite.ts",
-    "test:monetization": "tsx tests/test-monetization-audit.ts"
+    "test:monetization": "tsx tests/test-monetization-audit.ts",
+    "test:mp": "tsx tests/test-mercadopago-audit.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.21.1",
