@@ -208,16 +208,23 @@ export async function processStripeWebhookEvent(event: Stripe.Event): Promise<{ 
     return { processed: false, reason: `Evento ${event.id} já processado anteriormente.` };
   }
 
-  // 2. Grava o evento bruto para rastreabilidade e auditoria
-  await prisma.webhookEvent.create({
-    data: {
-      gateway: "stripe",
-      eventId: event.id,
-      eventType: event.type,
-      status: "PROCESSING",
-      payload: JSON.stringify(event),
-    },
-  });
+  // 2. Grava o evento bruto para rastreabilidade e auditoria com proteção de corrida
+  try {
+    await prisma.webhookEvent.create({
+      data: {
+        gateway: "stripe",
+        eventId: event.id,
+        eventType: event.type,
+        status: "PROCESSING",
+        payload: JSON.stringify(event),
+      },
+    });
+  } catch (err: any) {
+    if (err.code === "P2002") {
+      return { processed: false, reason: `Evento ${event.id} duplicado concorrentemente.` };
+    }
+    throw err;
+  }
 
   try {
     switch (event.type) {
@@ -248,11 +255,17 @@ export async function processStripeWebhookEvent(event: Stripe.Event): Promise<{ 
         let periodStart = new Date();
         let periodEnd = new Date(Date.now() + fallbackDays * 24 * 60 * 60 * 1000);
 
-        if (subscriptionId) {
-          const stripe = getStripeClient();
-          const subObj = (await stripe.subscriptions.retrieve(subscriptionId)) as any;
-          periodStart = new Date(subObj.current_period_start * 1000);
-          periodEnd = new Date(subObj.current_period_end * 1000);
+        if (subscriptionId && process.env.STRIPE_SECRET_KEY) {
+          try {
+            const stripe = getStripeClient();
+            const subObj = (await stripe.subscriptions.retrieve(subscriptionId)) as any;
+            if (subObj?.current_period_start && subObj?.current_period_end) {
+              periodStart = new Date(subObj.current_period_start * 1000);
+              periodEnd = new Date(subObj.current_period_end * 1000);
+            }
+          } catch {
+            // Preserva as datas calculadas por fallback caso a API da Stripe esteja indisponível
+          }
         }
 
         await prisma.$transaction([
@@ -314,16 +327,58 @@ export async function processStripeWebhookEvent(event: Stripe.Event): Promise<{ 
         });
 
         if (localSub) {
-          await prisma.subscription.update({
-            where: { id: localSub.id },
-            data: {
-              status,
-              currentPeriodStart: periodStart,
-              currentPeriodEnd: periodEnd,
-              cancelAtPeriodEnd,
-              canceledAt: stripeSub.canceled_at ? new Date(stripeSub.canceled_at * 1000) : null,
-            },
-          });
+          // Detecta se houve alteração de plano (Upgrade ou Downgrade via Portal/Stripe)
+          let targetPlanId = localSub.planId;
+          const metaPlanName = stripeSub.metadata?.planName || stripeSub.metadata?.plan;
+          const metaPlanId = stripeSub.metadata?.planId;
+          const priceId = stripeSub.items?.data?.[0]?.price?.id;
+
+          if (metaPlanId) {
+            const p = await prisma.plan.findUnique({ where: { id: metaPlanId } });
+            if (p) targetPlanId = p.id;
+          } else if (metaPlanName) {
+            const p = await prisma.plan.findUnique({ where: { name: metaPlanName.toUpperCase() } });
+            if (p) targetPlanId = p.id;
+          } else if (priceId) {
+            if (process.env.STRIPE_PRICE_ID_BUSINESS && priceId === process.env.STRIPE_PRICE_ID_BUSINESS) {
+              const p = await prisma.plan.findUnique({ where: { name: "BUSINESS" } });
+              if (p) targetPlanId = p.id;
+            } else if (process.env.STRIPE_PRICE_ID_PRO && priceId === process.env.STRIPE_PRICE_ID_PRO) {
+              const p = await prisma.plan.findUnique({ where: { name: "PRO" } });
+              if (p) targetPlanId = p.id;
+            }
+          }
+
+          const isPlanChanged = targetPlanId !== localSub.planId;
+
+          await prisma.$transaction([
+            prisma.subscription.update({
+              where: { id: localSub.id },
+              data: {
+                planId: targetPlanId,
+                status,
+                currentPeriodStart: periodStart,
+                currentPeriodEnd: periodEnd,
+                cancelAtPeriodEnd,
+                canceledAt: stripeSub.canceled_at ? new Date(stripeSub.canceled_at * 1000) : null,
+              },
+            }),
+            ...(isPlanChanged
+              ? [
+                  prisma.user.update({
+                    where: { id: localSub.userId },
+                    data: { planId: targetPlanId },
+                  }),
+                  prisma.activityLog.create({
+                    data: {
+                      userId: localSub.userId,
+                      action: "SUBSCRIPTION_PLAN_CHANGED",
+                      description: `Plano da assinatura sincronizado com o Stripe para o plano ID ${targetPlanId}.`,
+                    },
+                  }),
+                ]
+              : []),
+          ]);
         }
         break;
       }
@@ -436,14 +491,18 @@ export async function processStripeWebhookEvent(event: Stripe.Event): Promise<{ 
 
     return { processed: true };
   } catch (error: any) {
-    // Registra falha no evento
-    await prisma.webhookEvent.update({
-      where: { eventId: event.id },
-      data: {
-        status: "FAILED",
-        errorMessage: error?.message || "Erro desconhecido ao processar evento.",
-      },
-    });
+    // Registra falha no evento se possível
+    try {
+      await prisma.webhookEvent.update({
+        where: { eventId: event.id },
+        data: {
+          status: "FAILED",
+          errorMessage: error?.message || "Erro desconhecido ao processar evento.",
+        },
+      });
+    } catch {
+      // Silenciosamente preserva o erro original
+    }
     throw error;
   }
 }

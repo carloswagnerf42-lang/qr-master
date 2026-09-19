@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const statusData = await getMercadoPagoPaymentStatus(paymentId);
+    const statusData = await getMercadoPagoPaymentStatus(paymentId, session.id);
 
     return NextResponse.json(
       {
@@ -38,6 +38,12 @@ export async function GET(req: NextRequest) {
       }
     );
   } catch (error: any) {
+    if (error?.status === 403 || error?.message?.includes("Acesso negado")) {
+      return NextResponse.json(
+        { error: "Acesso negado: você não tem permissão para consultar este pagamento." },
+        { status: 403 }
+      );
+    }
     console.error("Erro ao verificar status do pagamento Pix:", error);
     return NextResponse.json(
       { error: error?.message || "Falha ao consultar status do pagamento." },

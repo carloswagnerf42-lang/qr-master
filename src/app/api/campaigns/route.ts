@@ -3,10 +3,25 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { getUserPlanAndUsage, checkPermission } from "@/lib/permissions";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const session = await getSession();
+    const session = await getSession(req);
     if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+
+    const userContext = await getUserPlanAndUsage(session.id);
+    if (!userContext) return NextResponse.json({ error: "Usuário não encontrado" }, { status: 404 });
+
+    const canCampaign = checkPermission(userContext, "campaigns");
+    if (!canCampaign.allowed) {
+      return NextResponse.json(
+        {
+          error: canCampaign.reason,
+          code: canCampaign.code,
+          requiredPlan: canCampaign.requiredPlan,
+        },
+        { status: 403 }
+      );
+    }
 
     const campaigns = await prisma.campaign.findMany({
       where: { userId: session.id },
@@ -35,7 +50,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getSession();
+    const session = await getSession(req);
     if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
     // Validação central de permissão para gerenciamento de campanhas

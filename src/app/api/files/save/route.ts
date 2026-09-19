@@ -6,7 +6,7 @@ import { uploadFile, getMimeTypeFromExt } from "@/lib/storage";
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getSession();
+    const session = await getSession(req);
     if (!session) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }

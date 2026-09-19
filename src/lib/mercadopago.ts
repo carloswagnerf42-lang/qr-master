@@ -463,7 +463,7 @@ export async function processMercadoPagoNotification(paymentId: string | number)
 /**
  * Consulta o status de um pagamento e ativa a conta se aprovado (para polling em tempo real do Pix)
  */
-export async function getMercadoPagoPaymentStatus(paymentId: string | number) {
+export async function getMercadoPagoPaymentStatus(paymentId: string | number, expectedUserId?: string) {
   const config = await getMercadoPagoConfigAsync();
   if (!config.isConfigured) {
     throw new Error("Mercado Pago não configurado.");
@@ -481,6 +481,20 @@ export async function getMercadoPagoPaymentStatus(paymentId: string | number) {
   }
 
   const payment = await response.json();
+
+  if (expectedUserId && payment.external_reference) {
+    try {
+      const parsed = JSON.parse(payment.external_reference);
+      if (parsed.userId && parsed.userId !== expectedUserId) {
+        const authErr = new Error("Acesso negado: este pagamento pertence a outro usuário.");
+        (authErr as any).status = 403;
+        throw authErr;
+      }
+    } catch (e: any) {
+      if (e.status === 403 || e.message.includes("Acesso negado")) throw e;
+    }
+  }
+
   const isApproved = payment.status === "approved";
 
   // Se já foi aprovado, processa a notificação para garantir que o usuário e a assinatura estejam ativos

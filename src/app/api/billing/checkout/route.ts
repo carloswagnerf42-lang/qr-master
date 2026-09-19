@@ -7,15 +7,25 @@ import {
   getMercadoPagoConfigAsync,
 } from "@/lib/mercadopago";
 import { getAppUrl } from "@/lib/app-url";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getSession();
+    const session = await getSession(req);
     if (!session) {
       return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
+    }
+
+    // Rate Limiting financeiro por usuário
+    const rateLimit = checkRateLimit(session.id, "checkout");
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: "Muitas tentativas de checkout em curto intervalo. Por favor, aguarde alguns minutos." },
+        { status: 429 }
+      );
     }
 
     const body = await req.json();

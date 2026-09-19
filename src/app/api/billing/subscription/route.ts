@@ -8,7 +8,7 @@ export const revalidate = 0;
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getSession();
+    const session = await getSession(req);
     if (!session) {
       return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
     }

@@ -61,12 +61,32 @@ export async function PUT(
     } = body;
 
     // Validação de permissões para recursos PRO/BUSINESS
-    const isAddingLogo = logoUrl && logoUrl !== existing.logoUrl;
-    const isAddingCampaign = campaignId && campaignId !== existing.campaignId;
+    const isAddingLogo = Boolean(
+      (logoUrl && logoUrl !== existing.logoUrl) ||
+      (styleConfig && typeof styleConfig === "object" && styleConfig.logoUrl && styleConfig.logoUrl !== existing.logoUrl)
+    );
+    const isAddingCampaign = Boolean(campaignId && campaignId !== existing.campaignId);
+    const isEditingDynamicDestination = Boolean(
+      existing.isDynamic && destination !== undefined && destination !== existing.destination
+    );
 
-    if (isAddingLogo || isAddingCampaign) {
+    if (isAddingLogo || isAddingCampaign || isEditingDynamicDestination) {
       const userContext = await getUserPlanAndUsage(session.id);
       if (!userContext) return NextResponse.json({ error: "Usuário não encontrado" }, { status: 404 });
+
+      if (isEditingDynamicDestination) {
+        const canDynamic = checkPermission(userContext, "dynamic_qr");
+        if (!canDynamic.allowed) {
+          return NextResponse.json(
+            {
+              error: canDynamic.reason,
+              code: canDynamic.code,
+              requiredPlan: canDynamic.requiredPlan,
+            },
+            { status: 403 }
+          );
+        }
+      }
 
       if (isAddingLogo) {
         const canLogo = checkPermission(userContext, "custom_logo");

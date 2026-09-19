@@ -13,8 +13,10 @@ export interface RateLimitResult {
   resetAt: number;    // timestamp Unix
 }
 
+export type RateLimitAction = "login" | "register" | "checkout" | "portal";
+
 // Configurações por endpoint
-export const RATE_LIMIT_CONFIGS: Record<"login" | "register", RateLimitConfig> = {
+export const RATE_LIMIT_CONFIGS: Record<RateLimitAction, RateLimitConfig> = {
   login: {
     maxAttempts: 5,
     windowSeconds: 15 * 60, // 15 minutos
@@ -24,6 +26,16 @@ export const RATE_LIMIT_CONFIGS: Record<"login" | "register", RateLimitConfig> =
     maxAttempts: 5,
     windowSeconds: 60 * 60, // 60 minutos
     errorMessage: "Limite de cadastros atingido para este endereço IP. Por favor, aguarde antes de tentar novamente.",
+  },
+  checkout: {
+    maxAttempts: 15,
+    windowSeconds: 10 * 60, // 10 minutos
+    errorMessage: "Muitas tentativas de checkout em curto intervalo. Por favor, aguarde alguns minutos.",
+  },
+  portal: {
+    maxAttempts: 10,
+    windowSeconds: 10 * 60, // 10 minutos
+    errorMessage: "Muitas requisições ao portal de faturamento. Por favor, aguarde alguns minutos.",
   },
 };
 
@@ -58,7 +70,7 @@ export function getClientIp(req: NextRequest): string {
  */
 export function checkRateLimit(
   identifier: string,
-  action: "login" | "register"
+  action: RateLimitAction
 ): RateLimitResult {
   const now = Date.now();
   const config = RATE_LIMIT_CONFIGS[action];
