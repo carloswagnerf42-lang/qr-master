@@ -3,6 +3,7 @@ import {
   checkPermission,
   can,
   calculateAnnualDiscountPercent,
+  calculateUserMonthlyQuotaWindow,
   PlanDetails,
   UserPlanContext,
   SubscriptionDetails,
@@ -493,6 +494,78 @@ async function runBillingAndSubscriptionTests() {
     assert(calculateAnnualDiscountPercent(0, 0) === 0, "Plano FREE retorna 0% de desconto");
     assert(calculateAnnualDiscountPercent(50, 600) === 0, "Plano sem economia retorna 0% de desconto");
     assert(calculateAnnualDiscountPercent(50, 700) === 0, "Preço anual maior que mensal retorna 0% de desconto");
+
+    // =================================================================
+    // 6. Testes do Sistema de Cotas Mensais e Reset (Free, Pro e Business)
+    // =================================================================
+    console.log(`\n${CYAN}▶ 5. Validação de Cotas Mensais com Reset (Free 5, Pro Anual 15, Pro Mensal 50, Business Ilimitado):${RESET}`);
+
+    // A. Cálculo de Janela Mensal para Assinatura Anual
+    const now = new Date();
+    const subAnualStart = new Date(now.getTime() - 45 * 24 * 60 * 60 * 1000); // 45 dias atrás (Mês 2 da assinatura)
+    const subAnualEnd = new Date(subAnualStart.getTime() + 365 * 24 * 60 * 60 * 1000);
+    const windowAnual = calculateUserMonthlyQuotaWindow(subAnualStart, {
+      currentPeriodStart: subAnualStart,
+      currentPeriodEnd: subAnualEnd,
+    });
+    assert(windowAnual.isYearly === true, "Assinatura de 365 dias é detectada como anual (isYearly = true)");
+    assert(windowAnual.currentMonthStart.getTime() > subAnualStart.getTime(), "Início do mês 2 avança além da data de início da assinatura");
+    assert(windowAnual.currentMonthEnd.getTime() > windowAnual.currentMonthStart.getTime(), "Término da janela mensal é posterior ao início");
+
+    // B. Plano FREE: 5 QRs mensais
+    const freeMonthlyUser: UserPlanContext = {
+      id: "usr_free_month",
+      role: "USER",
+      plan: { ...freePlan, maxQRCodes: 5 },
+      currentMonthLimit: 5,
+      qrCodeCount: 4, // 4 criados este mês
+    };
+    assert(checkPermission(freeMonthlyUser, "create_qr").allowed === true, "Free com 4/5 criados no mês pode criar o 5º");
+    freeMonthlyUser.qrCodeCount = 5;
+    const checkFreeBlocked = checkPermission(freeMonthlyUser, "create_qr");
+    assert(checkFreeBlocked.allowed === false, "Free com 5/5 criados no mês é BLOQUEADO");
+    assert(checkFreeBlocked.code === "LIMIT_REACHED", "Erro retornado para Free é LIMIT_REACHED");
+
+    // C. Plano PRO ANUAL: 15 QRs mensais
+    const proYearlyUser: UserPlanContext = {
+      id: "usr_pro_yearly",
+      role: "USER",
+      plan: { ...proPlan, maxQRCodes: 50, maxQRCodesYear: 15 },
+      currentMonthLimit: 15,
+      isYearly: true,
+      qrCodeCount: 14, // 14 criados neste mês
+    };
+    assert(checkPermission(proYearlyUser, "create_qr").allowed === true, "PRO Anual com 14/15 criados no mês pode criar o 15º");
+    proYearlyUser.qrCodeCount = 15;
+    const checkProYearlyBlocked = checkPermission(proYearlyUser, "create_qr");
+    assert(checkProYearlyBlocked.allowed === false, "PRO Anual com 15/15 criados no mês é BLOQUEADO");
+    assert(checkProYearlyBlocked.code === "LIMIT_REACHED", "Erro retornado para PRO Anual é LIMIT_REACHED");
+    assert(checkProYearlyBlocked.limit === 15, "Limite reportado para PRO Anual é exatamente 15");
+
+    // D. Plano PRO MENSAL: 50 QRs mensais
+    const proMonthlyUser: UserPlanContext = {
+      id: "usr_pro_monthly",
+      role: "USER",
+      plan: { ...proPlan, maxQRCodes: 50, maxQRCodesYear: 15 },
+      currentMonthLimit: 50,
+      isYearly: false,
+      qrCodeCount: 49,
+    };
+    assert(checkPermission(proMonthlyUser, "create_qr").allowed === true, "PRO Mensal com 49/50 criados no mês pode criar o 50º");
+    proMonthlyUser.qrCodeCount = 50;
+    const checkProMonthlyBlocked = checkPermission(proMonthlyUser, "create_qr");
+    assert(checkProMonthlyBlocked.allowed === false, "PRO Mensal com 50/50 criados no mês é BLOQUEADO");
+    assert(checkProMonthlyBlocked.limit === 50, "Limite reportado para PRO Mensal é exatamente 50");
+
+    // E. Plano BUSINESS: Ilimitado
+    const bizUser: UserPlanContext = {
+      id: "usr_biz",
+      role: "USER",
+      plan: { ...businessPlan, maxQRCodes: 999999 },
+      currentMonthLimit: 999999,
+      qrCodeCount: 1500, // Criou 1500 QRs
+    };
+    assert(checkPermission(bizUser, "create_qr").allowed === true, "Business com 1500 QRs criados continua liberado para criar (ilimitado)");
   }
 
   // =================================================================

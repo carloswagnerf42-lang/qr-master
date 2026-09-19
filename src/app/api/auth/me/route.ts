@@ -23,6 +23,7 @@ export async function GET() {
         priceMonth: true,
         priceYear: true,
         maxQRCodes: true,
+        maxQRCodesYear: true,
         dynamicQRs: true,
         analytics: true,
         exportSvg: true,
@@ -46,6 +47,10 @@ export async function GET() {
         qrCodes: currentQRs,
         maxQRCodes: maxQRs,
         remainingQRCodes: Math.max(0, maxQRs - currentQRs),
+        totalQrCodes: userContext?.totalQrCodeCount || 0,
+        isYearly: Boolean(userContext?.isYearly),
+        currentMonthStart: userContext?.currentMonthStart || null,
+        currentMonthEnd: userContext?.currentMonthEnd || null,
       },
       permissions: {
         create_qr: can(userContext, "create_qr"),

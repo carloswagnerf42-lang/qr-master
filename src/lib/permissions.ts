@@ -16,6 +16,7 @@ export interface PlanDetails {
   priceMonth?: number;
   priceYear?: number;
   maxQRCodes: number;
+  maxQRCodesYear?: number | null;
   dynamicQRs: boolean;
   analytics: boolean;
   exportSvg: boolean;
@@ -41,7 +42,12 @@ export interface UserPlanContext {
   role: string;
   planId?: string | null;
   plan?: PlanDetails | null;
-  qrCodeCount: number;
+  qrCodeCount: number; // QRs criados no mês/ciclo atual
+  totalQrCodeCount?: number; // QRs totais no acervo
+  currentMonthLimit?: number; // Limite mensal aplicável (ex: 5, 15, 50, 999999)
+  currentMonthStart?: Date;
+  currentMonthEnd?: Date;
+  isYearly?: boolean;
   subscriptionStatus?: string | null;
   subscription?: SubscriptionDetails | null;
 }
@@ -111,6 +117,7 @@ export const DEFAULT_FREE_PLAN: PlanDetails = {
   priceMonth: 0,
   priceYear: 0,
   maxQRCodes: 5,
+  maxQRCodesYear: 5,
   dynamicQRs: false,
   analytics: false,
   exportSvg: false,
@@ -118,6 +125,49 @@ export const DEFAULT_FREE_PLAN: PlanDetails = {
   customLogo: false,
   campaigns: false,
 };
+
+/**
+ * Calcula as datas de início e término da janela mensal do usuário para controle de cota de criação
+ */
+export function calculateUserMonthlyQuotaWindow(
+  createdAt: Date,
+  subscription?: { currentPeriodStart?: Date; currentPeriodEnd?: Date; status?: string } | null
+): { isYearly: boolean; currentMonthStart: Date; currentMonthEnd: Date } {
+  const now = new Date();
+  let isYearly = false;
+  let currentMonthStart: Date;
+  let currentMonthEnd: Date;
+
+  if (subscription?.currentPeriodStart && subscription?.currentPeriodEnd) {
+    const subStart = new Date(subscription.currentPeriodStart);
+    const subEnd = new Date(subscription.currentPeriodEnd);
+    const durationDays = Math.round((subEnd.getTime() - subStart.getTime()) / (1000 * 60 * 60 * 24));
+
+    // Se o período contratado for superior a 60 dias, trata-se de plano anual (~365 dias)
+    isYearly = durationDays > 60;
+
+    if (isYearly) {
+      // Divide os 365 dias em janelas mensais consecutivas de 30 dias a partir do início
+      const elapsedDays = Math.max(0, Math.floor((now.getTime() - subStart.getTime()) / (1000 * 60 * 60 * 24)));
+      const monthIndex = Math.min(11, Math.floor(elapsedDays / 30));
+      currentMonthStart = new Date(subStart.getTime() + monthIndex * 30 * 24 * 60 * 60 * 1000);
+      currentMonthEnd = new Date(subStart.getTime() + (monthIndex + 1) * 30 * 24 * 60 * 60 * 1000);
+      if (currentMonthEnd > subEnd) currentMonthEnd = subEnd;
+    } else {
+      currentMonthStart = subStart;
+      currentMonthEnd = subEnd;
+    }
+  } else {
+    // Plano FREE: janela móvel de 30 dias ancorada na data de cadastro
+    const userStart = new Date(createdAt);
+    const elapsedDays = Math.max(0, Math.floor((now.getTime() - userStart.getTime()) / (1000 * 60 * 60 * 24)));
+    const cycleIndex = Math.floor(elapsedDays / 30);
+    currentMonthStart = new Date(userStart.getTime() + cycleIndex * 30 * 24 * 60 * 60 * 1000);
+    currentMonthEnd = new Date(userStart.getTime() + (cycleIndex + 1) * 30 * 24 * 60 * 60 * 1000);
+  }
+
+  return { isYearly, currentMonthStart, currentMonthEnd };
+}
 
 /**
  * Busca o usuário com seu plano ativo e contagem real de QR codes ativos
@@ -129,6 +179,7 @@ export async function getUserPlanAndUsage(userId: string): Promise<UserPlanConte
       id: true,
       role: true,
       planId: true,
+      createdAt: true,
       plan: true,
       subscription: {
         select: {
@@ -155,6 +206,23 @@ export async function getUserPlanAndUsage(userId: string): Promise<UserPlanConte
 
   if (!user) return null;
 
+  const totalQrCodeCount = user._count.qrCodes;
+  const { isYearly, currentMonthStart, currentMonthEnd } = calculateUserMonthlyQuotaWindow(
+    user.createdAt,
+    user.subscription
+  );
+
+  // Consulta quantidade de QR codes criados no ciclo mensal atual
+  const monthQrCodeCount = await prisma.qRCode.count({
+    where: {
+      userId,
+      deletedAt: null,
+      createdAt: {
+        gte: currentMonthStart,
+      },
+    },
+  });
+
   // Se o usuário é ADMIN, mantém plano configurado ou PRO/BUSINESS
   if (user.role === "ADMIN") {
     return {
@@ -162,7 +230,12 @@ export async function getUserPlanAndUsage(userId: string): Promise<UserPlanConte
       role: user.role,
       planId: user.planId,
       plan: user.plan || DEFAULT_FREE_PLAN,
-      qrCodeCount: user._count.qrCodes,
+      qrCodeCount: monthQrCodeCount,
+      totalQrCodeCount,
+      currentMonthLimit: 999999,
+      currentMonthStart,
+      currentMonthEnd,
+      isYearly,
       subscriptionStatus: "ACTIVE",
       subscription: user.subscription,
     };
@@ -180,12 +253,38 @@ export async function getUserPlanAndUsage(userId: string): Promise<UserPlanConte
     }
   }
 
+  // Determina o limite mensal aplicável
+  let currentMonthLimit = plan.maxQRCodes ?? 5;
+  if (plan.name === "PRO") {
+    if (isYearly) {
+      // Cota mensal para assinantes PRO do plano anual: 15 QR/mês
+      currentMonthLimit = plan.maxQRCodesYear ?? 15;
+    } else {
+      // Cota mensal para assinantes PRO do plano mensal: 50 QR/mês (ou configurado no Admin)
+      currentMonthLimit = plan.maxQRCodes ?? 50;
+    }
+  } else if (plan.name === "BUSINESS") {
+    currentMonthLimit = 999999;
+  } else if (plan.name === "FREE") {
+    currentMonthLimit = plan.maxQRCodes ?? 5;
+  }
+
+  const effectivePlan: PlanDetails = {
+    ...plan,
+    maxQRCodes: currentMonthLimit,
+  };
+
   return {
     id: user.id,
     role: user.role,
     planId: plan.id || user.planId,
-    plan,
-    qrCodeCount: user._count.qrCodes,
+    plan: effectivePlan,
+    qrCodeCount: monthQrCodeCount,
+    totalQrCodeCount,
+    currentMonthLimit,
+    currentMonthStart,
+    currentMonthEnd,
+    isYearly,
     subscriptionStatus: user.subscription?.status || null,
     subscription: user.subscription,
   };
@@ -215,13 +314,25 @@ export function checkPermission(
 
   switch (action) {
     case "create_qr": {
-      if (user.qrCodeCount >= plan.maxQRCodes) {
+      const limit = user.currentMonthLimit ?? plan.maxQRCodes;
+      if (user.qrCodeCount >= limit) {
+        const resetDateStr = user.currentMonthEnd
+          ? new Date(user.currentMonthEnd).toLocaleDateString("pt-BR")
+          : "o próximo ciclo";
+
+        let reason = `Você atingiu o limite mensal de ${limit} QR Codes do plano ${plan.name}. Sua cota renova em ${resetDateStr}.`;
+        if (plan.name === "FREE") {
+          reason += " Faça upgrade para o plano PRO ou BUSINESS para criar mais QR Codes.";
+        } else if (plan.name === "PRO") {
+          reason += " Para criar QR Codes sem limites mensais, faça upgrade para o plano BUSINESS.";
+        }
+
         return {
           allowed: false,
-          reason: `Você atingiu o limite de ${plan.maxQRCodes} QR Codes do plano ${plan.name}. Faça upgrade para o plano PRO para criar até 100 QR Codes.`,
+          reason,
           code: "LIMIT_REACHED",
-          requiredPlan: "PRO",
-          limit: plan.maxQRCodes,
+          requiredPlan: plan.name === "FREE" ? "PRO" : "BUSINESS",
+          limit,
           current: user.qrCodeCount,
         };
       }

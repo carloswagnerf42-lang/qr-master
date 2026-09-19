@@ -71,6 +71,7 @@ interface PlanItem {
   priceMonth: number;
   priceYear: number;
   maxQRCodes?: number;
+  maxQRCodesYear?: number | null;
   dynamicQRs?: boolean;
   analytics?: boolean;
   exportSvg?: boolean;
@@ -163,6 +164,7 @@ export function AdminUserManagement({
   const [editPriceYear, setEditPriceYear] = useState<number>(0);
   const [editDisplayName, setEditDisplayName] = useState<string>("");
   const [editMaxQRCodes, setEditMaxQRCodes] = useState<number>(5);
+  const [editMaxQRCodesYear, setEditMaxQRCodesYear] = useState<number>(15);
   const [editDynamicQRs, setEditDynamicQRs] = useState<boolean>(false);
   const [editAnalytics, setEditAnalytics] = useState<boolean>(false);
   const [editExportSvg, setEditExportSvg] = useState<boolean>(false);
@@ -421,6 +423,7 @@ export function AdminUserManagement({
     setEditPriceYear(Number(plan.priceYear) || 0);
     setEditDisplayName(plan.displayName);
     setEditMaxQRCodes(plan.maxQRCodes ?? 5);
+    setEditMaxQRCodesYear(plan.maxQRCodesYear ?? (plan.name === "PRO" ? 15 : plan.maxQRCodes ?? 5));
     setEditDynamicQRs(Boolean(plan.dynamicQRs));
     setEditAnalytics(Boolean(plan.analytics));
     setEditExportSvg(Boolean(plan.exportSvg));
@@ -445,6 +448,7 @@ export function AdminUserManagement({
           priceYear: editPriceYear,
           displayName: editDisplayName,
           maxQRCodes: editMaxQRCodes,
+          maxQRCodesYear: editMaxQRCodesYear,
           dynamicQRs: editDynamicQRs,
           analytics: editAnalytics,
           exportSvg: editExportSvg,
@@ -899,11 +903,22 @@ export function AdminUserManagement({
 
                     <div className="pt-4 border-t border-slate-800/80 space-y-2.5 text-xs">
                       <div className="flex items-center justify-between text-slate-300">
-                        <span className="text-slate-400">Limite de QR Codes:</span>
+                        <span className="text-slate-400">Cota Mensal (Ciclo Mensal):</span>
                         <strong className="text-white">
-                          {plan.maxQRCodes && plan.maxQRCodes > 9999 ? "Ilimitado" : `${plan.maxQRCodes ?? 5} QRs`}
+                          {plan.maxQRCodes && plan.maxQRCodes > 9999 ? "Ilimitado" : `${plan.maxQRCodes ?? 5} QRs/mês`}
                         </strong>
                       </div>
+
+                      {!isFree && (
+                        <div className="flex items-center justify-between text-slate-300">
+                          <span className="text-slate-400">Cota Mensal (Ciclo Anual):</span>
+                          <strong className="text-emerald-400">
+                            {plan.maxQRCodesYear && plan.maxQRCodesYear > 9999
+                              ? "Ilimitado"
+                              : `${plan.maxQRCodesYear ?? 15} QRs/mês`}
+                          </strong>
+                        </div>
+                      )}
 
                       <div className="flex items-center justify-between text-slate-300">
                         <span className="text-slate-400">QR Codes Dinâmicos:</span>
@@ -1616,21 +1631,57 @@ export function AdminUserManagement({
                 </div>
               </div>
 
-              <div>
-                <label className="block font-semibold text-slate-300 mb-1.5">
-                  Limite Máximo de QR Codes:
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  value={editMaxQRCodes}
-                  onChange={(e) => setEditMaxQRCodes(Number(e.target.value))}
-                  required
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-rose-500"
-                />
-                <span className="text-[10px] text-slate-500 mt-1 block">
-                  Use valores altos como 999999 para plano Ilimitado.
-                </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-semibold text-slate-300 mb-1.5">
+                    Cota Mensal (Ciclo Mensal):
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={editMaxQRCodes}
+                    onChange={(e) => setEditMaxQRCodes(Number(e.target.value))}
+                    required
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-rose-500"
+                  />
+                  <span className="text-[10px] text-slate-500 mt-1 block">
+                    QRs/mês na assinatura mensal (999999 = Ilimitado).
+                  </span>
+                </div>
+
+                {selectedPlanForEdit.name !== "FREE" ? (
+                  <div>
+                    <label className="block font-semibold text-slate-300 mb-1.5">
+                      Cota Mensal no Ciclo Anual:
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={editMaxQRCodesYear}
+                      onChange={(e) => setEditMaxQRCodesYear(Number(e.target.value))}
+                      required
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-rose-500"
+                    />
+                    <span className="text-[10px] text-slate-500 mt-1 block">
+                      QRs/mês para quem assinar o plano Anual (ex: 15).
+                    </span>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block font-semibold text-slate-500 mb-1.5">
+                      Cota Anual:
+                    </label>
+                    <input
+                      type="text"
+                      disabled
+                      value="Não se aplica ao Free"
+                      className="w-full bg-slate-950/40 border border-slate-800/60 rounded-xl p-2.5 text-slate-500 text-xs cursor-not-allowed"
+                    />
+                    <span className="text-[10px] text-slate-500 mt-1 block">
+                      O plano Free só opera no ciclo mensal gratuito.
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="pt-2 border-t border-slate-800/80 space-y-2">

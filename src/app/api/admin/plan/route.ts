@@ -169,6 +169,7 @@ export async function PATCH(req: NextRequest) {
       priceYear,
       displayName,
       maxQRCodes,
+      maxQRCodesYear,
       dynamicQRs,
       analytics,
       exportSvg,
@@ -230,6 +231,13 @@ export async function PATCH(req: NextRequest) {
       const numMax = Number(maxQRCodes);
       if (!isNaN(numMax) && numMax > 0) {
         dataToUpdate.maxQRCodes = numMax;
+      }
+    }
+
+    if (maxQRCodesYear !== undefined) {
+      const numMaxYear = Number(maxQRCodesYear);
+      if (!isNaN(numMaxYear) && numMaxYear > 0) {
+        dataToUpdate.maxQRCodesYear = numMaxYear;
       }
     }
 

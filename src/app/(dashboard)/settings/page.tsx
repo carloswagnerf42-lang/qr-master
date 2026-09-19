@@ -68,7 +68,15 @@ export default function SettingsPage() {
   } | null>(null);
   const [billingCycle, setBillingCycle] = useState<"month" | "year">("month");
   const [availablePlans, setAvailablePlans] = useState<any[]>([]);
-  const [usage, setUsage] = useState<{ qrCodes: number; maxQRCodes: number; remainingQRCodes: number } | null>(null);
+  const [usage, setUsage] = useState<{
+    qrCodes: number;
+    maxQRCodes: number;
+    remainingQRCodes: number;
+    totalQrCodes?: number;
+    isYearly?: boolean;
+    currentMonthStart?: string | Date | null;
+    currentMonthEnd?: string | Date | null;
+  } | null>(null);
   const [subscription, setSubscription] = useState<{
     id?: string;
     status: string;
@@ -1199,27 +1207,38 @@ export default function SettingsPage() {
               {/* Medidor de Uso Real de QR Codes */}
               <div className="p-5 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
                 <div className="flex items-center justify-between text-xs font-bold text-slate-800 dark:text-slate-200">
-                  <span>Utilização de Códigos:</span>
+                  <span>Cota de Criação do Mês:</span>
                   <span>
-                    {usage?.qrCodes || 0} de {usage?.maxQRCodes ?? userPlan?.maxQRCodes ?? 5} códigos criados
+                    {(usage?.maxQRCodes ?? userPlan?.maxQRCodes ?? 5) > 9999
+                      ? "Criações Ilimitadas"
+                      : `${usage?.qrCodes || 0} de ${usage?.maxQRCodes ?? userPlan?.maxQRCodes ?? 5} criados este mês`}
                   </span>
                 </div>
-                <div className="w-full h-2.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
-                  <div
-                    className="h-full bg-indigo-600 rounded-full transition-all"
-                    style={{
-                      width: `${Math.min(
-                        100,
-                        Math.round(((usage?.qrCodes || 0) / (usage?.maxQRCodes ?? userPlan?.maxQRCodes ?? 5)) * 100)
-                      )}%`,
-                    }}
-                  />
+                {(usage?.maxQRCodes ?? userPlan?.maxQRCodes ?? 5) <= 9999 && (
+                  <div className="w-full h-2.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                    <div
+                      className="h-full bg-indigo-600 rounded-full transition-all"
+                      style={{
+                        width: `${Math.min(
+                          100,
+                          Math.round(((usage?.qrCodes || 0) / (usage?.maxQRCodes ?? userPlan?.maxQRCodes ?? 5)) * 100)
+                        )}%`,
+                      }}
+                    />
+                  </div>
+                )}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px] text-slate-500">
+                  <span>
+                    {(usage?.maxQRCodes ?? userPlan?.maxQRCodes ?? 5) > 9999
+                      ? "Você pode gerar quantos QR Codes precisar sem restrições mensais."
+                      : `${usage?.remainingQRCodes !== undefined
+                          ? usage.remainingQRCodes
+                          : Math.max(0, (usage?.maxQRCodes ?? userPlan?.maxQRCodes ?? 5) - (usage?.qrCodes || 0))} QR(s) restantes para criar no ciclo atual.`}
+                  </span>
+                  <span>
+                    {usage?.totalQrCodes !== undefined && `Total acumulado no acervo: ${usage.totalQrCodes} QR(s)`}
+                  </span>
                 </div>
-                <p className="text-[11px] text-slate-500">
-                  {usage?.remainingQRCodes !== undefined
-                    ? usage.remainingQRCodes
-                    : Math.max(0, (usage?.maxQRCodes ?? userPlan?.maxQRCodes ?? 5) - (usage?.qrCodes || 0))} slots restantes para criação de novos QR Codes.
-                </p>
               </div>
 
               {/* Tabela de Recursos Liberados no seu Plano */}

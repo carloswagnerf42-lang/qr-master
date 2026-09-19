@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
           priceMonth: true,
           priceYear: true,
           maxQRCodes: true,
+          maxQRCodesYear: true,
           dynamicQRs: true,
           analytics: true,
           exportSvg: true,
@@ -61,6 +62,10 @@ export async function GET(req: NextRequest) {
         qrCodes: userContext.qrCodeCount,
         maxQRCodes: userContext.plan?.maxQRCodes ?? 5,
         remainingQRCodes: Math.max(0, (userContext.plan?.maxQRCodes ?? 5) - userContext.qrCodeCount),
+        totalQrCodes: userContext.totalQrCodeCount || 0,
+        isYearly: Boolean(userContext.isYearly),
+        currentMonthStart: userContext.currentMonthStart || null,
+        currentMonthEnd: userContext.currentMonthEnd || null,
       },
     }, {
       headers: {

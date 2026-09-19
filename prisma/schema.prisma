@@ -57,6 +57,7 @@ model Plan {
   priceMonth  Float          @default(0)
   priceYear   Float          @default(0)
   maxQRCodes  Int            @default(5)
+  maxQRCodesYear Int?        @default(15)
   dynamicQRs  Boolean        @default(false)
   analytics   Boolean        @default(false)
   exportSvg   Boolean        @default(false)
