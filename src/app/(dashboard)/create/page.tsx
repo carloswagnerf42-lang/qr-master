@@ -1207,7 +1207,7 @@ export default function CreateQRCodePage() {
             <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl flex flex-col items-center text-center">
               <div className="w-full flex items-center justify-between mb-4">
                 <span className="text-xs font-extrabold uppercase tracking-wider text-slate-400">
-                  Preview em Tempo Real
+                  Preview Interativo
                 </span>
                 <div className="flex items-center gap-2">
                   <button

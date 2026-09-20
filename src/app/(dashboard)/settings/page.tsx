@@ -28,6 +28,7 @@ import {
   X,
   ChevronLeft,
   AlertCircle,
+  MessageCircle,
 } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
@@ -1238,7 +1239,7 @@ function SettingsContent() {
                   </h4>
                   <p className="text-xs text-indigo-200 mt-1">
                     {userPlan?.dynamicQRs
-                      ? "QR Codes dinâmicos com alteração de destino em tempo real e analytics completo."
+                      ? "QR Codes dinâmicos com alteração de destino quando precisar e analytics completo."
                       : "QR Codes estáticos com personalização e exportação direta em alta resolução."}
                   </p>
                 </div>
@@ -1627,7 +1628,7 @@ function SettingsContent() {
                         <div className="space-y-2">
                           <div className="flex items-center justify-between">
                             <span className="px-2.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-[10px] font-extrabold uppercase">
-                              Mais Popular
+                              Plano PRO
                             </span>
                             <span className="text-xs text-slate-400 font-medium">
                               {billingCycle === "year"
@@ -1649,7 +1650,7 @@ function SettingsContent() {
                             </span>
                           </div>
                           <p className="text-xs text-slate-500 leading-relaxed">
-                            Ideal para negócios, restaurantes e profissionais liberais que precisam de QR Codes dinâmicos com alteração de link em tempo real.
+                            Ideal para negócios, restaurantes e profissionais liberais que precisam de QR Codes dinâmicos com alteração de link quando precisar.
                           </p>
                           <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-300 pt-2">
                             <li className="flex items-center gap-2">
@@ -1658,7 +1659,7 @@ function SettingsContent() {
                             </li>
                             <li className="flex items-center gap-2">
                               <Check className="w-4 h-4 text-emerald-500" />
-                              <span>Alteração de destino em tempo real (/q/code)</span>
+                              <span>Alteração de destino quando precisar (/q/code)</span>
                             </li>
                             <li className="flex items-center gap-2">
                               <Check className="w-4 h-4 text-emerald-500" />
@@ -1761,6 +1762,61 @@ function SettingsContent() {
                   </div>
                 );
               })()}
+
+              {/* Canal de Atendimento / Suporte via WhatsApp */}
+              {userPlan?.name === "PRO" || userPlan?.name === "BUSINESS" ? (
+                <div className="p-5 rounded-2xl bg-emerald-500/5 dark:bg-emerald-950/20 border border-emerald-500/20 dark:border-emerald-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-start gap-3.5">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-sm shadow-emerald-500/20">
+                      <MessageCircle className="w-5 h-5" />
+                    </div>
+                    <div className="space-y-0.5">
+                      <h5 className="text-sm font-bold text-slate-900 dark:text-white">
+                        Suporte via WhatsApp
+                      </h5>
+                      <p className="text-xs text-slate-600 dark:text-slate-400">
+                        Precisa de ajuda com sua conta ou seus QR Codes? Fale diretamente com o suporte.
+                      </p>
+                    </div>
+                  </div>
+                  <a
+                    href="https://wa.me/5531985029353?text=Ol%C3%A1!%20Sou%20cliente%20do%20QR%20MASTER%20e%20preciso%20de%20ajuda."
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="Falar com o suporte do QR MASTER pelo WhatsApp"
+                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-xs transition-colors shrink-0"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    <span>Chamar no WhatsApp</span>
+                  </a>
+                </div>
+              ) : (
+                <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-start gap-3.5">
+                    <div className="w-10 h-10 rounded-xl bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center shrink-0">
+                      <MessageCircle className="w-5 h-5" />
+                    </div>
+                    <div className="space-y-0.5">
+                      <h5 className="text-sm font-bold text-slate-900 dark:text-white">
+                        Contato
+                      </h5>
+                      <p className="text-xs text-slate-600 dark:text-slate-400">
+                        Dúvidas ou informações sobre os planos e recursos do QR MASTER?
+                      </p>
+                    </div>
+                  </div>
+                  <a
+                    href="https://wa.me/5531985029353?text=Ol%C3%A1!%20Gostaria%20de%20tirar%20uma%20d%C3%BAvida%20sobre%20o%20QR%20MASTER."
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="Falar com o QR MASTER pelo WhatsApp"
+                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 text-white font-bold text-xs shadow-xs transition-colors shrink-0"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    <span>Falar pelo WhatsApp</span>
+                  </a>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1865,7 +1921,7 @@ function SettingsContent() {
                       : `Assinar Plano ${selectedPlanForCheckout}`}
                   </h3>
                   <p className="text-xs text-slate-500">
-                    {billingCycle === "year" ? "Cobrança Anual com Desconto" : "Cobrança Mensal Recorrente"}
+                    {billingCycle === "year" ? "Plano anual — 365 dias de acesso" : "Plano mensal — 30 dias de acesso"}
                   </p>
                 </div>
               </div>
@@ -1964,7 +2020,7 @@ function SettingsContent() {
                             </span>
                           </div>
                           <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                            QR Code e Copia-e-Cola direto na tela. Liberação imediata em segundos assim que pago no banco.
+                            QR Code e Copia-e-Cola direto na tela. Ativação após a confirmação do pagamento pelo Mercado Pago.
                           </p>
                         </div>
                       </div>

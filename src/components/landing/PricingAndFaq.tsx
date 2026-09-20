@@ -2,11 +2,16 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { Check, X, Sparkles, ArrowRight, HelpCircle, ChevronDown } from "lucide-react";
+import { Check, X, Sparkles, ArrowRight, HelpCircle, ChevronDown, MessageCircle } from "lucide-react";
+import { calculateAnnualDiscountPercent } from "@/lib/permissions";
 
 export function PricingAndFaq() {
   const [billingCycle, setBillingCycle] = useState<"month" | "year">("month");
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
+
+  const proDiscount = calculateAnnualDiscountPercent(19.9, 99.0);
+  const bizDiscount = calculateAnnualDiscountPercent(29.9, 199.0);
+  const maxDiscount = Math.max(proDiscount, bizDiscount);
 
   const toggleFaq = (index: number) => {
     setOpenFaqIndex((prev) => (prev === index ? null : index));
@@ -26,7 +31,7 @@ export function PricingAndFaq() {
     {
       question: "Qual a diferença entre o plano FREE e o plano PRO?",
       answer:
-        "O plano FREE oferece até 5 QR Codes estáticos por ciclo com download em alta resolução PNG. O plano PRO oferece 15 QR Codes por ciclo, suporte a QR Codes dinâmicos com alteração de link em tempo real, painel de Analytics com conformidade à LGPD, logotipo central personalizado e exportação vetorial em SVG e PDF para gráficas.",
+        "O plano FREE oferece até 5 QR Codes estáticos por ciclo com download em alta resolução PNG. O plano PRO oferece 15 QR Codes por ciclo, suporte a QR Codes dinâmicos com alteração de link quando precisar, painel de Analytics com conformidade à LGPD, logotipo central personalizado e exportação vetorial em SVG e PDF para gráficas.",
     },
     {
       question: "Posso acompanhar os escaneamentos dos meus QR Codes?",
@@ -84,9 +89,11 @@ export function PricingAndFaq() {
                   }`}
                 >
                   <span>Cobrança Anual</span>
-                  <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-500 text-white font-extrabold">
-                    Economize até 58%
-                  </span>
+                  {maxDiscount > 0 && (
+                    <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-500 text-white font-extrabold">
+                      Economize até {maxDiscount}%
+                    </span>
+                  )}
                 </button>
               </div>
             </div>
@@ -155,7 +162,7 @@ export function PricingAndFaq() {
             {/* Card 2: PRO */}
             <div className="p-8 rounded-3xl bg-slate-900 border-2 border-indigo-500/80 shadow-2xl shadow-indigo-950/50 flex flex-col justify-between space-y-6 relative">
               <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-indigo-600 text-white text-[10px] font-extrabold uppercase tracking-wide shadow-md">
-                Mais Completo
+                Plano PRO
               </div>
 
               <div className="space-y-4">
@@ -262,7 +269,7 @@ export function PricingAndFaq() {
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>QR Codes dinâmicos com alteração em tempo real</span>
+                    <span>QR Codes dinâmicos com alteração quando precisar</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -422,6 +429,28 @@ export function PricingAndFaq() {
                 </div>
               );
             })}
+          </div>
+
+          {/* Ponto discreto de contato via WhatsApp */}
+          <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/40 text-center space-y-3">
+            <h4 className="text-base font-bold text-white">
+              Precisa falar com a gente?
+            </h4>
+            <p className="text-xs text-slate-400">
+              Fale com o QR MASTER pelo WhatsApp.
+            </p>
+            <div className="pt-1">
+              <a
+                href="https://wa.me/5531985029353?text=Ol%C3%A1!%20Gostaria%20de%20tirar%20uma%20d%C3%BAvida%20sobre%20o%20QR%20MASTER."
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Falar com o QR MASTER pelo WhatsApp"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition-all hover:scale-[1.02]"
+              >
+                <MessageCircle className="w-4 h-4" />
+                <span>Falar pelo WhatsApp</span>
+              </a>
+            </div>
           </div>
         </div>
       </section>

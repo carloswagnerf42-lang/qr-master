@@ -21,6 +21,7 @@ import {
   X,
   Sparkles,
   FolderDown,
+  MessageCircle,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 
@@ -265,6 +266,20 @@ export function Sidebar({ user }: SidebarProps) {
             </Link>
           );
         })}
+
+        {/* Item de Suporte via WhatsApp exclusivo para assinantes PRO e BUSINESS */}
+        {(quota?.planName === "PRO" || quota?.planName === "BUSINESS" || user?.plan?.name === "PRO" || user?.plan?.name === "BUSINESS") && (
+          <a
+            href="https://wa.me/5531985029353?text=Ol%C3%A1!%20Sou%20cliente%20do%20QR%20MASTER%20e%20preciso%20de%20ajuda."
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Falar com o suporte do QR MASTER pelo WhatsApp"
+            className="flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-colors"
+          >
+            <MessageCircle className="w-4 h-4 text-emerald-500" />
+            <span>Suporte WhatsApp</span>
+          </a>
+        )}
 
         <button
           onClick={handleLogout}

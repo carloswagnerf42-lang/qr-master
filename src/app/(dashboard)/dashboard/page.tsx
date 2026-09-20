@@ -163,7 +163,7 @@ export default function DashboardPage() {
           <div>
             <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 text-xs font-semibold mb-2">
               <Sparkles className="w-3.5 h-3.5" />
-              <span>Painel em Tempo Real</span>
+              <span>Painel de Controle</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
               {greeting}{firstName ? `, ${firstName}` : ""} 👋
@@ -428,7 +428,7 @@ export default function DashboardPage() {
                 Recurso Exclusivo PRO e BUSINESS
               </span>
               <h2 className="text-lg font-extrabold text-slate-900 dark:text-white">
-                Métricas & Analytics LGPD em Tempo Real
+                Métricas e Estatísticas de Escaneamentos
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
                 Acompanhe o volume diário de acessos, dispositivos utilizados (Android, iPhone, Desktop) e horários de pico dos seus QR Codes com conformidade total à LGPD.
@@ -456,7 +456,7 @@ export default function DashboardPage() {
                 Volume de Escaneamentos
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Acompanhe o engajamento e a curva de acessos em tempo real.
+                Acompanhe o engajamento e a curva de acessos dos seus QR Codes.
               </p>
             </div>
 

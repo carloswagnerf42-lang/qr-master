@@ -64,7 +64,7 @@ export default function LoginPage() {
           </div>
 
           <h1 className="text-4xl font-extrabold tracking-tight leading-tight">
-            Gere, personalize e rastreie QR Codes profissionais em tempo real.
+            Gere, personalize e rastreie QR Codes profissionais.
           </h1>
 
           <p className="text-slate-300 text-base leading-relaxed">

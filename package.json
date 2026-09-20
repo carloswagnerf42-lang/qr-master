@@ -36,7 +36,8 @@
     "test:admin-logs": "tsx tests/test-admin-logs-search.ts",
     "test:idempotency": "tsx tests/test-mercadopago-idempotency.ts",
     "test:rate-limit": "tsx tests/test-qr-rate-limit.ts",
-    "test:funnel": "tsx tests/test-conversion-funnel-ui.ts"
+    "test:funnel": "tsx tests/test-conversion-funnel-ui.ts",
+    "test:copy": "tsx tests/test-copy-and-whatsapp.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.21.1",

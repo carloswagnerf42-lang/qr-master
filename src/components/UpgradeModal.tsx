@@ -61,7 +61,7 @@ export const REASON_CONFIG: Record<UpgradeReason, ReasonContent> = {
     highlights: [
       "Altere o link de destino sem trocar o QR Code impresso",
       "Evite desperdício com novas impressões de cardápios, panfletos ou placas",
-      "Redirecionamento em tempo real com alta disponibilidade",
+      "Altere o destino do QR sempre que precisar",
     ],
     ctaText: "Ver Plano PRO (R$ 19,90/mês)",
   },
@@ -111,7 +111,7 @@ export const REASON_CONFIG: Record<UpgradeReason, ReasonContent> = {
     badge: "Recurso PRO",
     badgeColor: "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-200 dark:border-cyan-800",
     icon: BarChart3,
-    title: "Métricas & Analytics LGPD em Tempo Real",
+    title: "Métricas e Estatísticas de Escaneamentos",
     description:
       "Acompanhe o volume real de acessos, dispositivos utilizados (Android, iPhone, Computadores), horários de pico e sistemas operacionais dos seus QR Codes.",
     highlights: [
@@ -144,7 +144,7 @@ export const REASON_CONFIG: Record<UpgradeReason, ReasonContent> = {
       "O plano FREE permite criar até 5 QR Codes por ciclo. Para continuar gerando novos códigos dinâmicos ou estáticos, faça upgrade para o plano PRO (15 QRs) ou BUSINESS (ilimitado).",
     highlights: [
       "Amplie sua cota para 15 QR Codes (PRO) ou Ilimitados (BUSINESS)",
-      "Desbloqueie QR Codes dinâmicos com edição de link em tempo real",
+      "Desbloqueie QR Codes dinâmicos com edição de link quando precisar",
       "Exporte em alta resolução vetorial SVG e PDF para gráfica",
     ],
     ctaText: "Fazer Upgrade Agora",
@@ -318,7 +318,7 @@ export function UpgradeModal({
           <div className="p-3.5 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/40 flex items-center justify-between text-xs">
             <div>
               <span className="font-bold text-slate-900 dark:text-white block">
-                Plano PRO Oficial
+                Plano PRO
               </span>
               <span className="text-[11px] text-slate-500 dark:text-slate-400">
                 15 QR Codes/mês • Dinâmicos • Analytics

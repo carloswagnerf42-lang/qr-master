@@ -12,6 +12,7 @@ import {
   Share2,
   DollarSign,
   Smartphone,
+  MessageCircle,
 } from "lucide-react";
 import { QRCodeRenderer } from "@/components/qr/QRCodeRenderer";
 import { PricingAndFaq } from "@/components/landing/PricingAndFaq";
@@ -81,7 +82,7 @@ export default async function HomePage() {
           </h1>
 
           <p className="text-base sm:text-lg text-slate-400 max-w-2xl mx-auto leading-relaxed">
-            Tenha controle absoluto dos seus códigos: altere destinos sem precisar reimprimir, gere códigos Pix EMV oficiais com cálculo CRC16, e acompanhe relatórios detalhados de escaneamentos em tempo real.
+            Tenha controle absoluto dos seus códigos: altere destinos sem precisar reimprimir, gere códigos Pix EMV oficiais com cálculo CRC16, e acompanhe relatórios detalhados de escaneamentos.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
@@ -115,7 +116,7 @@ export default async function HomePage() {
                 />
               </div>
               <div className="text-center pt-2">
-                <p className="text-xs font-bold text-white">Preview em Tempo Real de Alta Resolução</p>
+                <p className="text-xs font-bold text-white">Preview Instantâneo de Alta Resolução</p>
                 <p className="text-[11px] text-slate-400 mt-0.5">
                   Exportação disponível em PNG (até 4096px), SVG vetorial e PDF para impressão.
                 </p>
@@ -205,8 +206,20 @@ export default async function HomePage() {
       <PricingAndFaq />
 
       {/* Footer */}
-      <footer className="border-t border-slate-800/80 py-8 px-6 text-center text-xs text-slate-500">
+      <footer className="border-t border-slate-800/80 py-8 px-6 text-center text-xs text-slate-500 space-y-2">
         <p>© 2026 QR MASTER. Plataforma profissional de gerenciamento e análise de QR Codes.</p>
+        <p>
+          <a
+            href="https://wa.me/5531985029353?text=Ol%C3%A1!%20Gostaria%20de%20falar%20com%20o%20QR%20MASTER."
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Falar com o QR MASTER pelo WhatsApp"
+            className="text-slate-400 hover:text-emerald-400 inline-flex items-center gap-1.5 transition-colors"
+          >
+            <MessageCircle className="w-3.5 h-3.5 text-emerald-500" />
+            <span>Fale com o QR MASTER pelo WhatsApp</span>
+          </a>
+        </p>
       </footer>
     </div>
   );
