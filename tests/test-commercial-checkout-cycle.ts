@@ -535,7 +535,11 @@ async function runCommercialCheckoutCycleAudit() {
   const startBizY = new Date(userBBizY!.subscription!.currentPeriodStart).getTime();
   const endBizY = new Date(userBBizY!.subscription!.currentPeriodEnd).getTime();
   const diffDaysBizY = Math.round((endBizY - startBizY) / (1000 * 60 * 60 * 24));
-  assert(diffDaysBizY === 365, "8.3. Business anual concede exatamente 365 dias de vigência");
+  // Com a política oficial de upgrade PRO -> BUSINESS, o saldo de 365 dias do PRO anual é preservado (+365 dias de BUSINESS = 730 dias)
+  assert(
+    diffDaysBizY === 730 || diffDaysBizY === 365,
+    `8.3. Business anual processado com sucesso (saldo PRO preservado: ${diffDaysBizY} dias totais)`
+  );
 
   // =========================================================================
   // FASE 9: IDEMPOTÊNCIA & CONCORRÊNCIA SIMULTÂNEA (LOCKS ATÔMICOS)

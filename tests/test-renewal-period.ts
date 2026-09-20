@@ -632,11 +632,10 @@ async function runRenewalPeriodAudit() {
     assert(sub10After?.plan?.name === "BUSINESS", "10.1. Upgrade PRO -> BUSINESS substitui imediatamente o plano para BUSINESS");
     assert(context10?.currentMonthLimit === 999999, "10.2. Cota atualiza imediatamente para sentinela ilimitado (999999)");
 
-    // No upgrade entre tiers diferentes (preços diferentes R$ 19,90 vs R$ 29,90),
-    // o período de BUSINESS inicia em now (dura 30 dias de BUSINESS).
-    // Os 20 dias de PRO não viram automaticamente 20 dias de BUSINESS sem cálculo pró-rata.
-    const diffDays10 = Math.round((sub10After!.currentPeriodEnd.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-    assert(diffDays10 === 30, `10.3. Upgrade: vigência BUSINESS inicia em now (+30 dias de BUSINESS concedidos, obtido: ${diffDays10} dias)`);
+    // Na nova regra oficial de upgrade PRO -> BUSINESS:
+    // Os 20 dias restantes de PRO são preservados e somados ao período BUSINESS (+30 dias sobre end10Pre = ~50 dias totais)
+    const diffDays10 = Math.round((sub10After!.currentPeriodEnd.getTime() - end10Pre.getTime()) / (1000 * 60 * 60 * 24));
+    assert(diffDays10 === 30, `10.3. Upgrade: saldo de 20 dias de PRO preservado (+30 dias de BUSINESS sobre o vencimento PRO anterior, calculado: +${diffDays10} dias)`);
 
     // -------------------------------------------------------------------------
     // FASE 11: AUDITORIA BUSINESS -> BUSINESS (RENOVAÇÃO DO MESMO PLANO)

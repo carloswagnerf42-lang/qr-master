@@ -331,6 +331,11 @@ export function UpgradeModal({
               <span className="text-[10px] text-slate-500 block">ou R$ 99/ano</span>
             </div>
           </div>
+
+          {/* Informação sobre Upgrade para usuários PRO */}
+          <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400 text-center leading-snug">
+            Em upgrades para o plano BUSINESS, seus dias restantes do PRO serão preservados e adicionados ao período BUSINESS.
+          </div>
         </div>
 
         {/* Rodapé com Ações */}

@@ -1477,28 +1477,117 @@ function SettingsContent() {
                 )}
 
                 {userPlan?.name === "PRO" && (
-                  <div className="space-y-2 pt-2">
-                    <div className="flex items-center justify-between">
-                      <h5 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                        Recursos Exclusivos do Plano BUSINESS:
-                      </h5>
-                      <span className="text-[10px] font-semibold text-indigo-500 uppercase tracking-wider">
-                        Upgrade para Ilimitado
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs">
-                      <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 flex items-center justify-between gap-2 opacity-75">
-                        <div className="flex items-center gap-2">
-                          <Lock className="w-4 h-4 text-indigo-500 shrink-0" />
-                          <span className="text-slate-600 dark:text-slate-400">
-                            QR Codes Ilimitados sem cota mensal
-                          </span>
-                        </div>
-                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
-                          BUSINESS
+                  <div className="space-y-4 pt-2">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <h5 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                          Recursos Exclusivos do Plano BUSINESS:
+                        </h5>
+                        <span className="text-[10px] font-semibold text-indigo-500 uppercase tracking-wider">
+                          Upgrade para Ilimitado
                         </span>
                       </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs">
+                        <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 flex items-center justify-between gap-2 opacity-75">
+                          <div className="flex items-center gap-2">
+                            <Lock className="w-4 h-4 text-indigo-500 shrink-0" />
+                            <span className="text-slate-600 dark:text-slate-400">
+                              QR Codes Ilimitados sem cota mensal
+                            </span>
+                          </div>
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+                            BUSINESS
+                          </span>
+                        </div>
+                      </div>
                     </div>
+
+                    {/* Card de Upgrade Oficial PRO -> BUSINESS */}
+                    {(() => {
+                      const bizPlanData = availablePlans.find((p) => p.name === "BUSINESS");
+                      const bizMonthPrice = bizPlanData?.priceMonth !== undefined ? Number(bizPlanData.priceMonth) : 29.90;
+                      const bizYearPrice = bizPlanData?.priceYear !== undefined ? Number(bizPlanData.priceYear) : 199.00;
+                      const bizDiscount = calculateAnnualDiscountPercent(bizMonthPrice, bizYearPrice);
+
+                      return (
+                        <div className="p-5 sm:p-6 rounded-2xl bg-gradient-to-br from-violet-500/5 via-indigo-500/5 to-transparent border border-violet-500/20 dark:border-violet-500/30 space-y-4">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div>
+                              <span className="px-2.5 py-0.5 rounded-full bg-violet-500/10 text-violet-600 dark:text-violet-400 text-[10px] font-extrabold uppercase tracking-wide">
+                                Upgrade Disponível
+                              </span>
+                              <h4 className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white mt-1">
+                                Fazer Upgrade para o Plano BUSINESS
+                              </h4>
+                              <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+                                Seus dias restantes do PRO serão preservados e adicionados ao período BUSINESS.
+                              </p>
+                            </div>
+
+                            {/* Toggle Ciclo */}
+                            <div className="inline-flex p-1 bg-slate-100 dark:bg-slate-800/90 rounded-xl border border-slate-200 dark:border-slate-700/80 self-start sm:self-auto shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => setBillingCycle("month")}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                  billingCycle === "month"
+                                    ? "bg-white dark:bg-slate-900 text-violet-600 dark:text-violet-400 shadow-sm"
+                                    : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                                }`}
+                              >
+                                Mensal
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setBillingCycle("year")}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
+                                  billingCycle === "year"
+                                    ? "bg-violet-600 text-white shadow-sm"
+                                    : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                                }`}
+                              >
+                                <span>Anual</span>
+                                {bizDiscount > 0 && (
+                                  <span className="px-1.5 py-0.2 rounded text-[10px] bg-emerald-500 text-white font-extrabold tracking-tight">
+                                    {bizDiscount}% OFF
+                                  </span>
+                                )}
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="p-3.5 rounded-xl bg-violet-500/10 dark:bg-violet-950/40 border border-violet-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                            <div>
+                              <span className="font-extrabold text-slate-900 dark:text-white block text-sm">
+                                R$ {(billingCycle === "year" ? bizYearPrice : bizMonthPrice).toFixed(2).replace(".", ",")}
+                                <span className="text-xs font-normal text-slate-500 ml-1">
+                                  {billingCycle === "year" ? "/ano (preço único)" : "/mês"}
+                                </span>
+                              </span>
+                              <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                                Acesso imediato a QR Codes ilimitados e módulos corporativos.
+                              </span>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleUpgrade("BUSINESS")}
+                              disabled={startingCheckout !== null}
+                              className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-bold text-xs shadow-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-60 shrink-0"
+                            >
+                              {startingCheckout === "BUSINESS" ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <Sparkles className="w-4 h-4" />
+                              )}
+                              <span>
+                                Fazer Upgrade para BUSINESS {billingCycle === "year" ? "Anual" : "Mensal"}
+                              </span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
               </div>

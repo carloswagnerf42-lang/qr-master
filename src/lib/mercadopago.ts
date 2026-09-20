@@ -654,19 +654,30 @@ export async function processMercadoPagoNotification(
           },
         });
 
-        // Consulta assinatura existente para cálculo de renovação antecipada
+        // Consulta assinatura existente para cálculo de renovação antecipada e upgrade
         const existingSub = await tx.subscription.findUnique({
           where: { userId },
+          include: { plan: true },
         });
+
+        const isExistingActive =
+          existingSub &&
+          existingSub.status === "ACTIVE" &&
+          new Date(existingSub.currentPeriodEnd) > now;
 
         // Regra de Renovação do Mesmo Plano: preserva dias restantes se assinatura ainda estiver ativa
         const isSamePlanRenewal =
-          existingSub &&
-          existingSub.status === "ACTIVE" &&
-          existingSub.planId === targetPlan.id &&
-          new Date(existingSub.currentPeriodEnd) > now;
+          isExistingActive && existingSub.planId === targetPlan.id;
 
-        const baseDate = isSamePlanRenewal
+        // Regra Comercial Oficial de Upgrade: PRO ativo -> BUSINESS preserva dias restantes como tempo
+        const isProToBusinessUpgrade =
+          isExistingActive &&
+          existingSub.plan?.name === "PRO" &&
+          targetPlan.name === "BUSINESS";
+
+        const shouldPreserveRemainingDays = isSamePlanRenewal || isProToBusinessUpgrade;
+
+        const baseDate = shouldPreserveRemainingDays
           ? new Date(existingSub.currentPeriodEnd)
           : now;
 
