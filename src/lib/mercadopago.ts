@@ -434,6 +434,64 @@ export async function createMercadoPagoPixPayment(params: CreateMPPixParams) {
 }
 
 /**
+ * Converte de forma determinística e segura um valor monetário para centavos inteiros.
+ * Evita imprecisões de ponto flutuante IEEE 754 (ex: 19.9 * 100 = 1989.9999999999998).
+ * Rejeita explicitamente:
+ * - NaN, Infinity, -Infinity
+ * - null, undefined
+ * - valores negativos (< 0)
+ * - formatos inválidos ou strings não numéricas
+ * - valores numéricos ou strings com mais de 2 casas decimais
+ */
+export function toCents(value: unknown): number | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  let numStr: string;
+
+  if (typeof value === "number") {
+    if (!Number.isFinite(value) || Number.isNaN(value) || value < 0) {
+      return null;
+    }
+    const rawStr = String(value);
+    if (rawStr.includes(".")) {
+      const decPart = rawStr.split(".")[1];
+      if (decPart && decPart.length > 2) {
+        return null;
+      }
+    }
+    numStr = value.toFixed(2);
+  } else if (typeof value === "string") {
+    const trimmed = value.trim().replace(",", ".");
+    if (!trimmed) {
+      return null;
+    }
+    if (!/^\d+(\.\d{1,2})?$/.test(trimmed)) {
+      return null;
+    }
+    const parsed = Number(trimmed);
+    if (!Number.isFinite(parsed) || Number.isNaN(parsed) || parsed < 0) {
+      return null;
+    }
+    numStr = parsed.toFixed(2);
+  } else {
+    return null;
+  }
+
+  const parts = numStr.split(".");
+  const integerPart = parseInt(parts[0], 10);
+  const decimalPart = parts[1] ? parts[1].padEnd(2, "0").slice(0, 2) : "00";
+  const cents = integerPart * 100 + parseInt(decimalPart, 10);
+
+  if (!Number.isSafeInteger(cents) || cents < 0) {
+    return null;
+  }
+
+  return cents;
+}
+
+/**
  * Processa notificação webhook do Mercado Pago com idempotência atômica,
  * locks exclusivos via chave única de claim no banco, verificação anti-adulteração
  * e suporte não-destrutivo a estornos e chargebacks.
@@ -533,11 +591,21 @@ export async function processMercadoPagoNotification(
       ? (Number(targetPlan.priceYear) > 0 ? Number(targetPlan.priceYear) : (targetPlan.name === "PRO" ? 99 : 199))
       : (Number(targetPlan.priceMonth) > 0 ? Number(targetPlan.priceMonth) : (targetPlan.name === "PRO" ? 19.9 : 29.9));
 
-    const actualAmount = Number(payment.transaction_amount || 0);
+    const expectedAmountCents = toCents(expectedPrice);
+    const actualAmountCents = toCents(payment.transaction_amount);
 
-    // Anti-tampering: se o valor for inferior ao preço oficial do plano (com tolerância de R$ 0.50) e não for bypass de teste
-    if (expectedPrice > 0 && actualAmount < (expectedPrice - 0.50) && !payment._skipAmountCheck) {
-      console.warn(`[MP Security] Divergência de valor no pagamento ${pid}: recebido R$ ${actualAmount}, esperado R$ ${expectedPrice}`);
+    const isAmountValid =
+      expectedAmountCents !== null &&
+      actualAmountCents !== null &&
+      expectedAmountCents > 0 &&
+      actualAmountCents === expectedAmountCents;
+
+    // Anti-tampering estrito: comparação exata em centavos inteiros (sem float e sem tolerância arbitrária de R$ 0,50)
+    // Exige correspondência exata: pagamentos inferiores ou superiores são rejeitados como amount_mismatch
+    if (!isAmountValid && !payment._skipAmountCheck) {
+      console.warn(
+        `[MP Security] Divergência estrita de valor no pagamento ${pid}: recebido ${actualAmountCents ?? "inválido"} centavos (R$ ${payment.transaction_amount}), esperado ${expectedAmountCents} centavos (R$ ${expectedPrice})`
+      );
       await prisma.webhookEvent.upsert({
         where: { eventId: eventKey },
         create: {
@@ -552,7 +620,14 @@ export async function processMercadoPagoNotification(
           status: "FAILED",
         },
       });
-      return { status: "amount_mismatch", paymentId: pid, actualAmount, expectedPrice };
+      return {
+        status: "amount_mismatch",
+        paymentId: pid,
+        actualAmount: payment.transaction_amount,
+        expectedPrice,
+        actualAmountCents,
+        expectedAmountCents,
+      };
     }
 
     const durationDays = isYearly ? 365 : 30;
