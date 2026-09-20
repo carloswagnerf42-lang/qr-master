@@ -24,6 +24,7 @@ import {
   MessageCircle,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
+import { triggerNewQRCreation } from "@/lib/qr-events";
 
 interface SidebarProps {
   user?: {
@@ -149,7 +150,14 @@ export function Sidebar({ user }: SidebarProps) {
               <Link
                 key={item.name}
                 href={item.href}
-                onClick={() => setMobileOpen(false)}
+                onClick={(e) => {
+                  setMobileOpen(false);
+                  if (item.href === "/create" && pathname === "/create") {
+                    e.preventDefault();
+                    triggerNewQRCreation();
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }
+                }}
                 className="flex items-center gap-3 px-3.5 py-2.5 my-2 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-700 text-white font-semibold text-sm shadow-md shadow-indigo-600/25 hover:from-indigo-500 hover:to-indigo-600 transition-all hover:scale-[1.02] active:scale-[0.98]"
               >
                 <PlusCircle className="w-4 h-4" />

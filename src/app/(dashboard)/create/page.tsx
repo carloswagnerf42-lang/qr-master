@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   Link as LinkIcon,
@@ -31,6 +31,7 @@ import {
   Check,
   Tag,
   Megaphone,
+  Plus,
 } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { QRCodeRenderer } from "@/components/qr/QRCodeRenderer";
@@ -41,6 +42,43 @@ import { downloadPng, downloadSvg, downloadPdf, ExportResolution } from "@/lib/e
 import { UpgradeModal, UpgradeReason } from "@/components/UpgradeModal";
 import { getAppUrl } from "@/lib/app-url";
 import { useToast } from "@/components/ui/Toast";
+import { NEW_QR_EVENT } from "@/lib/qr-events";
+
+const INITIAL_CONTENT: QRCodeContentPayload = {
+  url: "https://minhaempresa.com.br",
+  phone: "5511999999999",
+  message: "Olá! Gostaria de mais informações.",
+  text: "Texto de exemplo para o QR Code.",
+  email: "contato@empresa.com",
+  subject: "Atendimento",
+  body: "Olá, gostaria de tirar uma dúvida.",
+  ssid: "WiFi_Escritorio_5G",
+  password: "SenhaSegura123",
+  encryption: "WPA2",
+  hidden: false,
+  latitude: -23.55052,
+  longitude: -46.633308,
+  firstName: "Carlos",
+  lastName: "Silva",
+  company: "Nexus Digital",
+  title: "Diretor Comercial",
+  cellPhone: "+55 (11) 98765-4321",
+  contactEmail: "carlos@nexusdigital.com.br",
+  website: "https://nexusdigital.com.br",
+  eventTitle: "Workshop de Inovação",
+  eventLocation: "Auditório Central",
+  eventDescription: "Apresentação de novos produtos e networking.",
+  startDate: "2026-10-15T14:00",
+  endDate: "2026-10-15T18:00",
+  pixKey: "carlos@nexusdigital.com.br",
+  merchantName: "CARLOS SILVA",
+  merchantCity: "SAO PAULO",
+  amount: 99.9,
+  txId: "PAG1234",
+  infoMessage: "Inscrição Workshop",
+  socialPlatform: "instagram",
+  socialUrl: "https://instagram.com/nexusdigital",
+};
 
 export default function CreateQRCodePage() {
   const router = useRouter();
@@ -62,41 +100,7 @@ export default function CreateQRCodePage() {
   const [permissions, setPermissions] = useState<Record<string, boolean>>({});
 
   // Payload Content State
-  const [content, setContent] = useState<QRCodeContentPayload>({
-    url: "https://minhaempresa.com.br",
-    phone: "5511999999999",
-    message: "Olá! Gostaria de mais informações.",
-    text: "Texto de exemplo para o QR Code.",
-    email: "contato@empresa.com",
-    subject: "Atendimento",
-    body: "Olá, gostaria de tirar uma dúvida.",
-    ssid: "WiFi_Escritorio_5G",
-    password: "SenhaSegura123",
-    encryption: "WPA2",
-    hidden: false,
-    latitude: -23.55052,
-    longitude: -46.633308,
-    firstName: "Carlos",
-    lastName: "Silva",
-    company: "Nexus Digital",
-    title: "Diretor Comercial",
-    cellPhone: "+55 (11) 98765-4321",
-    contactEmail: "carlos@nexusdigital.com.br",
-    website: "https://nexusdigital.com.br",
-    eventTitle: "Workshop de Inovação",
-    eventLocation: "Auditório Central",
-    eventDescription: "Apresentação de novos produtos e networking.",
-    startDate: "2026-10-15T14:00",
-    endDate: "2026-10-15T18:00",
-    pixKey: "carlos@nexusdigital.com.br",
-    merchantName: "CARLOS SILVA",
-    merchantCity: "SAO PAULO",
-    amount: 99.9,
-    txId: "PAG1234",
-    infoMessage: "Inscrição Workshop",
-    socialPlatform: "instagram",
-    socialUrl: "https://instagram.com/nexusdigital",
-  });
+  const [content, setContent] = useState<QRCodeContentPayload>({ ...INITIAL_CONTENT });
 
   // Style State
   const [style, setStyle] = useState<QRCodeStyleConfig>({
@@ -114,6 +118,40 @@ export default function CreateQRCodePage() {
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const [upgradeReason, setUpgradeReason] = useState<UpgradeReason>("DYNAMIC_QR");
   const [upgradeLimit, setUpgradeLimit] = useState<number>(5);
+
+  // Reset QR Creator to fresh initial state
+  const resetQrCreator = useCallback(() => {
+    setActiveTab("type");
+    setSelectedType("url");
+    setIsDynamic(permissions?.dynamic_qr !== false);
+    setName("Meu Novo QR Code");
+    setDescription("");
+    setCategoryId("");
+    setCampaignId("");
+    setContent({ ...INITIAL_CONTENT });
+    setStyle({ ...DEFAULT_STYLE_CONFIG });
+    setZoom(280);
+    setSaving(false);
+    setCreatedQr(null);
+    setDownloadModalOpen(false);
+    setSelectedResolution(1024);
+    setUpgradeModalOpen(false);
+    setUpgradeReason("DYNAMIC_QR");
+    setUpgradeLimit(5);
+  }, [permissions]);
+
+  // Listen for global reset event (from Sidebar, Header, etc.)
+  useEffect(() => {
+    const handleNewQr = () => {
+      resetQrCreator();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    };
+
+    window.addEventListener(NEW_QR_EVENT, handleNewQr);
+    return () => {
+      window.removeEventListener(NEW_QR_EVENT, handleNewQr);
+    };
+  }, [resetQrCreator]);
 
   // Load user categories, campaigns & plan permissions
   useEffect(() => {
@@ -312,6 +350,7 @@ export default function CreateQRCodePage() {
       <Header
         title="Criar QR Code"
         subtitle="Configure o conteúdo, personalize o visual e gere seu código em alta resolução"
+        onCreateNew={resetQrCreator}
       />
 
       <div className="p-4 sm:p-8 max-w-7xl mx-auto">
@@ -1292,12 +1331,24 @@ export default function CreateQRCodePage() {
                       Link Dinâmico: {getAppUrl()}/q/{createdQr.shortCode}
                     </p>
                   )}
-                  <div className="flex items-center gap-3 mt-2 font-semibold">
+                  <div className="flex flex-wrap items-center gap-3 mt-2 font-semibold">
                     <button
+                      type="button"
                       onClick={() => router.push("/my-qrs")}
                       className="text-indigo-600 dark:text-indigo-400 hover:underline"
                     >
                       Ver em Meus QR Codes →
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        resetQrCreator();
+                        window.scrollTo({ top: 0, behavior: "smooth" });
+                      }}
+                      className="text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Criar Outro QR Code</span>
                     </button>
                   </div>
                 </div>

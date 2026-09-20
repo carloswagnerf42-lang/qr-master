@@ -37,7 +37,8 @@
     "test:idempotency": "tsx tests/test-mercadopago-idempotency.ts",
     "test:rate-limit": "tsx tests/test-qr-rate-limit.ts",
     "test:funnel": "tsx tests/test-conversion-funnel-ui.ts",
-    "test:copy": "tsx tests/test-copy-and-whatsapp.ts"
+    "test:copy": "tsx tests/test-copy-and-whatsapp.ts",
+    "test:create-session": "tsx tests/test-create-new-session.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.21.1",

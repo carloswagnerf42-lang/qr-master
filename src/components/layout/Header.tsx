@@ -2,8 +2,10 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Plus, Bell } from "lucide-react";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
+import { triggerNewQRCreation } from "@/lib/qr-events";
 
 interface HeaderProps {
   title?: string;
@@ -17,9 +19,11 @@ interface HeaderProps {
       displayName?: string;
     } | null;
   };
+  onCreateNew?: () => void;
 }
 
-export function Header({ title, subtitle, user: propUser }: HeaderProps) {
+export function Header({ title, subtitle, user: propUser, onCreateNew }: HeaderProps) {
+  const pathname = usePathname();
   const [userData, setUserData] = useState<{
     name?: string;
     email?: string;
@@ -120,6 +124,17 @@ export function Header({ title, subtitle, user: propUser }: HeaderProps) {
       <div className="flex items-center gap-3.5">
         <Link
           href="/create"
+          onClick={(e) => {
+            if (onCreateNew) {
+              e.preventDefault();
+              onCreateNew();
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            } else if (pathname === "/create") {
+              e.preventDefault();
+              triggerNewQRCreation();
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }
+          }}
           className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-sm transition-colors"
         >
           <Plus className="w-4 h-4" />
