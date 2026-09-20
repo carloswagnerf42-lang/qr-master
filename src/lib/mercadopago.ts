@@ -233,8 +233,8 @@ export async function createMercadoPagoPreference(params: CreateMPPreferencePara
 
   const isYearly = billingCycle === "year";
   const price = isYearly
-    ? (Number(plan.priceYear) > 0 ? Number(plan.priceYear) : (planName === "PRO" ? 399 : 999))
-    : (Number(plan.priceMonth) > 0 ? Number(plan.priceMonth) : (planName === "PRO" ? 39.9 : 99.9));
+    ? (Number(plan.priceYear) > 0 ? Number(plan.priceYear) : (planName === "PRO" ? 99 : 199))
+    : (Number(plan.priceMonth) > 0 ? Number(plan.priceMonth) : (planName === "PRO" ? 19.9 : 29.9));
 
   const baseUrl = getAppUrl();
   const finalSuccessUrl = successUrl || `${baseUrl}/settings?payment=success&gateway=mercadopago`;
@@ -328,8 +328,8 @@ export async function createMercadoPagoPixPayment(params: CreateMPPixParams) {
 
   const isYearly = billingCycle === "year";
   const price = isYearly
-    ? (Number(plan.priceYear) > 0 ? Number(plan.priceYear) : (planName === "PRO" ? 399 : 999))
-    : (Number(plan.priceMonth) > 0 ? Number(plan.priceMonth) : (planName === "PRO" ? 39.9 : 99.9));
+    ? (Number(plan.priceYear) > 0 ? Number(plan.priceYear) : (planName === "PRO" ? 99 : 199))
+    : (Number(plan.priceMonth) > 0 ? Number(plan.priceMonth) : (planName === "PRO" ? 19.9 : 29.9));
 
   const baseUrl = getAppUrl();
   const isPublicHttps =
