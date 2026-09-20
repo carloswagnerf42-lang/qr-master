@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect, useCallback } from "react";
+import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   Link as LinkIcon,
@@ -119,6 +119,43 @@ export default function CreateQRCodePage() {
   const [upgradeReason, setUpgradeReason] = useState<UpgradeReason>("DYNAMIC_QR");
   const [upgradeLimit, setUpgradeLimit] = useState<number>(5);
 
+  // Ref for the wizard container to reliably reposition viewport across steps
+  const wizardTopRef = useRef<HTMLDivElement>(null);
+  const isFirstRender = useRef(true);
+
+  // Smooth scroll repositioning to the top of wizard step (compensates for sticky headers)
+  const scrollToWizardTop = useCallback(() => {
+    if (typeof window === "undefined") return;
+    requestAnimationFrame(() => {
+      const target = wizardTopRef.current;
+      if (!target) return;
+
+      const isMobile = window.innerWidth < 768;
+      // 64px offset ensures comfortable margin below the 56px sticky mobile topbar; 80px for desktop
+      const headerOffset = isMobile ? 64 : 80;
+
+      const elementRect = target.getBoundingClientRect();
+      const targetY = elementRect.top + window.pageYOffset - headerOffset;
+
+      window.scrollTo({
+        top: Math.max(0, targetY),
+        behavior: "smooth",
+      });
+
+      // Accessible programmatic focus without focus ring
+      target.focus({ preventScroll: true });
+    });
+  }, []);
+
+  // Automatically reposition viewport to wizard top when activeTab changes (except first load)
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    scrollToWizardTop();
+  }, [activeTab, scrollToWizardTop]);
+
   // Reset QR Creator to fresh initial state
   const resetQrCreator = useCallback(() => {
     setActiveTab("type");
@@ -144,14 +181,14 @@ export default function CreateQRCodePage() {
   useEffect(() => {
     const handleNewQr = () => {
       resetQrCreator();
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      scrollToWizardTop();
     };
 
     window.addEventListener(NEW_QR_EVENT, handleNewQr);
     return () => {
       window.removeEventListener(NEW_QR_EVENT, handleNewQr);
     };
-  }, [resetQrCreator]);
+  }, [resetQrCreator, scrollToWizardTop]);
 
   // Load user categories, campaigns & plan permissions
   useEffect(() => {
@@ -357,7 +394,11 @@ export default function CreateQRCodePage() {
         {/* Layout em 2 Colunas (Section 10 & Section 62) */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* COLUNA DA ESQUERDA: CONFIGURAÇÕES (7 Colunas) */}
-          <div className="lg:col-span-7 space-y-6">
+          <div
+            ref={wizardTopRef}
+            tabIndex={-1}
+            className="lg:col-span-7 space-y-6 scroll-mt-16 sm:scroll-mt-20 focus:outline-none"
+          >
             {/* Abas Superiores do Gerador */}
             <div className="flex border-b border-slate-200 dark:border-slate-800 space-x-2 text-sm font-semibold">
               <button

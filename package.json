@@ -38,7 +38,8 @@
     "test:rate-limit": "tsx tests/test-qr-rate-limit.ts",
     "test:funnel": "tsx tests/test-conversion-funnel-ui.ts",
     "test:copy": "tsx tests/test-copy-and-whatsapp.ts",
-    "test:create-session": "tsx tests/test-create-new-session.ts"
+    "test:create-session": "tsx tests/test-create-new-session.ts",
+    "test:mobile-nav": "tsx tests/test-mobile-navigation-scroll.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.21.1",
