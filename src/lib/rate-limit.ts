@@ -13,7 +13,7 @@ export interface RateLimitResult {
   resetAt: number;    // timestamp Unix
 }
 
-export type RateLimitAction = "login" | "register" | "checkout" | "portal";
+export type RateLimitAction = "login" | "register" | "checkout" | "portal" | "qr";
 
 // Configurações por endpoint
 export const RATE_LIMIT_CONFIGS: Record<RateLimitAction, RateLimitConfig> = {
@@ -36,6 +36,11 @@ export const RATE_LIMIT_CONFIGS: Record<RateLimitAction, RateLimitConfig> = {
     maxAttempts: 10,
     windowSeconds: 10 * 60, // 10 minutos
     errorMessage: "Muitas requisições ao portal de faturamento. Por favor, aguarde alguns minutos.",
+  },
+  qr: {
+    maxAttempts: 30,
+    windowSeconds: 60, // 60 segundos
+    errorMessage: "Muitas tentativas de criação de QR Code em curto intervalo. Por favor, aguarde alguns instantes.",
   },
 };
 
@@ -66,13 +71,15 @@ export function getClientIp(req: NextRequest): string {
 }
 
 /**
- * Valida a taxa de requisições do identificador informado para a ação
+ * Valida a taxa de requisições do identificador informado para a ação.
+ * Suporta parâmetro opcional nowMs para facilitar testes temporais determinísticos.
  */
 export function checkRateLimit(
   identifier: string,
-  action: RateLimitAction
+  action: RateLimitAction,
+  nowMs?: number
 ): RateLimitResult {
-  const now = Date.now();
+  const now = typeof nowMs === "number" ? nowMs : Date.now();
   const config = RATE_LIMIT_CONFIGS[action];
   const key = `${action}:${identifier}`;
 
@@ -122,33 +129,49 @@ export function checkRateLimit(
 }
 
 /**
- * Reseta o contador em caso de sucesso (por exemplo, após login bem-sucedido)
+ * Reseta o contador em caso de sucesso ou expiração forçada
  */
-export function resetRateLimit(identifier: string, action: "login" | "register"): void {
-  const key = `${action}:${identifier}`;
-  rateLimitStore.delete(key);
+export function resetRateLimit(identifier: string, action?: RateLimitAction): void {
+  if (action) {
+    const key = `${action}:${identifier}`;
+    rateLimitStore.delete(key);
+  } else {
+    for (const key of Array.from(rateLimitStore.keys())) {
+      if (key.endsWith(`:${identifier}`)) {
+        rateLimitStore.delete(key);
+      }
+    }
+  }
 }
 
 /**
  * Monta a resposta padronizada HTTP 429 Too Many Requests com cabeçalhos de rate limit
  */
 export function createRateLimitResponse(
-  action: "login" | "register",
-  retryAfter: number
+  action: RateLimitAction,
+  retryAfter: number,
+  resetAt?: number
 ): NextResponse {
   const config = RATE_LIMIT_CONFIGS[action];
+  const headers: Record<string, string> = {
+    "Retry-After": retryAfter.toString(),
+    "X-RateLimit-Limit": config.maxAttempts.toString(),
+    "X-RateLimit-Remaining": "0",
+  };
+
+  if (resetAt) {
+    headers["X-RateLimit-Reset"] = Math.ceil(resetAt / 1000).toString();
+  }
+
   return NextResponse.json(
     {
       error: config.errorMessage,
+      code: "RATE_LIMITED",
       retryAfter,
     },
     {
       status: 429,
-      headers: {
-        "Retry-After": retryAfter.toString(),
-        "X-RateLimit-Limit": config.maxAttempts.toString(),
-        "X-RateLimit-Remaining": "0",
-      },
+      headers,
     }
   );
 }

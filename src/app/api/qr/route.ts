@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { getUserPlanAndUsage, checkPermission } from "@/lib/permissions";
 import { generateUniqueShortCode } from "@/lib/short-code";
 import { validateAndNormalizeDestination } from "@/lib/dynamic-redirect";
+import { checkRateLimit, createRateLimitResponse } from "@/lib/rate-limit";
 
 export async function GET(req: NextRequest) {
   try {
@@ -100,6 +101,17 @@ export async function POST(req: NextRequest) {
     const session = await getSession(req);
     if (!session) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+    }
+
+    // Rate Limiting técnico por usuário autenticado (30 requisições por 60 segundos)
+    try {
+      const rateCheck = checkRateLimit(session.id, "qr");
+      if (!rateCheck.allowed) {
+        return createRateLimitResponse("qr", rateCheck.retryAfter, rateCheck.resetAt);
+      }
+    } catch (rlError) {
+      // Fail-open: falhas inesperadas no rate limiter não devem impedir operação legítima
+      console.error("[RateLimit:QR] Falha ao verificar rate limit (fail-open):", rlError);
     }
 
     const body = await req.json();

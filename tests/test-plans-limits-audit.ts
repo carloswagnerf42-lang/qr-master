@@ -539,12 +539,12 @@ async function runPlansAndLimitsAuditSuite() {
 
     // Idempotência: mesmo evento já processado
     const testPaymentId = "mock_idemp_1";
-    const testEventKey = `mp_payment_${testPaymentId}`;
+    const testClaimKey = `mp_claim_${testPaymentId}`;
     await prisma.webhookEvent.upsert({
-      where: { eventId: testEventKey },
+      where: { eventId: testClaimKey },
       create: {
         gateway: "mercadopago",
-        eventId: testEventKey,
+        eventId: testClaimKey,
         eventType: "payment.approved",
         status: "PROCESSED",
         payload: JSON.stringify({ id: testPaymentId }),
@@ -552,7 +552,7 @@ async function runPlansAndLimitsAuditSuite() {
       update: { status: "PROCESSED" },
     });
 
-    const resReplay = await processMercadoPagoNotification(testPaymentId);
+    const resReplay = await processMercadoPagoNotification(testPaymentId, { id: testPaymentId, status: "approved" });
     assert(resReplay.status === "already_processed", "MP: webhook duplicado retorna 'already_processed' (Idempotência garantida)");
   }
 
