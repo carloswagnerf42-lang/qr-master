@@ -662,12 +662,12 @@ async function runCommercialCheckoutCycleAudit() {
   });
 
   const renewedEnd = new Date(renewedSub!.currentPeriodEnd).getTime();
-  const approxThirtyDays = Date.now() + 30 * 24 * 60 * 60 * 1000;
-  const diffFromThirty = Math.abs(renewedEnd - approxThirtyDays);
-  // O sistema atual reseta o ciclo para now + 30 dias na aprovação
+  const approxFortyDays = Date.now() + 40 * 24 * 60 * 60 * 1000;
+  const diffFromForty = Math.abs(renewedEnd - approxFortyDays);
+  // A renovação antecipada do mesmo plano preserva os 10 dias restantes (+30 dias sobre currentPeriodEnd = ~40 dias totais)
   assert(
-    diffFromThirty < 60000,
-    "11.1. Regra de renovação auditada: novo ciclo inicia na aprovação (vigência atualizada para now + 30 dias)"
+    diffFromForty < 120000,
+    "11.1. Regra de renovação auditada: saldo existente preservado (vigência estendida para currentPeriodEnd + 30 dias)"
   );
 
   // =========================================================================

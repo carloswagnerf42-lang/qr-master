@@ -42,7 +42,8 @@
     "test:mobile-nav": "tsx tests/test-mobile-navigation-scroll.ts",
     "test:my-qrs-mobile": "tsx tests/test-my-qrs-responsive.ts",
     "test:analytics-mobile": "tsx tests/test-analytics-responsive.ts",
-    "test:checkout-cycle": "tsx tests/test-commercial-checkout-cycle.ts"
+    "test:checkout-cycle": "tsx tests/test-commercial-checkout-cycle.ts",
+    "test:renewal-period": "tsx tests/test-renewal-period.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.21.1",

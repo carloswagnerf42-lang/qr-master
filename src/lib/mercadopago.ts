@@ -632,7 +632,6 @@ export async function processMercadoPagoNotification(
 
     const durationDays = isYearly ? 365 : 30;
     const now = new Date();
-    const periodEnd = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
     const payerCustomerId = payment.payer?.id ? String(payment.payer.id) : null;
     const gatewaySubId = pid;
 
@@ -654,6 +653,24 @@ export async function processMercadoPagoNotification(
             }),
           },
         });
+
+        // Consulta assinatura existente para cálculo de renovação antecipada
+        const existingSub = await tx.subscription.findUnique({
+          where: { userId },
+        });
+
+        // Regra de Renovação do Mesmo Plano: preserva dias restantes se assinatura ainda estiver ativa
+        const isSamePlanRenewal =
+          existingSub &&
+          existingSub.status === "ACTIVE" &&
+          existingSub.planId === targetPlan.id &&
+          new Date(existingSub.currentPeriodEnd) > now;
+
+        const baseDate = isSamePlanRenewal
+          ? new Date(existingSub.currentPeriodEnd)
+          : now;
+
+        const periodEnd = new Date(baseDate.getTime() + durationDays * 24 * 60 * 60 * 1000);
 
         // Atualiza usuário com o novo plano
         await tx.user.update({
