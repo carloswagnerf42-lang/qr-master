@@ -528,7 +528,7 @@ async function runPlansAndLimitsAuditSuite() {
   console.log("\n--- FASE 11 & 12: IDEMPOTÊNCIA E PAGAMENTO INEXISTENTE NO MERCADO PAGO ---");
   {
     // Pagamento inexistente / simulado ID 123456
-    const resSimulated = await processMercadoPagoNotification("123456");
+    const resSimulated: any = await processMercadoPagoNotification("123456");
     assert(resSimulated.simulated === true || resSimulated.status === "not_found", "MP: ID simulado 123456 é tratado sem erro 500");
 
     // Confirma que nenhuma assinatura foi gerada pelo teste simulado

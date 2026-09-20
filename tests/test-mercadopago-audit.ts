@@ -103,7 +103,14 @@ async function runMercadoPagoAuditSuite() {
     data: { planId: freePlan.id },
   });
   await prisma.webhookEvent.deleteMany({
-    where: { eventId: { startsWith: "mp_payment_mock_" } },
+    where: {
+      OR: [
+        { eventId: { startsWith: "mp_payment_mock_" } },
+        { eventId: { startsWith: "mp_claim_mock_" } },
+        { eventId: { startsWith: "mp_refund_mock_" } },
+        { eventId: { startsWith: "mp_chargeback_mock_" } },
+      ],
+    },
   });
 
   // =========================================================================
@@ -872,7 +879,14 @@ async function runMercadoPagoAuditSuite() {
     where: { userId: userA.id, shortCode: { startsWith: "audit_nd" } },
   });
   await prisma.webhookEvent.deleteMany({
-    where: { eventId: { startsWith: "mp_payment_mock_" } },
+    where: {
+      OR: [
+        { eventId: { startsWith: "mp_payment_mock_" } },
+        { eventId: { startsWith: "mp_claim_mock_" } },
+        { eventId: { startsWith: "mp_refund_mock_" } },
+        { eventId: { startsWith: "mp_chargeback_mock_" } },
+      ],
+    },
   });
 
   console.log(`\n${CYAN}================================================================${RESET}`);

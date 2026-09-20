@@ -434,8 +434,9 @@ export async function createMercadoPagoPixPayment(params: CreateMPPixParams) {
 }
 
 /**
- * Processa notificação webhook do Mercado Pago com idempotência garantida,
- * verificação de valor anti-adulteração, concorrência segura e suporte a estornos.
+ * Processa notificação webhook do Mercado Pago com idempotência atômica,
+ * locks exclusivos via chave única de claim no banco, verificação anti-adulteração
+ * e suporte não-destrutivo a estornos e chargebacks.
  */
 export async function processMercadoPagoNotification(
   paymentId: string | number,
@@ -446,30 +447,16 @@ export async function processMercadoPagoNotification(
     throw new Error("Mercado Pago não configurado.");
   }
 
-  const eventKey = `mp_payment_${paymentId}`;
+  const pid = String(paymentId);
+  const eventKey = `mp_payment_${pid}`;
+  const claimKey = `mp_claim_${pid}`;
+  const refundKey = `mp_refund_${pid}`;
+  const chargebackKey = `mp_chargeback_${pid}`;
 
-  // 1. Verificação de idempotência estrita e concorrência segura
-  const existingEvent = await prisma.webhookEvent.findUnique({
-    where: {
-      eventId: eventKey,
-    },
-  });
-
-  if (existingEvent) {
-    if (existingEvent.status === "PROCESSED") {
-      return { status: "already_processed", eventId: eventKey };
-    }
-    // Concorrência segura: se outra requisição iniciou o processamento há menos de 10 segundos
-    const ageMs = Date.now() - new Date(existingEvent.createdAt).getTime();
-    if (existingEvent.status === "PROCESSING" && ageMs < 10000) {
-      return { status: "processing_in_progress", eventId: eventKey };
-    }
-  }
-
-  // 2. Consulta o pagamento na API do Mercado Pago (ou usa dados mockados para testes)
+  // 1. Consulta o pagamento na API do Mercado Pago (ou usa dados mockados para testes)
   let payment = mockPaymentData;
   if (!payment) {
-    const response = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+    const response = await fetch(`https://api.mercadopago.com/v1/payments/${pid}`, {
       method: "GET",
       headers: {
         Authorization: `Bearer ${config.accessToken}`,
@@ -477,36 +464,37 @@ export async function processMercadoPagoNotification(
     });
 
     if (!response.ok) {
-      if (response.status === 404 || String(paymentId) === "123456") {
-        console.log(`[MP Webhook] Pagamento ${paymentId} não encontrado na API do Mercado Pago (HTTP 404 - simulação ou ID de teste). Retornando 200 seguro.`);
-        return { status: "not_found", error: "Pagamento não encontrado no Mercado Pago", paymentId, simulated: true };
+      if (response.status === 404 || pid === "123456") {
+        console.log(`[MP Webhook] Pagamento ${pid} não encontrado na API do Mercado Pago (HTTP 404 - simulação ou ID de teste). Retornando 200 seguro.`);
+        return { status: "not_found", error: "Pagamento não encontrado no Mercado Pago", paymentId: pid, simulated: true };
       }
-      throw new Error(`Não foi possível consultar pagamento ${paymentId} no Mercado Pago (HTTP ${response.status})`);
+      throw new Error(`Não foi possível consultar pagamento ${pid} no Mercado Pago (HTTP ${response.status})`);
     }
 
     payment = await response.json();
   }
 
-  // Registra ou atualiza o evento de webhook em processamento
-  await prisma.webhookEvent.upsert({
-    where: {
-      eventId: eventKey,
-    },
-    create: {
-      gateway: "mercadopago",
-      eventId: eventKey,
-      eventType: `payment.${payment.status}`,
-      status: "PROCESSING",
-      payload: JSON.stringify(payment),
-    },
-    update: {
-      eventType: `payment.${payment.status}`,
-      payload: JSON.stringify(payment),
-    },
-  });
-
   // CASO 1: Pagamento APROVADO
   if (payment.status === "approved") {
+    // 1.1 Verificação rápida de idempotência (sem transação, evita carga no banco)
+    const existingClaim = await prisma.webhookEvent.findUnique({
+      where: { eventId: claimKey },
+    });
+    if (existingClaim && existingClaim.status === "PROCESSED") {
+      return { status: "already_processed", paymentId: pid, eventId: claimKey };
+    }
+
+    // 1.2 Compatibilidade histórica: verifica se já existe assinatura ativa para este paymentId
+    const existingActiveSub = await prisma.subscription.findFirst({
+      where: {
+        gatewaySubscriptionId: pid,
+        status: "ACTIVE",
+      },
+    });
+    if (existingActiveSub) {
+      return { status: "already_processed", paymentId: pid, note: "historical_subscription_already_active" };
+    }
+
     let metadata: { userId?: string; planId?: string; planName?: string; billingCycle?: string } = {};
 
     try {
@@ -520,63 +508,86 @@ export async function processMercadoPagoNotification(
     const userId = metadata.userId;
     const planName = metadata.planName;
 
-    if (userId) {
-      let targetPlan = null;
-      if (metadata.planId) {
-        targetPlan = await prisma.plan.findUnique({ where: { id: metadata.planId } });
-      }
-      if (!targetPlan && planName) {
-        targetPlan = await prisma.plan.findUnique({ where: { name: planName } });
-      }
-      if (!targetPlan) {
-        targetPlan = await prisma.plan.findUnique({ where: { name: "PRO" } });
-      }
+    if (!userId) {
+      console.warn(`[MP Webhook] Pagamento ${pid} aprovado mas sem userId no external_reference.`);
+      return { status: "missing_user", paymentId: pid };
+    }
 
-      if (targetPlan) {
-        const isYearly = metadata.billingCycle === "year";
-        const expectedPrice = isYearly
-          ? (Number(targetPlan.priceYear) > 0 ? Number(targetPlan.priceYear) : (targetPlan.name === "PRO" ? 99 : 199))
-          : (Number(targetPlan.priceMonth) > 0 ? Number(targetPlan.priceMonth) : (targetPlan.name === "PRO" ? 19.9 : 29.9));
+    let targetPlan = null;
+    if (metadata.planId) {
+      targetPlan = await prisma.plan.findUnique({ where: { id: metadata.planId } });
+    }
+    if (!targetPlan && planName) {
+      targetPlan = await prisma.plan.findUnique({ where: { name: planName } });
+    }
+    if (!targetPlan) {
+      targetPlan = await prisma.plan.findUnique({ where: { name: "PRO" } });
+    }
 
-        const actualAmount = Number(payment.transaction_amount || 0);
+    if (!targetPlan) {
+      throw new Error(`Plano alvo não encontrado para ativação do pagamento ${pid}`);
+    }
 
-        // Anti-tampering: se o valor for inferior ao preço oficial do plano (com tolerância de R$ 0.50)
-        // e não for bypass de teste
-        if (expectedPrice > 0 && actualAmount < (expectedPrice - 0.50) && !payment._skipAmountCheck) {
-          console.warn(`[MP Security] Divergência de valor no pagamento ${payment.id}: recebido R$ ${actualAmount}, esperado R$ ${expectedPrice}`);
-          await prisma.webhookEvent.update({
-            where: { eventId: eventKey },
-            data: {
-              eventType: "payment.amount_mismatch",
-              status: "FAILED",
-            },
-          });
-          return { status: "amount_mismatch", paymentId, actualAmount, expectedPrice };
-        }
+    const isYearly = metadata.billingCycle === "year";
+    const expectedPrice = isYearly
+      ? (Number(targetPlan.priceYear) > 0 ? Number(targetPlan.priceYear) : (targetPlan.name === "PRO" ? 99 : 199))
+      : (Number(targetPlan.priceMonth) > 0 ? Number(targetPlan.priceMonth) : (targetPlan.name === "PRO" ? 19.9 : 29.9));
 
-        const durationDays = isYearly ? 365 : 30;
-        const now = new Date();
-        const periodEnd = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
+    const actualAmount = Number(payment.transaction_amount || 0);
 
-        // Atualiza usuário
-        await prisma.user.update({
+    // Anti-tampering: se o valor for inferior ao preço oficial do plano (com tolerância de R$ 0.50) e não for bypass de teste
+    if (expectedPrice > 0 && actualAmount < (expectedPrice - 0.50) && !payment._skipAmountCheck) {
+      console.warn(`[MP Security] Divergência de valor no pagamento ${pid}: recebido R$ ${actualAmount}, esperado R$ ${expectedPrice}`);
+      await prisma.webhookEvent.upsert({
+        where: { eventId: eventKey },
+        create: {
+          gateway: "mercadopago",
+          eventId: eventKey,
+          eventType: "payment.amount_mismatch",
+          status: "FAILED",
+          payload: JSON.stringify(payment),
+        },
+        update: {
+          eventType: "payment.amount_mismatch",
+          status: "FAILED",
+        },
+      });
+      return { status: "amount_mismatch", paymentId: pid, actualAmount, expectedPrice };
+    }
+
+    const durationDays = isYearly ? 365 : 30;
+    const now = new Date();
+    const periodEnd = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
+    const payerCustomerId = payment.payer?.id ? String(payment.payer.id) : null;
+    const gatewaySubId = pid;
+
+    // 1.3 TRANSAÇÃO ATÔMICA COM CLAIM EXCLUSIVO
+    try {
+      const txResult = await prisma.$transaction(async (tx) => {
+        // Concorrência: tenta criar o claim único (rejeitado pelo PostgreSQL com P2002 se já existir)
+        await tx.webhookEvent.create({
+          data: {
+            gateway: "mercadopago",
+            eventId: claimKey,
+            eventType: "payment.approved.claim",
+            status: "PROCESSED",
+            payload: JSON.stringify({
+              paymentId: pid,
+              userId,
+              planId: targetPlan.id,
+              claimedAt: now.toISOString(),
+            }),
+          },
+        });
+
+        // Atualiza usuário com o novo plano
+        await tx.user.update({
           where: { id: userId },
           data: { planId: targetPlan.id },
         });
 
-        // Verifica se a assinatura já está ativa para evitar duplicação de ActivityLog em condições de corrida
-        const existingSub = await prisma.subscription.findUnique({
-          where: { userId },
-        });
-        const isAlreadyActiveThisPayment =
-          existingSub?.status === "ACTIVE" &&
-          existingSub?.gatewaySubscriptionId === String(payment.id);
-
-        const payerCustomerId = payment.payer?.id ? String(payment.payer.id) : null;
-        const gatewaySubId = payment.id ? String(payment.id) : null;
-
-        // Upsert de assinatura ativa
-        await prisma.subscription.upsert({
+        // Upsert de assinatura ativa com período exato
+        await tx.subscription.upsert({
           where: { userId },
           create: {
             userId,
@@ -591,7 +602,7 @@ export async function processMercadoPagoNotification(
           update: {
             planId: targetPlan.id,
             gateway: "mercadopago",
-            ...(gatewaySubId ? { gatewaySubscriptionId: gatewaySubId } : {}),
+            gatewaySubscriptionId: gatewaySubId,
             ...(payerCustomerId ? { gatewayCustomerId: payerCustomerId } : {}),
             status: "ACTIVE",
             currentPeriodStart: now,
@@ -599,44 +610,60 @@ export async function processMercadoPagoNotification(
           },
         });
 
-        // Log de atividade apenas na primeira ativação deste pagamento
-        if (!isAlreadyActiveThisPayment) {
-          await prisma.activityLog.create({
-            data: {
-              userId,
-              action: "SUBSCRIPTION_ACTIVATE",
-              entityId: String(payment.id),
-              description: `Assinatura ativada via Mercado Pago (${targetPlan.displayName}) - Pagamento #${payment.id}`,
-            },
-          });
-        }
-      }
-    }
+        // Log de auditoria criado estritamente 1 vez dentro da transação atômica
+        await tx.activityLog.create({
+          data: {
+            userId,
+            action: "SUBSCRIPTION_ACTIVATE",
+            entityId: pid,
+            description: `Assinatura ativada via Mercado Pago (${targetPlan.displayName}) - Pagamento #${pid}`,
+          },
+        });
 
-    // Marca webhook como processado
-    try {
-      await prisma.webhookEvent.upsert({
-        where: {
-          eventId: eventKey,
-        },
-        create: {
-          gateway: "mercadopago",
-          eventId: eventKey,
-          eventType: `payment.${payment.status}`,
-          status: "PROCESSED",
-          payload: JSON.stringify(payment),
-        },
-        update: { status: "PROCESSED" },
+        // Registra o evento de pagamento principal como PROCESSED
+        await tx.webhookEvent.upsert({
+          where: { eventId: eventKey },
+          create: {
+            gateway: "mercadopago",
+            eventId: eventKey,
+            eventType: `payment.${payment.status}`,
+            status: "PROCESSED",
+            payload: JSON.stringify(payment),
+          },
+          update: {
+            eventType: `payment.${payment.status}`,
+            status: "PROCESSED",
+            payload: JSON.stringify(payment),
+          },
+        });
+
+        return { status: "approved", paymentId: pid, userId };
       });
-    } catch {
-      // Ignora erro se o evento foi alterado por processo concorrente
-    }
 
-    return { status: "approved", paymentId, userId };
+      return txResult;
+    } catch (error: any) {
+      if (
+        error?.code === "P2002" &&
+        (error?.meta?.target?.includes("eventId") ||
+          String(error?.message).includes("eventId") ||
+          String(error?.message).includes("Unique constraint"))
+      ) {
+        console.log(`[MP Webhook] Concorrência bloqueada com sucesso para pagamento #${pid} (P2002 Unique Constraint).`);
+        return { status: "already_processed", paymentId: pid, concurrentDuplicate: true };
+      }
+      throw error;
+    }
   }
 
-  // CASO 2: REEMBOLSO (refunded) ou CHARGEBACK (charged_back)
-  if (payment.status === "refunded" || payment.status === "charged_back") {
+  // CASO 2: REEMBOLSO (refunded)
+  if (payment.status === "refunded") {
+    const existingRefund = await prisma.webhookEvent.findUnique({
+      where: { eventId: refundKey },
+    });
+    if (existingRefund && existingRefund.status === "PROCESSED") {
+      return { status: "already_processed", paymentId: pid, refund: true };
+    }
+
     let userId: string | undefined;
     try {
       if (payment.external_reference) {
@@ -650,67 +677,194 @@ export async function processMercadoPagoNotification(
     const sub = await prisma.subscription.findFirst({
       where: {
         OR: [
-          { gatewaySubscriptionId: String(payment.id) },
+          { gatewaySubscriptionId: pid },
           ...(userId ? [{ userId }] : []),
         ],
       },
     });
 
+    if (sub && sub.status === "REFUNDED") {
+      return { status: "already_processed", paymentId: pid, refund: true };
+    }
+
     if (sub) {
-      const newStatus = payment.status === "refunded" ? "REFUNDED" : "CHARGED_BACK";
-      await prisma.subscription.update({
-        where: { id: sub.id },
-        data: {
-          status: newStatus,
-          canceledAt: new Date(),
-        },
-      });
-
-      // Reverte usuário para o plano FREE de forma NÃO-DESTRUTIVA (QRs, scans, destinos e arquivos preservados)
       const freePlan = await prisma.plan.findUnique({ where: { name: "FREE" } });
-      if (freePlan) {
-        await prisma.user.update({
-          where: { id: sub.userId },
-          data: { planId: freePlan.id },
+
+      try {
+        await prisma.$transaction(async (tx) => {
+          await tx.webhookEvent.create({
+            data: {
+              gateway: "mercadopago",
+              eventId: refundKey,
+              eventType: "payment.refunded.claim",
+              status: "PROCESSED",
+              payload: JSON.stringify({ paymentId: pid, refundedAt: new Date().toISOString() }),
+            },
+          });
+
+          await tx.subscription.update({
+            where: { id: sub.id },
+            data: {
+              status: "REFUNDED",
+              canceledAt: new Date(),
+            },
+          });
+
+          if (freePlan) {
+            await tx.user.update({
+              where: { id: sub.userId },
+              data: { planId: freePlan.id },
+            });
+          }
+
+          await tx.activityLog.create({
+            data: {
+              userId: sub.userId,
+              action: "SUBSCRIPTION_REFUND",
+              entityId: pid,
+              description: `Assinatura revertida por reembolso no Mercado Pago - Pagamento #${pid}`,
+            },
+          });
+
+          await tx.webhookEvent.upsert({
+            where: { eventId: eventKey },
+            create: {
+              gateway: "mercadopago",
+              eventId: eventKey,
+              eventType: `payment.${payment.status}`,
+              status: "PROCESSED",
+              payload: JSON.stringify(payment),
+            },
+            update: {
+              eventType: `payment.${payment.status}`,
+              status: "PROCESSED",
+              payload: JSON.stringify(payment),
+            },
+          });
         });
+      } catch (error: any) {
+        if (
+          error?.code === "P2002" &&
+          (error?.meta?.target?.includes("eventId") ||
+            String(error?.message).includes("eventId") ||
+            String(error?.message).includes("Unique constraint"))
+        ) {
+          return { status: "already_processed", paymentId: pid, concurrentDuplicate: true, refund: true };
+        }
+        throw error;
       }
-
-      const actionName =
-        payment.status === "refunded" ? "SUBSCRIPTION_REFUND" : "SUBSCRIPTION_CHARGEBACK";
-      await prisma.activityLog.create({
-        data: {
-          userId: sub.userId,
-          action: actionName,
-          description: `Assinatura revertida por ${
-            payment.status === "refunded" ? "reembolso" : "chargeback"
-          } no Mercado Pago - Pagamento #${payment.id}`,
-        },
-      });
     }
 
-    try {
-      await prisma.webhookEvent.upsert({
-        where: { eventId: eventKey },
-        create: {
-          gateway: "mercadopago",
-          eventId: eventKey,
-          eventType: `payment.${payment.status}`,
-          status: "PROCESSED",
-          payload: JSON.stringify(payment),
-        },
-        update: { status: "PROCESSED" },
-      });
-    } catch {
-      // Ignora erro de webhookEvent
-    }
-
-    return { status: payment.status, paymentId };
+    return { status: "refunded", paymentId: pid };
   }
 
-  // CASO 3: CANCELADO (cancelled) ou REJEITADO (rejected)
+  // CASO 3: CHARGEBACK (charged_back)
+  if (payment.status === "charged_back") {
+    const existingCb = await prisma.webhookEvent.findUnique({
+      where: { eventId: chargebackKey },
+    });
+    if (existingCb && existingCb.status === "PROCESSED") {
+      return { status: "already_processed", paymentId: pid, chargeback: true };
+    }
+
+    let userId: string | undefined;
+    try {
+      if (payment.external_reference) {
+        const parsed = JSON.parse(payment.external_reference);
+        userId = parsed.userId;
+      }
+    } catch {
+      // Ignora erro de parse
+    }
+
+    const sub = await prisma.subscription.findFirst({
+      where: {
+        OR: [
+          { gatewaySubscriptionId: pid },
+          ...(userId ? [{ userId }] : []),
+        ],
+      },
+    });
+
+    if (sub && sub.status === "CHARGED_BACK") {
+      return { status: "already_processed", paymentId: pid, chargeback: true };
+    }
+
+    if (sub) {
+      const freePlan = await prisma.plan.findUnique({ where: { name: "FREE" } });
+
+      try {
+        await prisma.$transaction(async (tx) => {
+          await tx.webhookEvent.create({
+            data: {
+              gateway: "mercadopago",
+              eventId: chargebackKey,
+              eventType: "payment.charged_back.claim",
+              status: "PROCESSED",
+              payload: JSON.stringify({ paymentId: pid, chargedBackAt: new Date().toISOString() }),
+            },
+          });
+
+          await tx.subscription.update({
+            where: { id: sub.id },
+            data: {
+              status: "CHARGED_BACK",
+              canceledAt: new Date(),
+            },
+          });
+
+          if (freePlan) {
+            await tx.user.update({
+              where: { id: sub.userId },
+              data: { planId: freePlan.id },
+            });
+          }
+
+          await tx.activityLog.create({
+            data: {
+              userId: sub.userId,
+              action: "SUBSCRIPTION_CHARGEBACK",
+              entityId: pid,
+              description: `Assinatura revertida por chargeback no Mercado Pago - Pagamento #${pid}`,
+            },
+          });
+
+          await tx.webhookEvent.upsert({
+            where: { eventId: eventKey },
+            create: {
+              gateway: "mercadopago",
+              eventId: eventKey,
+              eventType: `payment.${payment.status}`,
+              status: "PROCESSED",
+              payload: JSON.stringify(payment),
+            },
+            update: {
+              eventType: `payment.${payment.status}`,
+              status: "PROCESSED",
+              payload: JSON.stringify(payment),
+            },
+          });
+        });
+      } catch (error: any) {
+        if (
+          error?.code === "P2002" &&
+          (error?.meta?.target?.includes("eventId") ||
+            String(error?.message).includes("eventId") ||
+            String(error?.message).includes("Unique constraint"))
+        ) {
+          return { status: "already_processed", paymentId: pid, concurrentDuplicate: true, chargeback: true };
+        }
+        throw error;
+      }
+    }
+
+    return { status: "charged_back", paymentId: pid };
+  }
+
+  // CASO 4: CANCELADO (cancelled) ou REJEITADO (rejected)
   if (payment.status === "cancelled" || payment.status === "rejected") {
     const sub = await prisma.subscription.findFirst({
-      where: { gatewaySubscriptionId: String(payment.id) },
+      where: { gatewaySubscriptionId: pid },
     });
 
     if (sub && sub.status !== "ACTIVE") {
@@ -730,21 +884,43 @@ export async function processMercadoPagoNotification(
           status: "PROCESSED",
           payload: JSON.stringify(payment),
         },
-        update: { status: "PROCESSED" },
+        update: {
+          eventType: `payment.${payment.status}`,
+          status: "PROCESSED",
+        },
       });
     } catch {
-      // Ignora erro de webhookEvent
+      // Ignora erro
     }
 
-    return { status: payment.status, paymentId };
+    return { status: payment.status, paymentId: pid };
   }
 
-  // CASO 4: PENDENTE (pending) ou EM ANÁLISE (in_process)
+  // CASO 5: PENDENTE (pending) ou EM ANÁLISE (in_process)
   if (payment.status === "pending" || payment.status === "in_process") {
-    return { status: payment.status, paymentId };
+    try {
+      await prisma.webhookEvent.upsert({
+        where: { eventId: eventKey },
+        create: {
+          gateway: "mercadopago",
+          eventId: eventKey,
+          eventType: `payment.${payment.status}`,
+          status: "PROCESSING",
+          payload: JSON.stringify(payment),
+        },
+        update: {
+          eventType: `payment.${payment.status}`,
+          status: "PROCESSING",
+        },
+      });
+    } catch {
+      // Ignora erro
+    }
+
+    return { status: payment.status, paymentId: pid };
   }
 
-  return { status: payment.status, paymentId };
+  return { status: payment.status, paymentId: pid };
 }
 
 /**

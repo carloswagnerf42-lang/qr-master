@@ -327,7 +327,15 @@ async function runAdminLogsSearchTestSuite() {
     };
 
     // Limpar eventos prévios se existirem
-    await prisma.webhookEvent.deleteMany({ where: { eventId: `mp_payment_${testPaymentId}` } });
+    await prisma.webhookEvent.deleteMany({
+      where: {
+        OR: [
+          { eventId: `mp_payment_${testPaymentId}` },
+          { eventId: `mp_claim_${testPaymentId}` },
+        ],
+      },
+    });
+    await prisma.subscription.deleteMany({ where: { userId: adminUser.id } });
 
     // Executa processMercadoPagoNotification com mock aprovado
     await processMercadoPagoNotification(testPaymentId, testPaymentData);
@@ -348,7 +356,14 @@ async function runAdminLogsSearchTestSuite() {
     if (createdLog) {
       await prisma.activityLog.delete({ where: { id: createdLog.id } });
     }
-    await prisma.webhookEvent.deleteMany({ where: { eventId: `mp_payment_${testPaymentId}` } });
+    await prisma.webhookEvent.deleteMany({
+      where: {
+        OR: [
+          { eventId: `mp_payment_${testPaymentId}` },
+          { eventId: `mp_claim_${testPaymentId}` },
+        ],
+      },
+    });
 
     assert(
       hasEntityId,

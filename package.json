@@ -33,7 +33,8 @@
     "test:signature": "tsx tests/test-mp-webhook-signature.ts",
     "test:limits": "tsx tests/test-plans-limits-audit.ts",
     "test:ux": "tsx tests/test-ux-dashboard-settings-audit.ts",
-    "test:admin-logs": "tsx tests/test-admin-logs-search.ts"
+    "test:admin-logs": "tsx tests/test-admin-logs-search.ts",
+    "test:idempotency": "tsx tests/test-mercadopago-idempotency.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.21.1",

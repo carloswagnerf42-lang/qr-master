@@ -100,6 +100,9 @@ export async function POST(req: NextRequest) {
 
     // Caso 2: Notificação de Pagamento (Pix ou Cartão)
     const result = await processMercadoPagoNotification(entityId);
+    if (result.status === "already_processed") {
+      console.log(`[MP Webhook] Pagamento #${entityId} já processado anteriormente (idempotência preservada).`);
+    }
     return NextResponse.json({ success: true, ...result }, { status: 200 });
   } catch (error: any) {
     console.error("Erro no processamento do webhook Mercado Pago:", error);
