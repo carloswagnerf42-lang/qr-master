@@ -309,7 +309,7 @@ export default function MyQRsPage() {
                 setCategoryFilter(e.target.value);
                 setPage(1);
               }}
-              className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs"
+              className="w-full min-w-0 truncate px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs"
             >
               <option value="all">Todas Categorias</option>
               {categories.map((c) => (
@@ -326,7 +326,7 @@ export default function MyQRsPage() {
                 setStatusFilter(e.target.value);
                 setPage(1);
               }}
-              className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs"
+              className="w-full min-w-0 truncate px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs"
             >
               <option value="all">Todos os Status</option>
               <option value="ACTIVE">Apenas Ativos</option>
@@ -340,7 +340,7 @@ export default function MyQRsPage() {
                 setTypeFilter(e.target.value);
                 setPage(1);
               }}
-              className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs"
+              className="w-full min-w-0 truncate px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs"
             >
               <option value="all">Estáticos e Dinâmicos</option>
               <option value="dynamic">Apenas Dinâmicos</option>
@@ -354,7 +354,7 @@ export default function MyQRsPage() {
                 setSortBy(e.target.value);
                 setPage(1);
               }}
-              className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs"
+              className="w-full min-w-0 truncate px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs"
             >
               <option value="newest">Mais recentes</option>
               <option value="oldest">Mais antigos</option>
@@ -396,70 +396,254 @@ export default function MyQRsPage() {
               </div>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-200 dark:border-slate-800">
-                  <tr>
-                    <th className="py-3 px-4 w-16">Preview</th>
-                    <th className="py-3 px-4">Nome & Destino</th>
-                    <th className="py-3 px-4">Tipo</th>
-                    <th className="py-3 px-4">Categoria</th>
-                    <th className="py-3 px-4 text-center">Scans</th>
-                    <th className="py-3 px-4">Status</th>
-                    <th className="py-3 px-4">Criado em</th>
-                    <th className="py-3 px-4 text-right">Ações</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {qrs.map((qr) => {
-                    let parsedStyle = {};
-                    try {
-                      parsedStyle = JSON.parse(qr.styleConfig);
-                    } catch {
-                      parsedStyle = {};
-                    }
+            <>
+              {/* Layout Desktop: Tabela completa (≥ 768px) */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-200 dark:border-slate-800">
+                    <tr>
+                      <th className="py-3 px-4 w-16">Preview</th>
+                      <th className="py-3 px-4">Nome & Destino</th>
+                      <th className="py-3 px-4">Tipo</th>
+                      <th className="py-3 px-4">Categoria</th>
+                      <th className="py-3 px-4 text-center">Scans</th>
+                      <th className="py-3 px-4">Status</th>
+                      <th className="py-3 px-4">Criado em</th>
+                      <th className="py-3 px-4 text-right">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {qrs.map((qr) => {
+                      let parsedStyle = {};
+                      try {
+                        parsedStyle = JSON.parse(qr.styleConfig);
+                      } catch {
+                        parsedStyle = {};
+                      }
 
-                    const origin = getAppUrl();
-                    const dynamicUrl = qr.isDynamic && qr.shortCode ? `${origin}/q/${qr.shortCode}` : null;
-                    const finalDest = dynamicUrl || qr.destination;
+                      const origin = getAppUrl();
+                      const dynamicUrl = qr.isDynamic && qr.shortCode ? `${origin}/q/${qr.shortCode}` : null;
+                      const finalDest = dynamicUrl || qr.destination;
 
-                    return (
-                      <tr
-                        key={qr.id}
-                        className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
-                      >
-                        {/* Preview miniatura */}
-                        <td className="py-3 px-4">
-                          <button
-                            onClick={() => setActiveModalQr(qr)}
-                            className="w-11 h-11 p-1 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-center hover:scale-105 transition-transform"
-                            title="Clique para ampliar e baixar"
-                          >
-                            <QRCodeRenderer
-                              value={finalDest}
-                              styleConfig={{ ...parsedStyle, frame: "none" }}
-                              size={36}
-                            />
-                          </button>
-                        </td>
+                      return (
+                        <tr
+                          key={qr.id}
+                          className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
+                        >
+                          {/* Preview miniatura */}
+                          <td className="py-3 px-4">
+                            <button
+                              onClick={() => setActiveModalQr(qr)}
+                              className="w-11 h-11 p-1 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-center hover:scale-105 transition-transform"
+                              title="Clique para ampliar e baixar"
+                            >
+                              <QRCodeRenderer
+                                value={finalDest}
+                                styleConfig={{ ...parsedStyle, frame: "none" }}
+                                size={36}
+                              />
+                            </button>
+                          </td>
 
-                        {/* Nome & Destino */}
-                        <td className="py-3 px-4 max-w-xs">
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-bold text-slate-900 dark:text-white truncate">
-                              {qr.name}
+                          {/* Nome & Destino */}
+                          <td className="py-3 px-4 max-w-xs">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-bold text-slate-900 dark:text-white truncate">
+                                {qr.name}
+                              </span>
+                              {qr.isDynamic && (
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-indigo-50 dark:bg-indigo-950/70 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 shrink-0">
+                                  DINÂMICO
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[11px] text-slate-400 font-mono truncate mt-0.5 flex items-center gap-1.5">
+                              {qr.isDynamic && qr.shortCode ? (
+                                <span className="text-indigo-600 dark:text-indigo-400 font-semibold flex items-center gap-1 truncate">
+                                  /q/{qr.shortCode}
+                                  <span className="text-slate-400 font-sans text-[10px] truncate max-w-[140px]">
+                                    → {qr.destination}
+                                  </span>
+                                </span>
+                              ) : (
+                                <span className="truncate">{qr.destination}</span>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Tipo */}
+                          <td className="py-3 px-4">
+                            <span className="capitalize font-semibold text-slate-700 dark:text-slate-300">
+                              {qr.type}
                             </span>
-                            {qr.isDynamic && (
+                            <span className="block text-[10px] text-slate-400">
+                              {qr.isDynamic ? "Dinâmico" : "Estático"}
+                            </span>
+                          </td>
+
+                          {/* Categoria */}
+                          <td className="py-3 px-4">
+                            {qr.category ? (
+                              <span
+                                className="inline-block px-2.5 py-1 rounded-full text-[10px] font-bold"
+                                style={{
+                                  backgroundColor: `${qr.category.color}20`,
+                                  color: qr.category.color,
+                                }}
+                              >
+                                {qr.category.name}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </td>
+
+                          {/* Scans */}
+                          <td className="py-3 px-4 text-center">
+                            <span className="inline-block px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 font-bold text-slate-900 dark:text-white">
+                              {qr.scanCount}
+                            </span>
+                          </td>
+
+                          {/* Status (Ativo / Inativo toggle) */}
+                          <td className="py-3 px-4">
+                            <button
+                              onClick={() => handleToggleStatus(qr.id)}
+                              className="flex items-center gap-1.5 text-xs font-semibold"
+                            >
+                              {qr.status === "ACTIVE" ? (
+                                <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                                  Ativo
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-slate-400">
+                                  <span className="w-2 h-2 rounded-full bg-slate-400" />
+                                  Pausado
+                                </span>
+                              )}
+                            </button>
+                          </td>
+
+                          {/* Criado em */}
+                          <td className="py-3 px-4 text-slate-400 text-[11px]">
+                            {new Date(qr.createdAt).toLocaleDateString("pt-BR")}
+                          </td>
+
+                          {/* Ações */}
+                          <td className="py-3 px-4 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {/* Editar QR Code */}
+                              <button
+                                onClick={() => handleOpenEdit(qr)}
+                                className="p-1.5 rounded-lg text-amber-600 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 hover:scale-105 transition-all font-semibold flex items-center gap-1"
+                                title="Editar QR Code (Alterar Destino e Nome)"
+                              >
+                                <Edit className="w-4 h-4" />
+                                <span className="hidden xl:inline text-[11px]">Editar</span>
+                              </button>
+
+                              {/* Copiar Link */}
+                              <button
+                                onClick={() => handleCopyLink(qr)}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                title="Copiar link"
+                              >
+                                <Copy className="w-4 h-4" />
+                              </button>
+
+                              {/* Ver Preview & Baixar */}
+                              <button
+                                onClick={() => setActiveModalQr(qr)}
+                                className="p-1.5 rounded-lg text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/50"
+                                title="Visualizar e Baixar"
+                              >
+                                <Download className="w-4 h-4" />
+                              </button>
+
+                              {/* Duplicar */}
+                              <button
+                                onClick={() => handleDuplicate(qr.id)}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                title="Duplicar"
+                              >
+                                <DuplicateIcon className="w-4 h-4" />
+                              </button>
+
+                              {/* Excluir (Lixeira) */}
+                              <button
+                                onClick={() => handleDelete(qr.id, qr.name)}
+                                className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                                title="Mover para lixeira"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Layout Mobile: Cards táteis sem scroll horizontal (< 768px) */}
+              <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-800">
+                {qrs.map((qr) => {
+                  let parsedStyle = {};
+                  try {
+                    parsedStyle = JSON.parse(qr.styleConfig);
+                  } catch {
+                    parsedStyle = {};
+                  }
+
+                  const origin = getAppUrl();
+                  const dynamicUrl = qr.isDynamic && qr.shortCode ? `${origin}/q/${qr.shortCode}` : null;
+                  const finalDest = dynamicUrl || qr.destination;
+
+                  return (
+                    <div
+                      key={qr.id}
+                      className="p-4 space-y-3 bg-white dark:bg-slate-900 transition-colors hover:bg-slate-50/50 dark:hover:bg-slate-850"
+                    >
+                      {/* Topo do Card: Preview + Nome, Badges e Destino */}
+                      <div className="flex items-start gap-3 min-w-0">
+                        {/* Preview miniatura tátil (44x44px) */}
+                        <button
+                          onClick={() => setActiveModalQr(qr)}
+                          className="w-11 h-11 p-1 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-center shrink-0 hover:scale-105 transition-transform"
+                          title="Clique para ampliar e baixar"
+                          aria-label={`Visualizar QR Code de ${qr.name}`}
+                        >
+                          <QRCodeRenderer
+                            value={finalDest}
+                            styleConfig={{ ...parsedStyle, frame: "none" }}
+                            size={36}
+                          />
+                        </button>
+
+                        {/* Nome, Badge e Destino */}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <h4 className="font-bold text-sm text-slate-900 dark:text-white truncate max-w-[200px] xs:max-w-none">
+                              {qr.name}
+                            </h4>
+                            {qr.isDynamic ? (
                               <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-indigo-50 dark:bg-indigo-950/70 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 shrink-0">
                                 DINÂMICO
                               </span>
+                            ) : (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 shrink-0">
+                                ESTÁTICO
+                              </span>
                             )}
                           </div>
-                          <div className="text-[11px] text-slate-400 font-mono truncate mt-0.5 flex items-center gap-1.5">
+
+                          <div className="text-[11px] text-slate-400 font-mono truncate mt-0.5">
                             {qr.isDynamic && qr.shortCode ? (
                               <span className="text-indigo-600 dark:text-indigo-400 font-semibold flex items-center gap-1 truncate">
                                 /q/{qr.shortCode}
-                                <span className="text-slate-400 font-sans text-[10px] truncate max-w-[140px]">
+                                <span className="text-slate-400 font-sans text-[10px] truncate">
                                   → {qr.destination}
                                 </span>
                               </span>
@@ -467,23 +651,35 @@ export default function MyQRsPage() {
                               <span className="truncate">{qr.destination}</span>
                             )}
                           </div>
-                        </td>
+                        </div>
+                      </div>
 
-                        {/* Tipo */}
-                        <td className="py-3 px-4">
-                          <span className="capitalize font-semibold text-slate-700 dark:text-slate-300">
-                            {qr.type}
-                          </span>
-                          <span className="block text-[10px] text-slate-400">
-                            {qr.isDynamic ? "Dinâmico" : "Estático"}
-                          </span>
-                        </td>
+                      {/* Metadados / Informações: Scans, Status, Categoria, Data */}
+                      <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800/60 text-xs">
+                        {/* Status Toggle */}
+                        <button
+                          onClick={() => handleToggleStatus(qr.id)}
+                          className="flex items-center gap-1.5 text-xs font-semibold shrink-0 py-1"
+                          aria-label={`Alterar status de ${qr.name}`}
+                        >
+                          {qr.status === "ACTIVE" ? (
+                            <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                              Ativo
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-slate-400">
+                              <span className="w-2 h-2 rounded-full bg-slate-400" />
+                              Pausado
+                            </span>
+                          )}
+                        </button>
 
-                        {/* Categoria */}
-                        <td className="py-3 px-4">
-                          {qr.category ? (
+                        {/* Metadados à direita: Categoria (se houver), Scans e Data */}
+                        <div className="flex items-center gap-2 overflow-hidden shrink-0">
+                          {qr.category && (
                             <span
-                              className="inline-block px-2.5 py-1 rounded-full text-[10px] font-bold"
+                              className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold truncate max-w-[90px]"
                               style={{
                                 backgroundColor: `${qr.category.color}20`,
                                 color: qr.category.color,
@@ -491,104 +687,77 @@ export default function MyQRsPage() {
                             >
                               {qr.category.name}
                             </span>
-                          ) : (
-                            <span className="text-slate-400">—</span>
                           )}
-                        </td>
-
-                        {/* Scans */}
-                        <td className="py-3 px-4 text-center">
-                          <span className="inline-block px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 font-bold text-slate-900 dark:text-white">
-                            {qr.scanCount}
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 font-bold text-slate-900 dark:text-white text-[11px]">
+                            {qr.scanCount} scans
                           </span>
-                        </td>
+                          <span className="text-slate-400 text-[10px] hidden xs:inline">
+                            {new Date(qr.createdAt).toLocaleDateString("pt-BR")}
+                          </span>
+                        </div>
+                      </div>
 
-                        {/* Status (Ativo / Inativo toggle) */}
-                        <td className="py-3 px-4">
-                          <button
-                            onClick={() => handleToggleStatus(qr.id)}
-                            className="flex items-center gap-1.5 text-xs font-semibold"
-                          >
-                            {qr.status === "ACTIVE" ? (
-                              <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-                                <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                                Ativo
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 text-slate-400">
-                                <span className="w-2 h-2 rounded-full bg-slate-400" />
-                                Pausado
-                              </span>
-                            )}
-                          </button>
-                        </td>
+                      {/* Barra de Ações Táteis: Editar + 4 Botões Secundários */}
+                      <div className="flex items-center gap-1.5 pt-1">
+                        {/* Botão Primário: Editar */}
+                        <button
+                          onClick={() => handleOpenEdit(qr)}
+                          className="flex-1 py-2 px-3 rounded-xl text-amber-700 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors"
+                        >
+                          <Edit className="w-4 h-4" />
+                          <span>Editar</span>
+                        </button>
 
-                        {/* Criado em */}
-                        <td className="py-3 px-4 text-slate-400 text-[11px]">
-                          {new Date(qr.createdAt).toLocaleDateString("pt-BR")}
-                        </td>
+                        {/* Copiar Link */}
+                        <button
+                          onClick={() => handleCopyLink(qr)}
+                          className="p-2 rounded-xl text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80"
+                          title="Copiar link"
+                          aria-label="Copiar link"
+                        >
+                          <Copy className="w-4 h-4" />
+                        </button>
 
-                        {/* Ações */}
-                        <td className="py-3 px-4 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            {/* Editar QR Code */}
-                            <button
-                              onClick={() => handleOpenEdit(qr)}
-                              className="p-1.5 rounded-lg text-amber-600 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 hover:scale-105 transition-all font-semibold flex items-center gap-1"
-                              title="Editar QR Code (Alterar Destino e Nome)"
-                            >
-                              <Edit className="w-4 h-4" />
-                              <span className="hidden xl:inline text-[11px]">Editar</span>
-                            </button>
+                        {/* Ver Preview & Baixar */}
+                        <button
+                          onClick={() => setActiveModalQr(qr)}
+                          className="p-2 rounded-xl text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 bg-indigo-50/50 dark:bg-indigo-950/30 border border-indigo-200/50 dark:border-indigo-800/50"
+                          title="Visualizar e Baixar"
+                          aria-label="Visualizar e Baixar"
+                        >
+                          <Download className="w-4 h-4" />
+                        </button>
 
-                            {/* Copiar Link */}
-                            <button
-                              onClick={() => handleCopyLink(qr)}
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
-                              title="Copiar link"
-                            >
-                              <Copy className="w-4 h-4" />
-                            </button>
+                        {/* Duplicar */}
+                        <button
+                          onClick={() => handleDuplicate(qr.id)}
+                          className="p-2 rounded-xl text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80"
+                          title="Duplicar"
+                          aria-label="Duplicar"
+                        >
+                          <DuplicateIcon className="w-4 h-4" />
+                        </button>
 
-                            {/* Ver Preview & Baixar */}
-                            <button
-                              onClick={() => setActiveModalQr(qr)}
-                              className="p-1.5 rounded-lg text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/50"
-                              title="Visualizar e Baixar"
-                            >
-                              <Download className="w-4 h-4" />
-                            </button>
-
-                            {/* Duplicar */}
-                            <button
-                              onClick={() => handleDuplicate(qr.id)}
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
-                              title="Duplicar"
-                            >
-                              <DuplicateIcon className="w-4 h-4" />
-                            </button>
-
-                            {/* Excluir (Lixeira) */}
-                            <button
-                              onClick={() => handleDelete(qr.id, qr.name)}
-                              className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30"
-                              title="Mover para lixeira"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                        {/* Excluir (Lixeira) */}
+                        <button
+                          onClick={() => handleDelete(qr.id, qr.name)}
+                          className="p-2 rounded-xl text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 bg-rose-50/40 dark:bg-rose-950/20 border border-rose-200/50 dark:border-rose-800/50"
+                          title="Mover para lixeira"
+                          aria-label="Mover para lixeira"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
           )}
 
           {/* Paginação */}
           {totalPages > 1 && (
-            <div className="p-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500">
+            <div className="p-4 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
               <span>
                 Página {page} de {totalPages} ({totalCount} itens no total)
               </span>

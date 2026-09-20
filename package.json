@@ -39,7 +39,8 @@
     "test:funnel": "tsx tests/test-conversion-funnel-ui.ts",
     "test:copy": "tsx tests/test-copy-and-whatsapp.ts",
     "test:create-session": "tsx tests/test-create-new-session.ts",
-    "test:mobile-nav": "tsx tests/test-mobile-navigation-scroll.ts"
+    "test:mobile-nav": "tsx tests/test-mobile-navigation-scroll.ts",
+    "test:my-qrs-mobile": "tsx tests/test-my-qrs-responsive.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.21.1",
