@@ -14,6 +14,7 @@ import {
   Smartphone,
 } from "lucide-react";
 import { QRCodeRenderer } from "@/components/qr/QRCodeRenderer";
+import { PricingAndFaq } from "@/components/landing/PricingAndFaq";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -40,6 +41,12 @@ export default async function HomePage() {
           </div>
 
           <div className="flex items-center gap-3">
+            <Link
+              href="#pricing"
+              className="hidden sm:inline-block px-3 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white transition-colors"
+            >
+              Planos & Preços
+            </Link>
             <Link
               href="/login"
               className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-900 transition-colors"
@@ -193,6 +200,9 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* Pricing, Comparison & FAQ */}
+      <PricingAndFaq />
 
       {/* Footer */}
       <footer className="border-t border-slate-800/80 py-8 px-6 text-center text-xs text-slate-500">

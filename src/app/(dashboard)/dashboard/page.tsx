@@ -18,6 +18,7 @@ import {
   Layers,
   Activity,
   Zap,
+  Lock,
 } from "lucide-react";
 import {
   AreaChart,
@@ -29,9 +30,19 @@ import {
   CartesianGrid,
 } from "recharts";
 import { Header } from "@/components/layout/Header";
+import { UpgradeModal, UpgradeReason } from "@/components/UpgradeModal";
 
 interface DashboardData {
   userName: string;
+  plan?: {
+    name: string;
+    displayName: string;
+    maxQRCodes: number;
+    usedQRCodes: number;
+    totalQRCodes: number;
+    remainingQRCodes: number;
+    isYearly?: boolean;
+  };
   cards: {
     totalQRs: { value: number; change: string; trend: string };
     activeQRs: { value: number; change: string; trend: string };
@@ -76,6 +87,9 @@ export default function DashboardPage() {
   const [chartData, setChartData] = useState<AnalyticsData | null>(null);
   const [period, setPeriod] = useState<"today" | "7d" | "30d" | "90d" | "12m">("30d");
   const [loading, setLoading] = useState(true);
+  const [analyticsForbidden, setAnalyticsForbidden] = useState(false);
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
+  const [upgradeReason, setUpgradeReason] = useState<UpgradeReason>("ANALYTICS");
 
   // Greeting based on time of day
   const hour = new Date().getHours();
@@ -122,6 +136,10 @@ export default function DashboardPage() {
         if (res.ok) {
           const json = await res.json();
           setChartData(json);
+          setAnalyticsForbidden(false);
+        } else if (res.status === 403) {
+          setAnalyticsForbidden(true);
+          setChartData(null);
         }
       } catch (err) {
         console.error("Erro ao carregar gráfico:", err);
@@ -166,37 +184,71 @@ export default function DashboardPage() {
 
         {/* 6 KPI Cards (Section 6) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
-          {/* Card 1: Total de QR Codes */}
-          <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Total de QR Codes
-              </span>
-              <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
-                <QrCode className="w-4 h-4" />
+          {/* Card 1: Total e Cota de QR Codes */}
+          <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  Cota de Criações
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
+                  {data?.plan?.displayName || data?.plan?.name || "FREE"}
+                </span>
+              </div>
+              <div className="mt-3 flex items-baseline gap-2">
+                <span className="text-3xl font-extrabold text-slate-900 dark:text-white">
+                  {data?.plan
+                    ? data.plan.maxQRCodes > 9999
+                      ? `${data.cards.totalQRs.value}`
+                      : `${data.plan.usedQRCodes} / ${data.plan.maxQRCodes}`
+                    : loading
+                    ? "..."
+                    : 0}
+                </span>
+                <span className="text-xs text-slate-500 dark:text-slate-400">
+                  {data?.plan?.maxQRCodes && data.plan.maxQRCodes > 9999
+                    ? "QRs (ilimitado)"
+                    : "QRs no ciclo"}
+                </span>
               </div>
             </div>
-            <div className="mt-3 flex items-baseline gap-2">
-              <span className="text-3xl font-extrabold text-slate-900 dark:text-white">
-                {data?.cards.totalQRs.value ?? (loading ? "..." : 0)}
-              </span>
-            </div>
-            <div className={`mt-3 flex items-center gap-1.5 text-xs font-medium ${
-              data?.cards.totalQRs.trend === "down"
-                ? "text-rose-600 dark:text-rose-400"
-                : data?.cards.totalQRs.trend === "up"
-                ? "text-emerald-600 dark:text-emerald-400"
-                : "text-slate-500 dark:text-slate-400"
-            }`}>
-              {data?.cards.totalQRs.trend === "down" ? (
-                <ArrowDownRight className="w-3.5 h-3.5" />
-              ) : data?.cards.totalQRs.trend === "up" ? (
-                <ArrowUpRight className="w-3.5 h-3.5" />
-              ) : (
-                <Minus className="w-3.5 h-3.5" />
-              )}
-              <span>{data?.cards.totalQRs.change ?? "Sem variação"}</span>
-            </div>
+
+            {data?.plan && data.plan.maxQRCodes <= 9999 ? (
+              <div className="mt-3 space-y-1.5 pt-2 border-t border-slate-100 dark:border-slate-800/60">
+                <div className="w-full h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                  <div
+                    className="h-full bg-indigo-600 rounded-full transition-all"
+                    style={{
+                      width: `${Math.min(
+                        100,
+                        Math.round((data.plan.usedQRCodes / data.plan.maxQRCodes) * 100)
+                      )}%`,
+                    }}
+                  />
+                </div>
+                <div className="flex items-center justify-between text-[10px] text-slate-400">
+                  <span>{data.plan.remainingQRCodes} restante(s)</span>
+                  <span>{data.cards.totalQRs.value} total no acervo</span>
+                </div>
+              </div>
+            ) : (
+              <div className={`mt-3 flex items-center gap-1.5 text-xs font-medium ${
+                data?.cards.totalQRs.trend === "down"
+                  ? "text-rose-600 dark:text-rose-400"
+                  : data?.cards.totalQRs.trend === "up"
+                  ? "text-emerald-600 dark:text-emerald-400"
+                  : "text-slate-500 dark:text-slate-400"
+              }`}>
+                {data?.cards.totalQRs.trend === "down" ? (
+                  <ArrowDownRight className="w-3.5 h-3.5" />
+                ) : data?.cards.totalQRs.trend === "up" ? (
+                  <ArrowUpRight className="w-3.5 h-3.5" />
+                ) : (
+                  <Minus className="w-3.5 h-3.5" />
+                )}
+                <span>{data?.cards.totalQRs.change ?? "Sem variação"}</span>
+              </div>
+            )}
           </div>
 
           {/* Card 2: QR Codes Ativos */}
@@ -366,6 +418,37 @@ export default function DashboardPage() {
         </div>
 
         {/* Gráfico Interativo de Escaneamentos (Section 7) */}
+        {analyticsForbidden || data?.plan?.name === "FREE" ? (
+          <div className="p-8 rounded-2xl bg-white dark:bg-slate-900 border border-indigo-100 dark:border-indigo-900/40 shadow-sm space-y-5 text-center">
+            <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mx-auto shadow-inner">
+              <Lock className="w-6 h-6" />
+            </div>
+            <div className="space-y-1.5 max-w-lg mx-auto">
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+                Recurso Exclusivo PRO e BUSINESS
+              </span>
+              <h2 className="text-lg font-extrabold text-slate-900 dark:text-white">
+                Métricas & Analytics LGPD em Tempo Real
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                Acompanhe o volume diário de acessos, dispositivos utilizados (Android, iPhone, Desktop) e horários de pico dos seus QR Codes com conformidade total à LGPD.
+              </p>
+            </div>
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setUpgradeReason("ANALYTICS");
+                  setUpgradeModalOpen(true);
+                }}
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md shadow-indigo-600/30 transition-all hover:scale-105"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>Conhecer Analytics PRO</span>
+              </button>
+            </div>
+          </div>
+        ) : (
         <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
@@ -489,6 +572,7 @@ export default function DashboardPage() {
             </ResponsiveContainer>
           </div>
         </div>
+        )}
 
         {/* 2 Colunas Inferiores: QR Codes Mais Acessados + Atividade Recente */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -595,6 +679,13 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Modal de Upgrade Contextual */}
+      <UpgradeModal
+        isOpen={upgradeModalOpen}
+        onClose={() => setUpgradeModalOpen(false)}
+        reason={upgradeReason}
+      />
     </div>
   );
 }

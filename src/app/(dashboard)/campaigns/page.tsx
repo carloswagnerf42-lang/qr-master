@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Megaphone, Plus, Calendar, QrCode, TrendingUp, CheckCircle2 } from "lucide-react";
+import { Megaphone, Plus, Calendar, QrCode, TrendingUp, CheckCircle2, Lock, Sparkles } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { useToast } from "@/components/ui/Toast";
+import { UpgradeModal } from "@/components/UpgradeModal";
 
 interface CampaignItem {
   id: string;
@@ -20,6 +21,8 @@ export default function CampaignsPage() {
   const toast = useToast();
   const [campaigns, setCampaigns] = useState<CampaignItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isForbidden, setIsForbidden] = useState(false);
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -32,6 +35,9 @@ export default function CampaignsPage() {
       if (res.ok) {
         const d = await res.json();
         setCampaigns(d.campaigns || []);
+        setIsForbidden(false);
+      } else if (res.status === 403) {
+        setIsForbidden(true);
       }
     } catch (e) {
       console.error(e);
@@ -52,12 +58,20 @@ export default function CampaignsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, description, startDate, endDate }),
       });
+      const data = await res.json();
       if (res.ok) {
         toast.success("Campanha criada com sucesso!");
         setName("");
         setDescription("");
         setModalOpen(false);
         loadCampaigns();
+      } else {
+        if (res.status === 403 && data.code === "UPGRADE_REQUIRED") {
+          setModalOpen(false);
+          setUpgradeModalOpen(true);
+        } else {
+          toast.error("Erro ao criar campanha", data.error || "Acesso restrito");
+        }
       }
     } catch {
       toast.error("Erro ao criar campanha");
@@ -76,16 +90,45 @@ export default function CampaignsPage() {
           <p className="text-xs text-slate-500">
             Gerencie grupos de QR Codes compartilhando métricas em conjunto.
           </p>
-          <button
-            onClick={() => setModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Nova Campanha</span>
-          </button>
+          {!isForbidden && (
+            <button
+              onClick={() => setModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Nova Campanha</span>
+            </button>
+          )}
         </div>
 
-        {loading ? (
+        {isForbidden ? (
+          <div className="bg-white dark:bg-slate-900 border border-indigo-100 dark:border-indigo-900/40 rounded-2xl p-8 sm:p-12 text-center max-w-2xl mx-auto shadow-sm space-y-6 my-8">
+            <div className="w-16 h-16 bg-indigo-50 dark:bg-indigo-950/60 rounded-2xl flex items-center justify-center mx-auto text-indigo-600 dark:text-indigo-400 shadow-inner">
+              <Lock className="w-8 h-8" />
+            </div>
+            <div className="space-y-2">
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+                Recurso Exclusivo PRO e BUSINESS
+              </span>
+              <h3 className="text-xl font-extrabold text-slate-900 dark:text-white">
+                Módulo de Campanhas Promocionais
+              </h3>
+              <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed max-w-md mx-auto">
+                Agrupe múltiplos QR Codes para mensurar resultados de campanhas sazonais, lançamentos e promoções com métricas consolidadas.
+              </p>
+            </div>
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setUpgradeModalOpen(true)}
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm shadow-md shadow-indigo-600/30 transition-all hover:scale-105"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>Conhecer Planos com Campanhas</span>
+              </button>
+            </div>
+          </div>
+        ) : loading ? (
           <div className="py-16 text-center text-sm text-slate-400">Carregando campanhas...</div>
         ) : campaigns.length === 0 ? (
           <div className="py-16 text-center bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-8">
@@ -229,6 +272,13 @@ export default function CampaignsPage() {
           </div>
         </div>
       )}
+
+      {/* Modal de Upgrade Contextual */}
+      <UpgradeModal
+        isOpen={upgradeModalOpen}
+        onClose={() => setUpgradeModalOpen(false)}
+        reason="CAMPAIGNS"
+      />
     </div>
   );
 }

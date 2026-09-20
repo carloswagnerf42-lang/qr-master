@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -30,6 +30,11 @@ interface SidebarProps {
     email: string;
     role: string;
     company?: string | null;
+    plan?: {
+      name?: string;
+      displayName?: string;
+      maxQRCodes?: number;
+    } | null;
   };
 }
 
@@ -37,6 +42,41 @@ export function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [quota, setQuota] = useState<{
+    planName: string;
+    used: number;
+    max: number;
+    isUnlimited: boolean;
+  } | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function fetchQuota() {
+      try {
+        const res = await fetch("/api/auth/me");
+        if (res.ok) {
+          const data = await res.json();
+          if (isMounted && data.plan) {
+            const planName = data.plan.name || "FREE";
+            const max = data.usage?.maxQRCodes ?? 5;
+            const isUnlimited = planName === "BUSINESS" || max >= 999999;
+            setQuota({
+              planName,
+              used: data.usage?.qrCodes ?? 0,
+              max,
+              isUnlimited,
+            });
+          }
+        }
+      } catch {
+        // Silently fallback to prop data
+      }
+    }
+    fetchQuota();
+    return () => {
+      isMounted = false;
+    };
+  }, [pathname]);
 
   const mainNav = [
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -137,7 +177,75 @@ export function Sidebar({ user }: SidebarProps) {
       </div>
 
       {/* Bottom Area */}
-      <div className="p-3 border-t border-slate-100 dark:border-slate-800/80 space-y-1">
+      <div className="p-3 border-t border-slate-100 dark:border-slate-800/80 space-y-2">
+        {/* Compact Quota Widget */}
+        <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-800">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[11px] font-bold tracking-wide uppercase text-slate-500 dark:text-slate-400">
+              {quota ? `Plano ${quota.planName}` : (user?.plan?.name ? `Plano ${user.plan.name}` : "Plano FREE")}
+            </span>
+            {quota?.planName === "PRO" && (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300">
+                PRO
+              </span>
+            )}
+            {quota?.planName === "BUSINESS" && (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300">
+                BUSINESS
+              </span>
+            )}
+          </div>
+
+          {quota?.isUnlimited ? (
+            <div className="space-y-0.5">
+              <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                Uso ilimitado
+              </p>
+              <p className="text-[11px] text-slate-400">
+                {quota.used} QRs criados no ciclo
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-xs font-medium text-slate-600 dark:text-slate-300">
+                <span>QRs criados</span>
+                <span className="font-semibold text-slate-900 dark:text-white">
+                  {quota?.used ?? 0} / {quota?.max ?? 5}
+                </span>
+              </div>
+              <div className="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
+                <div
+                  className={`h-full transition-all duration-300 ${
+                    (quota?.used ?? 0) >= (quota?.max ?? 5)
+                      ? "bg-amber-500"
+                      : "bg-indigo-600 dark:bg-indigo-500"
+                  }`}
+                  style={{
+                    width: `${Math.min(100, Math.round(((quota?.used ?? 0) / (quota?.max ?? 5)) * 100))}%`,
+                  }}
+                />
+              </div>
+              {(!quota || quota.planName === "FREE") && (
+                <Link
+                  href="/settings?tab=plan"
+                  onClick={() => setMobileOpen(false)}
+                  className="mt-2 block w-full text-center text-xs font-semibold py-1 px-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition-colors"
+                >
+                  Conhecer PRO
+                </Link>
+              )}
+              {quota?.planName === "PRO" && (
+                <Link
+                  href="/settings?tab=plan"
+                  onClick={() => setMobileOpen(false)}
+                  className="mt-1 block text-right text-[10px] text-indigo-600 dark:text-indigo-400 hover:underline"
+                >
+                  Gerenciar plano →
+                </Link>
+              )}
+            </div>
+          )}
+        </div>
         {bottomNav.map((item) => {
           const Icon = item.icon;
           const isActive = pathname === item.href;

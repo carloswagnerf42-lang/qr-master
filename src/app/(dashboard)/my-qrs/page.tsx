@@ -28,6 +28,7 @@ import { QRCodeRenderer } from "@/components/qr/QRCodeRenderer";
 import { downloadPng, downloadSvg, downloadPdf } from "@/lib/export";
 import { getAppUrl } from "@/lib/app-url";
 import { useToast } from "@/components/ui/Toast";
+import { UpgradeModal, UpgradeReason } from "@/components/UpgradeModal";
 
 interface QRItem {
   id: string;
@@ -80,6 +81,8 @@ export default function MyQRsPage() {
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [editError, setEditError] = useState("");
   const [permissions, setPermissions] = useState<Record<string, boolean>>({});
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
+  const [upgradeReason, setUpgradeReason] = useState<UpgradeReason>("SVG_EXPORT");
 
   useEffect(() => {
     async function loadPermissions() {
@@ -663,34 +666,40 @@ export default function MyQRsPage() {
                 <button
                   onClick={() => {
                     if (permissions && permissions.export_svg === false) {
-                      toast.error(
-                        "Recurso Exclusivo PRO",
-                        "A exportação em formato vetorial SVG requer o plano PRO ou BUSINESS. Faça upgrade nas Configurações."
-                      );
+                      setUpgradeReason("SVG_EXPORT");
+                      setUpgradeModalOpen(true);
                       return;
                     }
                     downloadSvg(`modal-qr-${activeModalQr.id}`, `${activeModalQr.name}.svg`);
                     toast.success("Download SVG", "Arquivo SVG vetorial baixado.");
                   }}
-                  className="py-2 px-3 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800"
+                  className="py-2 px-3 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center gap-1.5"
                 >
-                  Baixar SVG
+                  <span>Baixar SVG</span>
+                  {permissions && permissions.export_svg === false && (
+                    <span className="px-1 py-0.2 rounded text-[8px] font-extrabold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                      PRO
+                    </span>
+                  )}
                 </button>
                 <button
                   onClick={async () => {
                     if (permissions && permissions.export_pdf === false) {
-                      toast.error(
-                        "Recurso Exclusivo PRO",
-                        "A exportação de documento PDF para impressão requer o plano PRO ou BUSINESS. Faça upgrade nas Configurações."
-                      );
+                      setUpgradeReason("PDF_EXPORT");
+                      setUpgradeModalOpen(true);
                       return;
                     }
                     await downloadPdf(`modal-qr-${activeModalQr.id}`, activeModalQr.name, "Aponte a câmera para escanear", `${activeModalQr.name}.pdf`);
                     toast.success("Download PDF", "Documento PDF para impressão baixado.");
                   }}
-                  className="py-2 px-3 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 text-xs font-bold hover:bg-indigo-100"
+                  className="py-2 px-3 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 text-xs font-bold hover:bg-indigo-100 flex items-center justify-center gap-1.5"
                 >
-                  Baixar PDF
+                  <span>Baixar PDF</span>
+                  {permissions && permissions.export_pdf === false && (
+                    <span className="px-1 py-0.2 rounded text-[8px] font-extrabold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+                      PRO
+                    </span>
+                  )}
                 </button>
               </div>
             </div>
@@ -890,6 +899,13 @@ export default function MyQRsPage() {
           </div>
         </div>
       )}
+
+      {/* Modal de Upgrade Contextual */}
+      <UpgradeModal
+        isOpen={upgradeModalOpen}
+        onClose={() => setUpgradeModalOpen(false)}
+        reason={upgradeReason}
+      />
     </div>
   );
 }

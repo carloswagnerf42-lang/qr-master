@@ -38,6 +38,7 @@ import { QRCodeType, QRCodeContentPayload, formatQRDestination } from "@/lib/qr-
 import { QRCodeStyleConfig, DEFAULT_STYLE_CONFIG, QRCodeModuleType, QRCodeEyeType, QRCodeFrameType } from "@/types/qr";
 import { checkQRContrast } from "@/lib/contrast";
 import { downloadPng, downloadSvg, downloadPdf, ExportResolution } from "@/lib/export";
+import { UpgradeModal, UpgradeReason } from "@/components/UpgradeModal";
 import { getAppUrl } from "@/lib/app-url";
 import { useToast } from "@/components/ui/Toast";
 
@@ -108,6 +109,11 @@ export default function CreateQRCodePage() {
   const [createdQr, setCreatedQr] = useState<{ id: string; shortCode?: string } | null>(null);
   const [downloadModalOpen, setDownloadModalOpen] = useState(false);
   const [selectedResolution, setSelectedResolution] = useState<ExportResolution>(1024);
+
+  // Upgrade Modal State
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
+  const [upgradeReason, setUpgradeReason] = useState<UpgradeReason>("DYNAMIC_QR");
+  const [upgradeLimit, setUpgradeLimit] = useState<number>(5);
 
   // Load user categories, campaigns & plan permissions
   useEffect(() => {
@@ -180,11 +186,9 @@ export default function CreateQRCodePage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (permissions && permissions.custom_logo === false) {
-      toast.error(
-        "Recurso Exclusivo PRO",
-        "A inclusão de logotipos personalizados é exclusiva dos planos PRO e BUSINESS. Faça upgrade nas Configurações."
-      );
+    if (permissions && (permissions.custom_logo === false || permissions.customLogo === false)) {
+      setUpgradeReason("LOGO");
+      setUpgradeModalOpen(true);
       return;
     }
 
@@ -237,6 +241,28 @@ export default function CreateQRCodePage() {
 
       const data = await res.json();
       if (!res.ok) {
+        // Interpretação específica de limite comercial (LIMIT_REACHED)
+        if (res.status === 403 && data.code === "LIMIT_REACHED") {
+          setUpgradeReason("LIMIT_REACHED");
+          setUpgradeLimit(data.limit || 5);
+          setUpgradeModalOpen(true);
+          setSaving(false);
+          return;
+        }
+
+        // Interpretação específica de upgrade exigido para recursos pagos (UPGRADE_REQUIRED)
+        if (res.status === 403 && data.code === "UPGRADE_REQUIRED") {
+          if (data.requiredPlan === "BUSINESS") {
+            setUpgradeReason("CAMPAIGNS");
+          } else {
+            setUpgradeReason(data.reason?.includes("dinâmico") ? "DYNAMIC_QR" : "LOGO");
+          }
+          setUpgradeModalOpen(true);
+          setSaving(false);
+          return;
+        }
+
+        // Outros 403 (anti-IDOR, segurança, admin) e erros técnicos (400, 429, 500) permanecem como erro
         toast.error("Erro ao salvar", data.error || "Não foi possível criar o QR Code.");
         setSaving(false);
         return;
@@ -391,6 +417,11 @@ export default function CreateQRCodePage() {
                       <span className="px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 text-[10px] font-extrabold uppercase tracking-wide">
                         Recomendado
                       </span>
+                      {permissions && permissions.dynamic_qr === false && (
+                        <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px] font-extrabold uppercase tracking-wide border border-amber-500/20">
+                          PRO
+                        </span>
+                      )}
                     </div>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 max-w-md">
                       Permite alterar o link de destino quando quiser sem precisar reimprimir o código, além de registrar telemetria e gráficos de scans.
@@ -399,10 +430,8 @@ export default function CreateQRCodePage() {
                   <button
                     onClick={() => {
                       if (permissions && permissions.dynamic_qr === false && !isDynamic) {
-                        toast.error(
-                          "Recurso Exclusivo PRO",
-                          "QR Codes dinâmicos com alteração de destino e telemetria exigem o plano PRO ou BUSINESS. Faça upgrade nas Configurações."
-                        );
+                        setUpgradeReason("DYNAMIC_QR");
+                        setUpgradeModalOpen(true);
                         return;
                       }
                       setIsDynamic(!isDynamic);
@@ -974,9 +1003,16 @@ export default function CreateQRCodePage() {
 
                 {/* 3. Logotipo Central */}
                 <div className="space-y-3 pt-3 border-t border-slate-100 dark:border-slate-800">
-                  <p className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                    Logotipo Central
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                      Logotipo Central
+                    </p>
+                    {permissions && (permissions.custom_logo === false || permissions.customLogo === false) && (
+                      <span className="px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-600 dark:text-purple-400 text-[10px] font-extrabold uppercase tracking-wide border border-purple-500/20">
+                        PRO
+                      </span>
+                    )}
+                  </div>
                   <div className="flex items-center gap-4">
                     <label className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 cursor-pointer transition-colors inline-flex items-center gap-2">
                       <ImageIcon className="w-4 h-4 text-indigo-500" />
@@ -1334,10 +1370,8 @@ export default function CreateQRCodePage() {
               <button
                 onClick={() => {
                   if (permissions && permissions.export_svg === false) {
-                    toast.error(
-                      "Recurso Exclusivo PRO",
-                      "A exportação em formato vetorial SVG requer o plano PRO ou BUSINESS. Faça upgrade nas Configurações."
-                    );
+                    setUpgradeReason("SVG_EXPORT");
+                    setUpgradeModalOpen(true);
                     return;
                   }
                   try {
@@ -1350,17 +1384,22 @@ export default function CreateQRCodePage() {
                 }}
                 className="w-full py-2.5 px-4 rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs font-bold flex items-center justify-between transition-colors"
               >
-                <span>Baixar Vetor SVG (Infinitamente Escalável)</span>
+                <div className="flex items-center gap-2">
+                  <span>Baixar Vetor SVG (Infinitamente Escalável)</span>
+                  {permissions && permissions.export_svg === false && (
+                    <span className="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                      PRO
+                    </span>
+                  )}
+                </div>
                 <Download className="w-4 h-4" />
               </button>
 
               <button
                 onClick={async () => {
                   if (permissions && permissions.export_pdf === false) {
-                    toast.error(
-                      "Recurso Exclusivo PRO",
-                      "A exportação de documento PDF para impressão requer o plano PRO ou BUSINESS. Faça upgrade nas Configurações."
-                    );
+                    setUpgradeReason("PDF_EXPORT");
+                    setUpgradeModalOpen(true);
                     return;
                   }
                   try {
@@ -1378,13 +1417,28 @@ export default function CreateQRCodePage() {
                 }}
                 className="w-full py-2.5 px-4 rounded-xl border border-indigo-200 dark:border-indigo-800/60 bg-indigo-50/50 dark:bg-indigo-950/30 hover:bg-indigo-100 dark:hover:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 text-xs font-bold flex items-center justify-between transition-colors"
               >
-                <span>Baixar Folha PDF Pronta para Impressão (A4)</span>
+                <div className="flex items-center gap-2">
+                  <span>Baixar Folha PDF Pronta para Impressão (A4)</span>
+                  {permissions && permissions.export_pdf === false && (
+                    <span className="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+                      PRO
+                    </span>
+                  )}
+                </div>
                 <Download className="w-4 h-4" />
               </button>
             </div>
           </div>
         </div>
       )}
+
+      {/* Modal de Upgrade Contextual */}
+      <UpgradeModal
+        isOpen={upgradeModalOpen}
+        onClose={() => setUpgradeModalOpen(false)}
+        reason={upgradeReason}
+        limit={upgradeLimit}
+      />
     </div>
   );
 }
