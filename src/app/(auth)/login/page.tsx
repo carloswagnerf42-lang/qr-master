@@ -3,8 +3,9 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { QrCode, Lock, Mail, ArrowRight, ShieldCheck, Sparkles } from "lucide-react";
+import { Lock, Mail, ArrowRight, ShieldCheck, Sparkles } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
+import { BrandLogo } from "@/components/brand/BrandLogo";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -42,28 +43,25 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex bg-slate-50 dark:bg-slate-950">
-      {/* Esquerda: Branding & Apresentação */}
-      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-indigo-900 via-slate-900 to-indigo-950 p-12 flex-col justify-between text-white border-r border-indigo-800/30">
-        <div className="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 rounded-full bg-indigo-500/15 blur-3xl" />
-        <div className="absolute bottom-0 left-0 -ml-20 -mb-20 w-96 h-96 rounded-full bg-violet-600/15 blur-3xl" />
+    <div className="min-h-screen flex bg-[#050A16] text-slate-100">
+      {/* Esquerda: Branding Oficial & Apresentação */}
+      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-[#0A1F44] via-[#050A16] to-[#0A1F44] p-12 flex-col justify-between text-white border-r border-cyan-500/10">
+        <div className="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 rounded-full bg-[#006CFF]/15 blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-0 -ml-20 -mb-20 w-96 h-96 rounded-full bg-[#00E0FF]/10 blur-3xl pointer-events-none" />
 
-        {/* Logo */}
-        <div className="relative z-10 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-500/30">
-            <QrCode className="w-6 h-6" />
-          </div>
-          <span className="font-extrabold text-xl tracking-tight">QR MASTER</span>
+        {/* Logo Oficial */}
+        <div className="relative z-10">
+          <BrandLogo variant="horizontal" theme="dark" size="lg" withSlogan={false} />
         </div>
 
         {/* Hero Copy */}
         <div className="relative z-10 my-auto space-y-6 max-w-lg">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-indigo-500/15 border border-indigo-400/20 text-indigo-300 text-xs font-semibold">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>SaaS de Próxima Geração</span>
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-cyan-500/10 border border-cyan-400/20 text-cyan-300 text-xs font-bold tracking-wider uppercase">
+            <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+            <span>CONECTA O SEU MUNDO</span>
           </div>
 
-          <h1 className="text-4xl font-extrabold tracking-tight leading-tight">
+          <h1 className="text-4xl font-extrabold tracking-tight leading-tight font-brand">
             Gere, personalize e rastreie QR Codes profissionais.
           </h1>
 
@@ -71,46 +69,43 @@ export default function LoginPage() {
             Tenha controle absoluto dos seus códigos estáticos e dinâmicos, métricas detalhadas de escaneamento, gerador oficial de Pix e exportação em alta resolução (PNG, SVG, PDF).
           </p>
 
-          <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-800">
+          <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-800/80">
             <div className="flex items-center gap-2.5 text-sm text-slate-300">
-              <ShieldCheck className="w-5 h-5 text-indigo-400 shrink-0" />
+              <ShieldCheck className="w-5 h-5 text-cyan-400 shrink-0" />
               <span>QR Dinâmico Editável</span>
             </div>
             <div className="flex items-center gap-2.5 text-sm text-slate-300">
-              <ShieldCheck className="w-5 h-5 text-indigo-400 shrink-0" />
+              <ShieldCheck className="w-5 h-5 text-cyan-400 shrink-0" />
               <span>Pix EMV / BR Code</span>
             </div>
             <div className="flex items-center gap-2.5 text-sm text-slate-300">
-              <ShieldCheck className="w-5 h-5 text-indigo-400 shrink-0" />
+              <ShieldCheck className="w-5 h-5 text-cyan-400 shrink-0" />
               <span>Analytics LGPD</span>
             </div>
             <div className="flex items-center gap-2.5 text-sm text-slate-300">
-              <ShieldCheck className="w-5 h-5 text-indigo-400 shrink-0" />
+              <ShieldCheck className="w-5 h-5 text-cyan-400 shrink-0" />
               <span>Exportação até 4096px</span>
             </div>
           </div>
         </div>
 
-        {/* Footer */}
+        {/* Footer Obrigatório */}
         <div className="relative z-10 text-xs text-slate-400">
           © 2026 QR MASTER. Plataforma profissional segura.
         </div>
       </div>
 
       {/* Direita: Formulário de Login */}
-      <div className="flex-1 flex items-center justify-center p-6 sm:p-12">
-        <div className="w-full max-w-md space-y-8 bg-white dark:bg-slate-900 p-8 sm:p-10 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl">
+      <div className="flex-1 flex items-center justify-center p-6 sm:p-12 relative">
+        <div className="w-full max-w-md space-y-8 bg-slate-900/90 dark:bg-slate-900/90 backdrop-blur-xl p-8 sm:p-10 rounded-2xl border border-slate-800 shadow-2xl">
           <div className="text-center sm:text-left">
-            <div className="lg:hidden inline-flex items-center gap-2 mb-6">
-              <div className="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center text-white">
-                <QrCode className="w-5 h-5" />
-              </div>
-              <span className="font-extrabold text-lg text-slate-900 dark:text-white">QR MASTER</span>
+            <div className="lg:hidden flex justify-center mb-6">
+              <BrandLogo variant="horizontal" theme="dark" size="md" withSlogan={true} />
             </div>
-            <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+            <h2 className="text-2xl font-bold tracking-tight text-white font-brand">
               Bem-vindo novamente
             </h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+            <p className="text-sm text-slate-400 mt-1">
               Entre com suas credenciais para gerenciar seus códigos.
             </p>
           </div>
@@ -147,7 +142,7 @@ export default function LoginPage() {
                     e.preventDefault();
                     toast.info("Recuperação de Senha", "O link de redefinição foi enviado para seu e-mail.");
                   }}
-                  className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
+                  className="text-xs text-cyan-400 hover:text-cyan-300 hover:underline"
                 >
                   Esqueci minha senha
                 </Link>
@@ -161,7 +156,7 @@ export default function LoginPage() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-700 bg-slate-800 text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0084FF] transition-colors"
                   placeholder="••••••••"
                 />
               </div>
@@ -170,7 +165,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm shadow-md shadow-indigo-600/20 flex items-center justify-center gap-2 transition-all active:scale-[0.99] disabled:opacity-50 mt-2"
+              className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-[#006CFF] to-[#0084FF] hover:from-[#006CFF] hover:to-[#00E0FF] text-white font-bold text-sm shadow-md shadow-blue-500/25 flex items-center justify-center gap-2 transition-all active:scale-[0.99] disabled:opacity-50 mt-2"
             >
               {loading ? (
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -183,9 +178,9 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <div className="text-center pt-2 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400">
+          <div className="text-center pt-2 border-t border-slate-800 text-xs text-slate-400">
             Ainda não tem uma conta?{" "}
-            <Link href="/register" className="font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">
+            <Link href="/register" className="font-semibold text-cyan-400 hover:text-cyan-300 hover:underline">
               Criar conta gratuita
             </Link>
           </div>

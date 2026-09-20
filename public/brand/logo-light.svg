@@ -1,0 +1,44 @@
+<svg width="300" height="240" viewBox="0 0 300 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="qmBrandGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#006CFF" />
+      <stop offset="50%" stop-color="#0084FF" />
+      <stop offset="100%" stop-color="#00E0FF" />
+    </linearGradient>
+    <linearGradient id="qmCornerGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#006CFF" />
+      <stop offset="100%" stop-color="#00E0FF" />
+    </linearGradient>
+    <linearGradient id="qmTextGradLight" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#006CFF" />
+      <stop offset="100%" stop-color="#0084FF" />
+    </linearGradient>
+  </defs>
+
+  <!-- Símbolo Centralizado -->
+  <g transform="translate(90, 10)">
+    <path d="M 14 36 L 14 20 A 6 6 0 0 1 20 14 L 36 14" stroke="url(#qmCornerGrad)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+    <rect x="23" y="23" width="7" height="7" rx="2" fill="url(#qmBrandGrad)" />
+
+    <path d="M 84 14 L 100 14 A 6 6 0 0 1 106 20 L 106 36" stroke="url(#qmCornerGrad)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+    <rect x="90" y="23" width="7" height="7" rx="2" fill="url(#qmBrandGrad)" />
+
+    <path d="M 14 84 L 14 100 A 6 6 0 0 0 20 106 L 36 106" stroke="url(#qmCornerGrad)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+    <rect x="23" y="90" width="7" height="7" rx="2" fill="url(#qmBrandGrad)" />
+
+    <path d="M 84 106 L 100 106 A 6 6 0 0 0 106 100 L 106 84" stroke="url(#qmCornerGrad)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+
+    <circle cx="58" cy="58" r="27" stroke="url(#qmBrandGrad)" stroke-width="8" stroke-linecap="round" />
+    <circle cx="58" cy="58" r="7" fill="url(#qmBrandGrad)" />
+    <path d="M 69 69 L 98 98" stroke="url(#qmBrandGrad)" stroke-width="9" stroke-linecap="round" />
+  </g>
+
+  <!-- Texto: QR MASTER Centralizado -->
+  <text x="150" y="175" text-anchor="middle" font-family="Poppins, system-ui, -apple-system, sans-serif" font-size="36" font-weight="800" letter-spacing="-1">
+    <tspan fill="#0A1F44">QR </tspan>
+    <tspan fill="url(#qmTextGradLight)">MASTER</tspan>
+  </text>
+
+  <!-- Slogan: CONECTA O SEU MUNDO -->
+  <text x="150" y="205" text-anchor="middle" font-family="Poppins, system-ui, -apple-system, sans-serif" font-size="11" font-weight="700" fill="#64748B" letter-spacing="3">CONECTA O SEU MUNDO</text>
+</svg>

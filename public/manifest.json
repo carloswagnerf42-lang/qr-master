@@ -1,0 +1,28 @@
+{
+  "name": "QR MASTER — QR Codes Inteligentes",
+  "short_name": "QR MASTER",
+  "description": "Crie QR Codes personalizados e dinâmicos, gerencie seus links e acompanhe resultados em tempo real.",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#050A16",
+  "theme_color": "#0A1F44",
+  "icons": [
+    {
+      "src": "/brand/favicon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/brand/favicon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/brand/symbol.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

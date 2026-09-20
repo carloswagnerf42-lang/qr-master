@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { QRCodeRenderer } from "@/components/qr/QRCodeRenderer";
 import { PricingAndFaq } from "@/components/landing/PricingAndFaq";
+import { BrandLogo } from "@/components/brand/BrandLogo";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -32,14 +33,9 @@ export default async function HomePage() {
       {/* Navigation */}
       <nav className="border-b border-slate-800/80 backdrop-blur-md sticky top-0 z-50 bg-slate-950/80">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center text-white shadow-md shadow-indigo-500/30">
-              <QrCode className="w-5 h-5" />
-            </div>
-            <span className="font-extrabold text-xl tracking-tight bg-gradient-to-r from-white via-slate-100 to-indigo-300 bg-clip-text text-transparent">
-              QR MASTER
-            </span>
-          </div>
+          <Link href="/" aria-label="QR MASTER — Início">
+            <BrandLogo variant="horizontal" theme="dark" size="md" />
+          </Link>
 
           <div className="flex items-center gap-3">
             <Link

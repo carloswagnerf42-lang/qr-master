@@ -1,0 +1,45 @@
+<svg width="480" height="120" viewBox="0 0 480 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="qmBrandGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#006CFF" />
+      <stop offset="50%" stop-color="#0084FF" />
+      <stop offset="100%" stop-color="#00E0FF" />
+    </linearGradient>
+    <linearGradient id="qmCornerGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#006CFF" />
+      <stop offset="100%" stop-color="#00E0FF" />
+    </linearGradient>
+    <linearGradient id="qmTextGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#006CFF" />
+      <stop offset="50%" stop-color="#0084FF" />
+      <stop offset="100%" stop-color="#00E0FF" />
+    </linearGradient>
+  </defs>
+
+  <!-- Símbolo -->
+  <g transform="translate(10, 5) scale(0.9)">
+    <!-- Cantos de Leitura QR Code -->
+    <path d="M 14 36 L 14 20 A 6 6 0 0 1 20 14 L 36 14" stroke="url(#qmCornerGrad)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+    <rect x="23" y="23" width="7" height="7" rx="2" fill="url(#qmBrandGrad)" />
+
+    <path d="M 84 14 L 100 14 A 6 6 0 0 1 106 20 L 106 36" stroke="url(#qmCornerGrad)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+    <rect x="90" y="23" width="7" height="7" rx="2" fill="url(#qmBrandGrad)" />
+
+    <path d="M 14 84 L 14 100 A 6 6 0 0 0 20 106 L 36 106" stroke="url(#qmCornerGrad)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+    <rect x="23" y="90" width="7" height="7" rx="2" fill="url(#qmBrandGrad)" />
+
+    <path d="M 84 106 L 100 106 A 6 6 0 0 0 106 100 L 106 84" stroke="url(#qmCornerGrad)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+
+    <!-- Corpo Q -->
+    <circle cx="58" cy="58" r="27" stroke="url(#qmBrandGrad)" stroke-width="8" stroke-linecap="round" />
+    <circle cx="58" cy="58" r="7" fill="url(#qmBrandGrad)" />
+    <path d="M 69 69 L 98 98" stroke="url(#qmBrandGrad)" stroke-width="9" stroke-linecap="round" />
+  </g>
+
+  <!-- Texto: QR MASTER (Dark Background: QR em Branco, MASTER em Gradiente) -->
+  <text x="130" y="68" font-family="Poppins, system-ui, -apple-system, sans-serif" font-size="44" font-weight="800" fill="#FFFFFF" letter-spacing="-1">QR </text>
+  <text x="206" y="68" font-family="Poppins, system-ui, -apple-system, sans-serif" font-size="44" font-weight="800" fill="url(#qmTextGrad)" letter-spacing="-1">MASTER</text>
+
+  <!-- Slogan: CONECTA O SEU MUNDO -->
+  <text x="132" y="94" font-family="Poppins, system-ui, -apple-system, sans-serif" font-size="12" font-weight="700" fill="#00E0FF" letter-spacing="3" opacity="0.85">CONECTA O SEU MUNDO</text>
+</svg>

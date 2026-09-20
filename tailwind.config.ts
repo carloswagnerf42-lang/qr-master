@@ -30,7 +30,20 @@ const config: Config = {
           850: "#172033",
           900: "#0f172a",
           950: "#090d16",
-        }
+        },
+        brand: {
+          blue: "#0084FF",
+          cyan: "#00E0FF",
+          darkBlue: "#0A1F44",
+          navy: "#050A16",
+          gray: "#94A3B8",
+          gradientStart: "#006CFF",
+          gradientEnd: "#00E0FF",
+        },
+      },
+      fontFamily: {
+        poppins: ["var(--font-poppins)", "sans-serif"],
+        brand: ["var(--font-poppins)", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "Roboto", "sans-serif"],
       },
     },
   },

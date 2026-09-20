@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { ShieldCheck, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { AdminUserManagement } from "./AdminUserManagement";
+import { BrandLogo } from "@/components/brand/BrandLogo";
 
 export default async function AdminPage() {
   const user = await getCurrentUser();
@@ -123,13 +124,14 @@ export default async function AdminPage() {
       <div className="max-w-7xl mx-auto space-y-8">
         {/* Top Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-6 border-b border-slate-800">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-rose-600 via-indigo-600 to-amber-500 flex items-center justify-center text-white font-bold shadow-lg shadow-rose-950">
-              <ShieldCheck className="w-7 h-7" />
-            </div>
+          <div className="flex flex-wrap items-center gap-4">
+            <Link href="/dashboard" aria-label="QR MASTER — Ir para o Painel" className="hover:opacity-90 transition-opacity">
+              <BrandLogo variant="horizontal" theme="dark" size="md" />
+            </Link>
+            <div className="h-8 w-px bg-slate-800 hidden sm:block" />
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-extrabold tracking-tight">
+                <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight font-brand">
                   Painel de Controle Administrativo
                 </h1>
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30">
