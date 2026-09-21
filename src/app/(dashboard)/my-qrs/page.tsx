@@ -296,7 +296,7 @@ export default function MyQRsPage() {
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs shadow-sm transition-colors shrink-0 w-full sm:w-auto justify-center"
             >
               <Plus className="w-4 h-4" />
-              <span>+ Criar QR Code</span>
+              <span>Criar QR Code</span>
             </Link>
           </div>
 
@@ -391,7 +391,7 @@ export default function MyQRsPage() {
                   className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs transition-colors"
                 >
                   <Plus className="w-4 h-4" />
-                  <span>+ Criar Primeiro QR Code</span>
+                  <span>Criar Primeiro QR Code</span>
                 </Link>
               </div>
             </div>

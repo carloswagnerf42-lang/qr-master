@@ -178,7 +178,7 @@ export default function DashboardPage() {
             className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm shadow-lg shadow-indigo-600/25 transition-all hover:scale-[1.02] active:scale-[0.98] shrink-0"
           >
             <Plus className="w-4 h-4" />
-            <span>+ Criar QR Code</span>
+            <span>Criar QR Code</span>
           </Link>
         </div>
 

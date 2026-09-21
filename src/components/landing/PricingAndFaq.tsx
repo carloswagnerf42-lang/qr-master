@@ -19,29 +19,44 @@ export function PricingAndFaq() {
 
   const faqItems = [
     {
-      question: "O que é um QR Code dinâmico?",
+      question: "O que é um QR Code Dinâmico?",
       answer:
-        "O QR Code dinâmico armazena um link curto gerenciado pela plataforma que redireciona para o endereço final desejado. Isso permite que você altere a URL de destino a qualquer momento pelo painel, sem precisar alterar nem reimprimir o QR Code que já foi impresso em materiais gráficos.",
+        "É um QR Code cujo destino pode ser alterado a qualquer momento pelo painel, sem que você precise gerar ou imprimir um novo código. Ele utiliza um link inteligente que redireciona o usuário para a URL atualizada.",
     },
     {
-      question: "Os QR Codes antigos são apagados quando o ciclo mensal é renovado?",
+      question: "Os QR Codes expiram se eu parar de pagar?",
       answer:
-        "Não. A renovação do ciclo reinicia apenas a sua cota para novas criações naquele período. Todos os seus QR Codes já criados permanecem ativos no seu acervo e continuam funcionando normalmente.",
+        "Os QR Codes estáticos nunca expiram. Os QR Codes dinâmicos dependem de uma assinatura ativa (PRO ou BUSINESS) para manter o redirecionamento. Caso a assinatura termine sem renovação, seus códigos continuam salvos na sua conta e são reativados assim que uma nova contratação for realizada.",
     },
     {
-      question: "Qual a diferença entre o plano FREE e o plano PRO?",
+      question: "Qual a diferença entre QR estático e dinâmico?",
       answer:
-        "O plano FREE oferece até 5 QR Codes estáticos por ciclo com download em alta resolução PNG. O plano PRO oferece 15 QR Codes por ciclo, suporte a QR Codes dinâmicos com alteração de link quando precisar, painel de Analytics com conformidade à LGPD, logotipo central personalizado e exportação vetorial em SVG e PDF para gráficas.",
+        "O QR estático grava as informações diretamente no padrão gráfico e não permite edições posteriores nem relatórios. O QR dinâmico armazena um link curto inteligente gerenciável, permitindo edição de destino a qualquer hora e métricas de escaneamento.",
     },
     {
-      question: "Posso acompanhar os escaneamentos dos meus QR Codes?",
+      question: "Como funciona o Analytics?",
       answer:
-        "Sim. Os planos PRO e BUSINESS possuem o módulo de Métricas & Analytics, onde você visualiza a contagem de acessos, dispositivos utilizados (Android, iOS e Desktop), horários de pico e sistemas operacionais, com anonimização de IPs em conformidade com a LGPD.",
+        "Cada vez que alguém escaneia seu QR Code dinâmico, registramos o acesso de forma agregada com anonimização de IP via hash SHA-256 (100% LGPD). Você acompanha total de scans, visitantes únicos, dispositivos, cidades e horários de pico.",
     },
     {
-      question: "Quais formatos de arquivo posso baixar para imprimir?",
+      question: "O plano FREE precisa de cartão?",
       answer:
-        "No plano FREE, você pode exportar em imagem PNG em resoluções de até 4096px (300 DPI). Nos planos PRO e BUSINESS, além do PNG, você pode baixar arquivos vetoriais em SVG (resolução infinita sem distorção) e documentos em PDF prontos para gráfica.",
+        "Não. O plano FREE é totalmente gratuito e não exige nenhum dado de cartão de crédito. Você pode criar sua conta apenas com nome e e-mail e começar a usar imediatamente.",
+    },
+    {
+      question: "Como funciona o limite de QR Codes?",
+      answer:
+        "O limite de criação é contado por ciclo de 30 dias: até 5 QR Codes no FREE e até 15 QR Codes no PRO. No plano BUSINESS, a criação é comercialmente ilimitada para o seu negócio. Os QR Codes criados em ciclos anteriores continuam salvos no seu acervo e funcionando normalmente.",
+    },
+    {
+      question: "Posso cancelar ou deixar de renovar?",
+      answer:
+        "Sim. Nosso modelo comercial é pré-pago por 30 ou 365 dias, sem contratos de fidelidade forçada. Você decide quando renovar sem surpresas de cobranças automáticas indesejadas.",
+    },
+    {
+      question: "Como funciona o pagamento?",
+      answer:
+        "Todos os pagamentos são processados com segurança pelo Mercado Pago via Pix ou cartão de crédito. A ativação dos recursos do seu plano é realizada imediatamente após a confirmação do pagamento pelo gateway.",
     },
   ];
 
@@ -385,7 +400,7 @@ export function PricingAndFaq() {
       {/* ================================================================ */}
       {/* SEÇÃO 3: PERGUNTAS FREQUENTES (FAQ)                              */}
       {/* ================================================================ */}
-      <section className="py-20 px-6 border-t border-slate-800/60 bg-slate-950">
+      <section id="faq" className="py-20 px-6 border-t border-slate-800/60 bg-slate-950">
         <div className="max-w-3xl mx-auto space-y-8">
           <div className="text-center space-y-2">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900 border border-slate-800 text-slate-300 text-xs font-semibold">

@@ -44,7 +44,8 @@
     "test:analytics-mobile": "tsx tests/test-analytics-responsive.ts",
     "test:checkout-cycle": "tsx tests/test-commercial-checkout-cycle.ts",
     "test:renewal-period": "tsx tests/test-renewal-period.ts",
-    "test:pro-business-upgrade": "tsx tests/test-pro-business-upgrade.ts"
+    "test:pro-business-upgrade": "tsx tests/test-pro-business-upgrade.ts",
+    "test:landing": "tsx tests/test-landing-page.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.21.1",
