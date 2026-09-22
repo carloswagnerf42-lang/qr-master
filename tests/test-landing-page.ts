@@ -137,8 +137,8 @@ async function runLandingPageTestSuite() {
       "Analytics de Acesso",
       "Personalização Visual",
       "Alta Resolução (SVG e PNG)",
-      "Segurança e Confiabilidade",
-      "Domínio Próprio / Whitelabel",
+      "Segurança e Privacidade",
+      "Módulo de Campanhas",
       "Criação Imediata",
     ];
 
@@ -151,7 +151,7 @@ async function runLandingPageTestSuite() {
 
     assert(
       homePage.includes("Exclusivo BUSINESS"),
-      "Badge 'Exclusivo BUSINESS' claramente indicado no card de Domínio Próprio"
+      "Badge 'Exclusivo BUSINESS' claramente indicado no card de Módulo de Campanhas"
     );
   }
 
@@ -194,18 +194,23 @@ async function runLandingPageTestSuite() {
 
     assert(
       homePage.includes(
-        "Métricas reais para entender quem escaneia seus QR Codes e otimizar suas campanhas."
+        "Exemplo de visualização das métricas disponíveis no painel para entender o comportamento de acesso aos seus QR Codes."
       ),
-      "Subheadline da seção Analytics presente"
+      "Subheadline da seção Analytics presente e identificada como exemplo"
+    );
+
+    assert(
+      homePage.includes("Demonstração ilustrativa"),
+      "Badge 'Demonstração ilustrativa' visível na seção de Analytics"
     );
 
     const analyticsFeatures = [
       "Total de Escaneamentos",
       "Dispositivos mais usados",
       "Sistemas & Navegadores",
-      "Cidades e Regiões",
+      "Navegadores mais usados",
       "Linha do Tempo & Picos",
-      "Comparativo de Períodos",
+      "Média Diária & Comparativo",
     ];
 
     for (const feature of analyticsFeatures) {
@@ -307,9 +312,9 @@ async function runLandingPageTestSuite() {
   {
     assert(
       homePage.includes("Mercado Pago") &&
-        homePage.includes("LGPD Compliant") &&
-        homePage.includes("Alta Disponibilidade"),
-      "Pilares de confiança (Mercado Pago, LGPD, Alta Disponibilidade) presentes"
+        homePage.includes("Privacidade por Design") &&
+        homePage.includes("Infraestrutura em Nuvem"),
+      "Pilares de confiança (Mercado Pago, Privacidade por Design, Infraestrutura em Nuvem) presentes"
     );
 
     assert(

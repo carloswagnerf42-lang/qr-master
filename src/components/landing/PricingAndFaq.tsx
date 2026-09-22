@@ -36,7 +36,7 @@ export function PricingAndFaq() {
     {
       question: "Como funciona o Analytics?",
       answer:
-        "Cada vez que alguém escaneia seu QR Code dinâmico, registramos o acesso de forma agregada com anonimização de IP via hash SHA-256 (100% LGPD). Você acompanha total de scans, visitantes únicos, dispositivos, cidades e horários de pico.",
+        "Cada vez que alguém escaneia seu QR Code dinâmico, registramos o acesso de forma agregada com anonimização técnica de IP via hash SHA-256 sem armazenar o IP bruto. Você acompanha total de scans, visitantes únicos, dispositivos, sistemas operacionais, navegadores e horários de pico.",
     },
     {
       question: "O plano FREE precisa de cartão?",
@@ -218,7 +218,7 @@ export function PricingAndFaq() {
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span><strong>Analytics LGPD:</strong> scans, dispositivos e horários</span>
+                    <span><strong>Analytics com Privacidade:</strong> scans, dispositivos e horários</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -350,7 +350,7 @@ export function PricingAndFaq() {
                   <td className="py-3.5 px-4 text-center font-bold text-emerald-400">✓ Sim</td>
                 </tr>
                 <tr>
-                  <td className="py-3.5 px-5 font-semibold text-white">Métricas & Analytics LGPD</td>
+                  <td className="py-3.5 px-5 font-semibold text-white">Métricas & Analytics com Privacidade</td>
                   <td className="py-3.5 px-4 text-center text-slate-500">—</td>
                   <td className="py-3.5 px-4 text-center bg-indigo-950/20 font-bold text-emerald-400">✓ Sim</td>
                   <td className="py-3.5 px-4 text-center font-bold text-emerald-400">✓ Sim</td>

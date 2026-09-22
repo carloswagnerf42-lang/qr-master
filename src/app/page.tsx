@@ -10,7 +10,7 @@ import {
   Palette,
   Download,
   ShieldCheck,
-  Globe,
+  Layers,
   CheckCircle2,
   Lock,
   Server,
@@ -147,7 +147,7 @@ export default async function HomePage() {
               </div>
               <h3 className="font-bold text-base text-white">Analytics de Acesso</h3>
               <p className="text-xs text-slate-400 leading-relaxed">
-                Acompanhe total de scans, dispositivos (iOS, Android), cidades e horários de maior engajamento com conformidade LGPD.
+                Acompanhe total de scans, visitantes únicos, dispositivos (iOS, Android), navegadores e horários de pico com proteção de privacidade.
               </p>
             </div>
 
@@ -178,25 +178,25 @@ export default async function HomePage() {
               <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
                 <ShieldCheck className="w-5 h-5" />
               </div>
-              <h3 className="font-bold text-base text-white">Segurança e Confiabilidade</h3>
+              <h3 className="font-bold text-base text-white">Segurança e Privacidade</h3>
               <p className="text-xs text-slate-400 leading-relaxed">
-                Criptografia de ponta a ponta, hash unidirecional SHA-256 para anonimização de IPs e infraestrutura com alta disponibilidade.
+                Proteção com hash unidirecional SHA-256 para anonimização técnica de IPs sem armazenamento de dados brutos e infraestrutura em nuvem na Vercel.
               </p>
             </div>
 
-            {/* Card 7 (Whitelabel / Domínio Próprio) */}
+            {/* Card 7 (Módulo de Campanhas) */}
             <div className="p-6 rounded-2xl bg-slate-900/70 border border-cyan-500/30 hover:border-cyan-500/50 transition-colors space-y-3 relative">
               <div className="flex items-center justify-between">
                 <div className="w-10 h-10 rounded-xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center">
-                  <Globe className="w-5 h-5" />
+                  <Layers className="w-5 h-5" />
                 </div>
                 <span className="text-[10px] font-extrabold uppercase tracking-wide px-2 py-0.5 rounded-full bg-cyan-500/15 border border-cyan-500/30 text-cyan-400">
                   Exclusivo BUSINESS
                 </span>
               </div>
-              <h3 className="font-bold text-base text-white">Domínio Próprio / Whitelabel</h3>
+              <h3 className="font-bold text-base text-white">Módulo de Campanhas</h3>
               <p className="text-xs text-slate-400 leading-relaxed">
-                Use seu próprio domínio ou subdomínio para os links de redirecionamento, reforçando a autoridade da sua marca.
+                Crie QR Codes sem limites mensais e organize seus códigos em campanhas estruturadas com agendamento de datas.
               </p>
             </div>
 
@@ -314,14 +314,19 @@ export default async function HomePage() {
       <section className="py-20 px-4 sm:px-6 border-t border-slate-800/80 bg-slate-900/30">
         <div className="max-w-6xl mx-auto space-y-12">
           <div className="text-center max-w-3xl mx-auto space-y-3">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-cyan-400 text-xs font-bold uppercase">
-              Inteligência de Dados
+            <div className="inline-flex items-center gap-2">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-cyan-400 text-xs font-bold uppercase">
+                Inteligência de Dados
+              </div>
+              <span className="text-[11px] font-medium text-slate-400 bg-slate-800/80 px-2.5 py-0.5 rounded-full border border-slate-700/60">
+                Demonstração ilustrativa
+              </span>
             </div>
             <h2 className="text-2xl sm:text-4xl font-extrabold text-white tracking-tight">
               Saiba o que acontece depois do scan
             </h2>
             <p className="text-xs sm:text-sm text-slate-400">
-              Métricas reais para entender quem escaneia seus QR Codes e otimizar suas campanhas.
+              Exemplo de visualização das métricas disponíveis no painel para entender o comportamento de acesso aos seus QR Codes.
             </p>
           </div>
 
@@ -329,7 +334,10 @@ export default async function HomePage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {/* Card 1: Total & Uniques */}
             <div className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-3">
-              <div className="text-xs font-bold text-slate-400">Total de Escaneamentos</div>
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-bold text-slate-400">Total de Escaneamentos</div>
+                <span className="text-[10px] text-slate-400">Dados de exemplo</span>
+              </div>
               <div className="flex items-baseline gap-2">
                 <span className="text-3xl font-black text-white">3.842</span>
                 <span className="text-xs font-semibold text-emerald-400">scans registrados</span>
@@ -383,21 +391,21 @@ export default async function HomePage() {
               </div>
             </div>
 
-            {/* Card 4: Cidades e Regiões */}
+            {/* Card 4: Navegadores mais usados */}
             <div className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-3">
-              <div className="text-xs font-bold text-slate-400">Cidades e Regiões</div>
+              <div className="text-xs font-bold text-slate-400">Navegadores mais usados</div>
               <div className="space-y-1.5 text-xs text-slate-300">
                 <div className="flex justify-between py-1 border-b border-slate-800/60">
-                  <span>São Paulo, SP</span>
-                  <span className="font-mono font-bold text-slate-200">45%</span>
+                  <span>Safari Mobile</span>
+                  <span className="font-mono font-bold text-slate-200">52%</span>
                 </div>
                 <div className="flex justify-between py-1 border-b border-slate-800/60">
-                  <span>Rio de Janeiro, RJ</span>
-                  <span className="font-mono font-bold text-slate-200">22%</span>
+                  <span>Google Chrome</span>
+                  <span className="font-mono font-bold text-slate-200">36%</span>
                 </div>
                 <div className="flex justify-between py-1">
-                  <span>Belo Horizonte, MG</span>
-                  <span className="font-mono font-bold text-slate-200">18%</span>
+                  <span>Outros navegadores</span>
+                  <span className="font-mono font-bold text-slate-200">12%</span>
                 </div>
               </div>
             </div>
@@ -413,14 +421,14 @@ export default async function HomePage() {
               </div>
             </div>
 
-            {/* Card 6: Comparativo de Períodos */}
+            {/* Card 6: Média Diária & Comparativo */}
             <div className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-3">
-              <div className="text-xs font-bold text-slate-400">Comparativo de Períodos</div>
+              <div className="text-xs font-bold text-slate-400">Média Diária & Comparativo</div>
               <p className="text-xs text-slate-300 leading-relaxed">
-                Compare o desempenho de campanhas em intervalos de 7, 30 ou 90 dias e meça o crescimento do engajamento.
+                Acompanhe a média diária de scans e a evolução do engajamento em comparação com o período anterior no painel.
               </p>
               <div className="text-[11px] font-semibold text-emerald-400 pt-1">
-                Filtros por QR Code individual ou campanhas inteiras
+                Média de 128 scans/dia (+14% vs período anterior)
               </div>
             </div>
           </div>
@@ -463,7 +471,7 @@ export default async function HomePage() {
               </div>
               <h3 className="font-bold text-sm text-white">Embalagens e Produtos</h3>
               <p className="text-xs text-slate-400 leading-relaxed">
-                Ficha técnica, modo de uso em vídeo, certificados de qualidade e validação de garantia.
+                Links diretos para manual em PDF, vídeo demonstrativo do produto e canais oficiais de suporte.
               </p>
             </div>
 
@@ -474,7 +482,7 @@ export default async function HomePage() {
               </div>
               <h3 className="font-bold text-sm text-white">Eventos e Ingressos</h3>
               <p className="text-xs text-slate-400 leading-relaxed">
-                Credenciamento de participantes, programação em tempo real, mapa do evento e links de check-in.
+                Acesso rápido à página de credenciamento, programação digital atualizada e mapa do local.
               </p>
             </div>
 
@@ -485,7 +493,7 @@ export default async function HomePage() {
               </div>
               <h3 className="font-bold text-sm text-white">Comércio e Varejo</h3>
               <p className="text-xs text-slate-400 leading-relaxed">
-                Pagamento Pix no caixa, vitrines interativas com catálogo digital e cupons de desconto exclusivos.
+                QR Code para chave Pix no balcão, vitrines com catálogo virtual e cupons promocionais para clientes.
               </p>
             </div>
 
@@ -507,7 +515,7 @@ export default async function HomePage() {
               </div>
               <h3 className="font-bold text-sm text-white">Campanhas de Marketing</h3>
               <p className="text-xs text-slate-400 leading-relaxed">
-                Rastreio de panfletos, outdoors, folhetos e banners com métricas de conversão geográfica.
+                Rastreio de acessos em panfletos, outdoors, folhetos e banners com métricas de cliques por período.
               </p>
             </div>
 
@@ -615,7 +623,7 @@ export default async function HomePage() {
               Segurança, privacidade e estabilidade em primeiro lugar
             </h2>
             <p className="text-xs sm:text-sm text-slate-400">
-              Arquitetura projetada para garantir que seus links permaneçam sempre rápidos, seguros e em total conformidade.
+              Arquitetura projetada para garantir que seus links permaneçam rápidos, protegidos e com respeito à privacidade.
             </p>
           </div>
 
@@ -634,9 +642,9 @@ export default async function HomePage() {
               <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
                 <Lock className="w-5 h-5" />
               </div>
-              <h3 className="font-bold text-base text-white">LGPD Compliant</h3>
+              <h3 className="font-bold text-base text-white">Privacidade por Design</h3>
               <p className="text-xs text-slate-400 leading-relaxed">
-                Respeito total à privacidade. IPs anonimizados via hash SHA-256 unidirecional sem armazenamento de dados pessoais nos scans.
+                Proteção de dados e minimização de informações: identificadores técnicos protegidos por hash SHA-256 sem armazenamento do IP bruto.
               </p>
             </div>
 
@@ -644,9 +652,9 @@ export default async function HomePage() {
               <div className="w-10 h-10 rounded-xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center">
                 <Server className="w-5 h-5" />
               </div>
-              <h3 className="font-bold text-base text-white">Alta Disponibilidade</h3>
+              <h3 className="font-bold text-base text-white">Infraestrutura em Nuvem</h3>
               <p className="text-xs text-slate-400 leading-relaxed">
-                Infraestrutura em nuvem na Vercel com CDN global e tempo de resposta otimizado para redirecionamentos instantâneos.
+                Hospedagem em nuvem na Vercel com distribuição Edge e tempo de resposta otimizado para redirecionamentos rápidos.
               </p>
             </div>
           </div>
@@ -785,9 +793,9 @@ export default async function HomePage() {
         </div>
 
         <div className="max-w-7xl mx-auto pt-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
-          <p>© {new Date().getFullYear()} QR MASTER • Master Digital. CNPJ e operação no Brasil.</p>
+          <p>© {new Date().getFullYear()} QR MASTER • Master Digital. Operação no Brasil.</p>
           <p className="text-[11px] text-slate-500">
-            Pagamentos protegidos via Mercado Pago • Dados criptografados e protegidos por LGPD.
+            Pagamentos protegidos via Mercado Pago • Privacidade por design sem armazenamento de IP original.
           </p>
         </div>
       </footer>

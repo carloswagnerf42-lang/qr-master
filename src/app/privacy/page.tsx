@@ -32,7 +32,7 @@ export default function PrivacyPage() {
         <div className="space-y-3">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-400/20 text-cyan-300 text-[11px] font-bold tracking-wider uppercase">
             <Lock className="w-3.5 h-3.5 text-cyan-400" />
-            <span>Conformidade LGPD & Privacidade</span>
+            <span>Privacidade por Design & Proteção de Dados</span>
           </div>
           <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white font-brand">
             Política de Privacidade
@@ -70,7 +70,7 @@ export default function PrivacyPage() {
             </p>
             <ul className="list-disc pl-5 space-y-1.5 text-slate-400">
               <li><strong>Não armazenamos o endereço IP puro:</strong> O IP é imediatamente submetido a uma função de dispersão criptográfica (hash SHA-256) unidirecional com rotação, impedindo a identificação física ou civil do portador do dispositivo.</li>
-              <li><strong>Não rastreamos geolocalização exata por GPS:</strong> Apenas métricas genéricas de país/região aproximada, tipo de dispositivo (mobile vs desktop), sistema operacional e navegador são contabilizadas para os relatórios analíticos do titular.</li>
+              <li><strong>Não rastreamos geolocalização exata por GPS nem registramos cidades:</strong> Apenas métricas técnicas de tipo de dispositivo (mobile vs desktop), sistema operacional e navegador são contabilizadas para os relatórios analíticos agregados do titular.</li>
             </ul>
           </section>
 
