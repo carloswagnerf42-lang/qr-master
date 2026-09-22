@@ -99,7 +99,7 @@ export function Sidebar({ user }: SidebarProps) {
   }
 
   const bottomNav = [
-    { name: "Ajuda & Docs", href: "#", icon: HelpCircle },
+    { name: "Ajuda & Docs", href: "/dashboard/help", icon: HelpCircle },
     { name: "Perfil", href: "/profile", icon: User },
   ];
 
