@@ -17,7 +17,10 @@ export const metadata: Metadata = {
     default: "QR MASTER — QR Codes Inteligentes",
     template: "%s | QR MASTER",
   },
-  description: "Crie QR Codes personalizados e dinâmicos, gerencie seus links e acompanhe resultados em tempo real.",
+  description: "Crie QR Codes personalizados e dinâmicos, gerencie seus links e acompanhe métricas de escaneamento.",
+  alternates: {
+    canonical: "https://qrmasterpro.vercel.app",
+  },
   applicationName: "QR MASTER",
   authors: [{ name: "Master Digital" }],
   generator: "Master Digital SaaS Engine",
@@ -54,7 +57,7 @@ export const metadata: Metadata = {
     locale: "pt_BR",
     url: "https://qrmasterpro.vercel.app",
     title: "QR MASTER — QR Codes Inteligentes",
-    description: "Crie QR Codes personalizados e dinâmicos, gerencie seus links e acompanhe resultados em tempo real.",
+    description: "Crie QR Codes personalizados e dinâmicos, gerencie seus links e acompanhe métricas de escaneamento.",
     siteName: "QR MASTER",
     images: [
       {
@@ -68,7 +71,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "QR MASTER — QR Codes Inteligentes",
-    description: "Crie QR Codes personalizados e dinâmicos, gerencie seus links e acompanhe resultados em tempo real.",
+    description: "Crie QR Codes personalizados e dinâmicos, gerencie seus links e acompanhe métricas de escaneamento.",
     images: ["/brand/logo-horizontal-dark.png"],
     creator: "@masterdigital",
   },

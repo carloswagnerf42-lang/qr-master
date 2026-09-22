@@ -2147,7 +2147,7 @@ function SettingsContent() {
 
                   <div className="pt-2 flex items-center justify-center gap-1.5 text-[11px] text-slate-400">
                     <Lock className="w-3.5 h-3.5 text-slate-400" />
-                    <span>Pagamento 100% seguro processado via Mercado Pago</span>
+                    <span>Pagamento seguro processado via Mercado Pago</span>
                   </div>
                 </div>
               )}
