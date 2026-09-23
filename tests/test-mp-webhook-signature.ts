@@ -1,9 +1,11 @@
 import crypto from "crypto";
+import { NextRequest } from "next/server";
 import { prisma } from "../src/lib/db";
 import {
   verifyMercadoPagoSignature,
   processMercadoPagoNotification,
 } from "../src/lib/mercadopago";
+import { POST as handleMPWebhook } from "../src/app/api/webhooks/mercadopago/route";
 
 const GREEN = "\x1b[32m";
 const RED = "\x1b[31m";
@@ -241,8 +243,118 @@ async function runTests() {
     }
   }
 
+  // =========================================================================
+  // BLOCO 4: TESTES DA ROTA HTTP REAL (POST /api/webhooks/mercadopago)
+  // =========================================================================
+  console.log(`\n${YELLOW}▶ BLOCO 4: Testes de Integração da Rota HTTP Real (POST /api/webhooks/mercadopago)${RESET}`);
+
+  const origEnvSecret = process.env.MP_WEBHOOK_SECRET;
+  try {
+    const routeSecret = "test_route_webhook_secret_xyz789";
+    process.env.MP_WEBHOOK_SECRET = routeSecret;
+
+    // Teste 16: Segredo configurado + assinatura ausente -> HTTP 401
+    {
+      const reqNoSig = new NextRequest("http://localhost:3000/api/webhooks/mercadopago?id=123456", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ action: "payment.created", data: { id: "123456" } }),
+      });
+
+      const res = await handleMPWebhook(reqNoSig);
+      const data = await res.json();
+      assert(
+        res.status === 401 && data.error && data.error.includes("ausente"),
+        "16. Rota real: Segredo configurado + assinatura x-signature ausente retorna HTTP 401 imediato"
+      );
+    }
+
+    // Teste 17: Segredo configurado + assinatura inválida -> HTTP 401
+    {
+      const reqBadSig = new NextRequest("http://localhost:3000/api/webhooks/mercadopago?id=123456", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-signature": `ts=${ts},v1=0000000000000000000000000000000000000000000000000000000000000000`,
+          "x-request-id": reqId,
+        },
+        body: JSON.stringify({ action: "payment.created", data: { id: "123456" } }),
+      });
+
+      const res = await handleMPWebhook(reqBadSig);
+      const data = await res.json();
+      assert(
+        res.status === 401 && data.error && data.error.includes("inválida"),
+        "17. Rota real: Segredo configurado + assinatura adulterada/inválida retorna HTTP 401"
+      );
+    }
+
+    // Teste 18: Assinatura válida -> processamento normal (HTTP 200)
+    {
+      const validTs = String(Date.now());
+      const validReqId = "req_valid_uuid_554433";
+      const validManifest = `id:${dataId};request-id:${validReqId};ts:${validTs};`;
+      const validV1 = crypto.createHmac("sha256", routeSecret).update(validManifest).digest("hex");
+
+      const reqValid = new NextRequest(`http://localhost:3000/api/webhooks/mercadopago?id=${dataId}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-signature": `ts=${validTs},v1=${validV1}`,
+          "x-request-id": validReqId,
+        },
+        body: JSON.stringify({ action: "payment.created", data: { id: dataId } }),
+      });
+
+      const res = await handleMPWebhook(reqValid);
+      const data = await res.json();
+      assert(
+        res.status === 200 && data.success === true,
+        "18. Rota real: Assinatura HMAC SHA-256 válida avança para processamento normal (HTTP 200)"
+      );
+    }
+
+    // Teste 19: Requisição rejeitada por assinatura ausente NÃO chama processMercadoPagoNotification nem API externa do Mercado Pago
+    {
+      let externalApiFetchCalled = false;
+      const originalFetch = global.fetch;
+
+      global.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+        const urlStr = typeof input === "string" ? input : input instanceof URL ? input.toString() : (input as Request).url;
+        if (urlStr.includes("api.mercadopago.com")) {
+          externalApiFetchCalled = true;
+        }
+        return originalFetch(input, init);
+      };
+
+      try {
+        const reqBlocked = new NextRequest("http://localhost:3000/api/webhooks/mercadopago?id=999888777", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ action: "payment.created", data: { id: "999888777" } }),
+        });
+
+        const res = await handleMPWebhook(reqBlocked);
+
+        assert(res.status === 401, "19.1. Requisição não assinada bloqueada com status 401");
+        assert(
+          externalApiFetchCalled === false,
+          "19.2. Confirmação: Requisição rejeitada por assinatura ausente NUNCA acionou API externa do Mercado Pago (0 chamadas externas)"
+        );
+      } finally {
+        global.fetch = originalFetch;
+      }
+    }
+  } finally {
+    process.env.MP_WEBHOOK_SECRET = origEnvSecret;
+  }
+
   console.log(`\n${GREEN}========================================================================${RESET}`);
-  console.log(`${GREEN}  TODOS OS 15 TESTES DE ASSINATURA E SIMULAÇÃO APROVADOS COM SUCESSO!   ${RESET}`);
+  console.log(`${GREEN}  TODOS OS 19 TESTES DE ASSINATURA E INTEGRAÇÃO DE ROTA APROVADOS!      ${RESET}`);
   console.log(`${GREEN}========================================================================\n${RESET}`);
 }
 

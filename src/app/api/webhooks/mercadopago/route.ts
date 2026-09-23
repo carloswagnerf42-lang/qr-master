@@ -53,7 +53,15 @@ export async function POST(req: NextRequest) {
       process.env.MERCADOPAGO_WEBHOOK_SECRET,
     ].filter(Boolean) as string[];
 
-    if (secretsToCheck.length > 0 && xSignature) {
+    if (secretsToCheck.length > 0) {
+      if (!xSignature) {
+        console.warn("[MP Webhook] Assinatura x-signature ausente rejeitada (segredo configurado).");
+        return NextResponse.json(
+          { error: "Assinatura do webhook ausente (x-signature)." },
+          { status: 401 }
+        );
+      }
+
       const isValid = verifyMercadoPagoSignature({
         xSignature,
         xRequestId,
