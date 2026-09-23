@@ -12,14 +12,14 @@ const poppins = Poppins({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://qrmasterpro.vercel.app"),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://qrmasterdigital.com"),
   title: {
     default: "QR MASTER — QR Codes Inteligentes",
     template: "%s | QR MASTER",
   },
   description: "Crie QR Codes personalizados e dinâmicos, gerencie seus links e acompanhe métricas de escaneamento.",
   alternates: {
-    canonical: "https://qrmasterpro.vercel.app",
+    canonical: process.env.NEXT_PUBLIC_APP_URL || "https://qrmasterdigital.com",
   },
   applicationName: "QR MASTER",
   authors: [{ name: "Master Digital" }],
@@ -55,7 +55,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "pt_BR",
-    url: "https://qrmasterpro.vercel.app",
+    url: process.env.NEXT_PUBLIC_APP_URL || "https://qrmasterdigital.com",
     title: "QR MASTER — QR Codes Inteligentes",
     description: "Crie QR Codes personalizados e dinâmicos, gerencie seus links e acompanhe métricas de escaneamento.",
     siteName: "QR MASTER",

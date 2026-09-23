@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
   const error = searchParams.get("error");
   const errorDescription = searchParams.get("error_description");
 
-  const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://qrmasterpro.vercel.app").replace(/\/$/, "");
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://qrmasterdigital.com").replace(/\/$/, "");
 
   if (error) {
     console.error("[Google OAuth Callback Error]:", error, errorDescription);
@@ -78,7 +78,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://qrmasterpro.vercel.app").replace(/\/$/, "");
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://qrmasterdigital.com").replace(/\/$/, "");
 
   try {
     let credential = "";

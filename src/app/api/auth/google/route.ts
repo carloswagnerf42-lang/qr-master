@@ -6,7 +6,7 @@ import { verifyGoogleIdToken } from "@/lib/google-auth";
 
 export async function GET(req: NextRequest) {
   const clientId = process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-  const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://qrmasterpro.vercel.app").replace(/\/$/, "");
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://qrmasterdigital.com").replace(/\/$/, "");
 
   if (!clientId) {
     return NextResponse.redirect(`${appUrl}/login?error=google_client_id_not_configured`);

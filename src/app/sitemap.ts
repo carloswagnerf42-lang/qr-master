@@ -1,7 +1,7 @@
-﻿import { MetadataRoute } from "next";
+import { MetadataRoute } from "next";
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = "https://qrmasterpro.vercel.app";
+  const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://qrmasterdigital.com").replace(/\/$/, "");
   const lastModified = new Date();
 
   return [

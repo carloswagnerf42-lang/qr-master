@@ -23,6 +23,6 @@ export default function robots(): MetadataRoute.Robots {
         ],
       },
     ],
-    sitemap: "https://qrmasterpro.vercel.app/sitemap.xml",
+    sitemap: `${(process.env.NEXT_PUBLIC_APP_URL || "https://qrmasterdigital.com").replace(/\/$/, "")}/sitemap.xml`,
   };
 }

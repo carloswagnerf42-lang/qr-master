@@ -13,7 +13,7 @@ interface SendEmailParams {
 
 export async function sendEmail({ to, subject, html }: SendEmailParams): Promise<{ success: boolean; error?: string; mode: "resend" | "fallback" }> {
   const apiKey = process.env.RESEND_API_KEY;
-  const fromEmail = process.env.EMAIL_FROM || "QR MASTER <suporte@qrmaster.com.br>";
+  const fromEmail = process.env.EMAIL_FROM || "QR MASTER <suporte@qrmasterdigital.com>";
 
   if (!apiKey) {
     // Modo seguro/fallback quando chave não estiver configurada no ambiente

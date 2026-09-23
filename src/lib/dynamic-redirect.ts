@@ -80,6 +80,7 @@ export function validateAndNormalizeDestination(
       const targetHost = parsedUrl.host.toLowerCase();
       const isPlatformHost =
         targetHost === appHost ||
+        targetHost.includes("qrmasterdigital.com") ||
         targetHost.includes("qrmasterpro.vercel.app") ||
         targetHost.includes("localhost:3000") ||
         targetHost === "localhost";

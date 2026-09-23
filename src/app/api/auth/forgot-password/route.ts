@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
     });
 
     // Constrói a URL de redefinição
-    const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://qrmasterpro.vercel.app").replace(/\/$/, "");
+    const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://qrmasterdigital.com").replace(/\/$/, "");
     const resetUrl = `${appUrl}/reset-password?token=${rawToken}`;
 
     // Dispara o e-mail oficial
