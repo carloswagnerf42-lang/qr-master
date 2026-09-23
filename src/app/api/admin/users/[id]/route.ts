@@ -30,7 +30,7 @@ export async function PATCH(
 
     const updates: { role?: string } = {};
 
-    // 1. Alteração de Role com salvaguarda
+    // 1. Alteração de Role com salvaguarda estrita
     if (role !== undefined) {
       if (role !== "USER" && role !== "ADMIN") {
         return NextResponse.json(
@@ -39,15 +39,21 @@ export async function PATCH(
         );
       }
 
-      // Proteção contra rebaixamento do único admin do sistema
-      if (targetUser.role === "ADMIN" && role === "USER") {
-        const totalAdmins = await prisma.user.count({ where: { role: "ADMIN" } });
-        if (totalAdmins <= 1) {
-          return NextResponse.json(
-            { error: "Operação bloqueada: não é permitido rebaixar o único administrador do sistema." },
-            { status: 400 }
-          );
-        }
+      // Bloqueio rigoroso: O QR MASTER possui um único administrador exclusivo (masterdigitalqr@gmail.com).
+      // É estritamente proibido criar ou promover novos administradores no sistema.
+      if (role === "ADMIN" && targetUser.email !== "masterdigitalqr@gmail.com") {
+        return NextResponse.json(
+          { error: "Operação bloqueada: A política de segurança da plataforma restringe o acesso de administração ao administrador exclusivo (masterdigitalqr@gmail.com). Não é permitida a criação ou promoção de novos administradores." },
+          { status: 403 }
+        );
+      }
+
+      // Proteção contra rebaixamento do administrador oficial
+      if (targetUser.email === "masterdigitalqr@gmail.com" && role !== "ADMIN") {
+        return NextResponse.json(
+          { error: "Operação bloqueada: Não é permitido rebaixar o administrador oficial da plataforma." },
+          { status: 403 }
+        );
       }
 
       updates.role = role;

@@ -51,6 +51,7 @@ export async function POST(req: NextRequest) {
         name: name.trim(),
         email: cleanEmail,
         passwordHash,
+        role: "USER",
         company: company ? company.trim() : null,
         phone: phone ? phone.trim() : null,
         planId: defaultPlan?.id || null,

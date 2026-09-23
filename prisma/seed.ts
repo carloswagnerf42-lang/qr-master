@@ -108,17 +108,20 @@ async function main() {
     },
   });
 
-  // Usuário Administrador
+  // Usuário Administrador Exclusivo
   const adminHash = await bcrypt.hash("admin123", 10);
   await prisma.user.upsert({
-    where: { email: "admin@qrmaster.com" },
-    update: {},
+    where: { email: "masterdigitalqr@gmail.com" },
+    update: {
+      role: "ADMIN",
+      planId: businessPlan.id,
+    },
     create: {
-      name: "Administrador Master",
-      email: "admin@qrmaster.com",
+      name: "Master Digital",
+      email: "masterdigitalqr@gmail.com",
       passwordHash: adminHash,
       role: "ADMIN",
-      company: "QR MASTER Inc.",
+      company: "QR MASTER Digital",
       planId: businessPlan.id,
       settings: {
         create: {
@@ -564,7 +567,7 @@ async function main() {
 
   console.log("✅ Seed finalizado com sucesso!");
   console.log("👤 Usuário Demo: carlos@qrmaster.com (senha: senha123)");
-  console.log("🔑 Administrador: admin@qrmaster.com (senha: admin123)");
+  console.log("🔑 Administrador Exclusivo: masterdigitalqr@gmail.com");
 }
 
 main()

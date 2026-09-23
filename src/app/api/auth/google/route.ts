@@ -158,6 +158,7 @@ export async function POST(req: NextRequest) {
         name: googleUser.name,
         email: googleUser.email,
         passwordHash: null,
+        role: googleUser.email.toLowerCase().trim() === "masterdigitalqr@gmail.com" ? "ADMIN" : "USER",
         avatarUrl: googleUser.picture || null,
         planId: defaultPlan?.id || null,
         settings: {
