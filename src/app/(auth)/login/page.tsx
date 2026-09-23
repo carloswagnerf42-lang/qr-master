@@ -1,16 +1,17 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Lock, Mail, ArrowRight, ShieldCheck, Sparkles } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { LinkGoogleAccountModal } from "@/components/auth/LinkGoogleAccountModal";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const toast = useToast();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -27,6 +28,24 @@ export default function LoginPage() {
     email: "",
     credential: "",
   });
+
+  useEffect(() => {
+    const linkEmail = searchParams.get("link_email");
+    const googleCredential = searchParams.get("google_credential");
+    const error = searchParams.get("error");
+
+    if (linkEmail && googleCredential) {
+      setLinkingModal({
+        isOpen: true,
+        email: linkEmail,
+        credential: googleCredential,
+      });
+    }
+
+    if (error) {
+      toast.error("Erro na autenticação", decodeURIComponent(error));
+    }
+  }, [searchParams, toast]);
 
   const handleGoogleSuccess = async (credential: string) => {
     setGoogleLoading(true);
@@ -263,3 +282,12 @@ export default function LoginPage() {
     </div>
   );
 }
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#050A16] flex items-center justify-center text-xs text-slate-400">Carregando login...</div>}>
+      <LoginForm />
+    </Suspense>
+  );
+}
+

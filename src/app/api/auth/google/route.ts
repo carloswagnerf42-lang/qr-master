@@ -4,6 +4,24 @@ import { signToken, setSessionCookie } from "@/lib/auth";
 import { getClientIp, checkRateLimit, resetRateLimit, createRateLimitResponse } from "@/lib/rate-limit";
 import { verifyGoogleIdToken } from "@/lib/google-auth";
 
+export async function GET(req: NextRequest) {
+  const clientId = process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://qrmasterpro.vercel.app").replace(/\/$/, "");
+
+  if (!clientId) {
+    return NextResponse.redirect(`${appUrl}/login?error=google_client_id_not_configured`);
+  }
+
+  const redirectUri = `${appUrl}/api/auth/callback/google`;
+  const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(
+    clientId
+  )}&redirect_uri=${encodeURIComponent(
+    redirectUri
+  )}&response_type=code&scope=openid%20email%20profile&access_type=offline&prompt=select_account`;
+
+  return NextResponse.redirect(googleAuthUrl);
+}
+
 export async function POST(req: NextRequest) {
   try {
     const ip = getClientIp(req);
