@@ -163,7 +163,7 @@ async function runQrRateLimitSuite() {
   try {
     // Reset preventivo de rate limits para os IDs de teste
     for (const u of Object.values(testUsers)) {
-      resetRateLimit(u.id, "qr");
+      await resetRateLimit(u.id, "qr");
     }
 
     console.log("--- 0. DIAGNÓSTICO DA CAUSA DA FALHA ORIGINAL NA REQUEST #6 ---");
@@ -179,7 +179,7 @@ async function runQrRateLimitSuite() {
         },
       });
       allUserIds.push(diagUser.id);
-      resetRateLimit(diagUser.id, "qr");
+      await resetRateLimit(diagUser.id, "qr");
 
       for (let i = 1; i <= 5; i++) {
         const req = createAuthRequest("http://localhost:3000/api/qr", diagUser, {
@@ -234,7 +234,7 @@ async function runQrRateLimitSuite() {
 
       // B) Preenche rapidamente as tentativas 4 até 29 via checkRateLimit dentro da mesma janela de 60s
       for (let i = 4; i <= 29; i++) {
-        const check = checkRateLimit(testUsers.userA.id, "qr");
+        const check = await checkRateLimit(testUsers.userA.id, "qr");
         assert(check.allowed === true, `Tentativa #${i} abaixo do limite é permitida`);
       }
 
@@ -326,12 +326,12 @@ async function runQrRateLimitSuite() {
     {
       // Simula a passagem do tempo com clock determinístico (61 segundos adiante)
       const futureTime = Date.now() + 61 * 1000;
-      const checkFuture = checkRateLimit(testUsers.userA.id, "qr", futureTime);
+      const checkFuture = await checkRateLimit(testUsers.userA.id, "qr", futureTime);
       assert(checkFuture.allowed === true, "Após expiração da janela (60s), requisição volta a ser permitida (allowed: true)");
       assert(checkFuture.remaining === 29, "Novo ciclo é iniciado com remaining: 29");
 
       // Reset direto via resetRateLimit
-      resetRateLimit(testUsers.userA.id, "qr");
+      await resetRateLimit(testUsers.userA.id, "qr");
       const reqAAfterReset = createAuthRequest("http://localhost:3000/api/qr", testUsers.userA, {
         method: "POST",
         body: {
@@ -349,9 +349,9 @@ async function runQrRateLimitSuite() {
     {
       // Esgota intencionalmente o rate limit de USER_B
       for (let i = 2; i <= 31; i++) {
-        checkRateLimit(testUsers.userB.id, "qr");
+        await checkRateLimit(testUsers.userB.id, "qr");
       }
-      const checkB = checkRateLimit(testUsers.userB.id, "qr");
+      const checkB = await checkRateLimit(testUsers.userB.id, "qr");
       assert(checkB.allowed === false, "USER_B está com rate limit esgotado para POST");
 
       // Requisição GET /api/qr deve continuar funcionando normalmente
@@ -367,7 +367,7 @@ async function runQrRateLimitSuite() {
 
     console.log("\n--- 6. TESTE DE REQUESTS INVÁLIDOS E CONSUMO DE RATE LIMIT (ANTI-FUZZING) ---");
     {
-      resetRateLimit(testUsers.userB.id, "qr");
+      await resetRateLimit(testUsers.userB.id, "qr");
 
       // Dispara payload inválido (sem nome e sem destino)
       const reqInvalid = createAuthRequest("http://localhost:3000/api/qr", testUsers.userB, {
@@ -381,7 +381,7 @@ async function runQrRateLimitSuite() {
       assert(resInvalid.status === 400, "Payload inválido retorna 400 Bad Request");
 
       // Valida que a tentativa autenticada consumiu a janela do rate limit (anti-abuso/fuzzing)
-      const checkInvalidConsumed = checkRateLimit(testUsers.userB.id, "qr");
+      const checkInvalidConsumed = await checkRateLimit(testUsers.userB.id, "qr");
       // Como o endpoint POST executa checkRateLimit antes da validação do payload (ordem auditada),
       // a primeira tentativa já consumiu o contador
       assert(checkInvalidConsumed.remaining < 29, "Tentativa com payload inválido consumiu a janela de rate limit");
@@ -389,7 +389,7 @@ async function runQrRateLimitSuite() {
 
     console.log("\n--- 7. REGRESSÃO: QUOTA COMERCIAL FREE (5 QRs -> 403 LIMIT_REACHED) ---");
     {
-      resetRateLimit(testUsers.userFree.id, "qr");
+      await resetRateLimit(testUsers.userFree.id, "qr");
 
       // Cria 5 QR codes permitidos pelo plano FREE
       for (let i = 1; i <= 5; i++) {
@@ -430,7 +430,7 @@ async function runQrRateLimitSuite() {
 
     console.log("\n--- 8. REGRESSÃO: QUOTA COMERCIAL PRO (15 QRs -> 403 LIMIT_REACHED) ---");
     {
-      resetRateLimit(testUsers.userPro.id, "qr");
+      await resetRateLimit(testUsers.userPro.id, "qr");
 
       // Pré-insere 13 QRs diretamente no banco para acelerar o teste e testar off-by-one
       for (let i = 1; i <= 13; i++) {
@@ -498,7 +498,7 @@ async function runQrRateLimitSuite() {
     console.log("\n--- 9. REGRESSÃO: PLANO BUSINESS (ILIMITADO COMERCIALMENTE + SUJEITO A RATE LIMIT) ---");
     {
       // Reset rate limit para USER_A
-      resetRateLimit(testUsers.userA.id, "qr");
+      await resetRateLimit(testUsers.userA.id, "qr");
 
       // Criação de QR dinâmico permitida para BUSINESS
       const reqBizDynamic = createAuthRequest("http://localhost:3000/api/qr", testUsers.userA, {
@@ -515,7 +515,7 @@ async function runQrRateLimitSuite() {
 
       // Consome até a 30ª requisição para demonstrar que BUSINESS também está sujeito ao rate limit técnico
       for (let i = 2; i <= 30; i++) {
-        checkRateLimit(testUsers.userA.id, "qr");
+        await checkRateLimit(testUsers.userA.id, "qr");
       }
 
       // 31ª requisição do BUSINESS é bloqueada com 429
@@ -555,11 +555,11 @@ async function runQrRateLimitSuite() {
           currentPeriodEnd: futureEnd,
         },
       });
-      resetRateLimit(raceUser.id, "qr");
+      await resetRateLimit(raceUser.id, "qr");
 
       // Pré-ocupa 28 slots de rate limit (sobrando exatamente 2 slots para atingir 30)
       for (let i = 1; i <= 28; i++) {
-        checkRateLimit(raceUser.id, "qr");
+        await checkRateLimit(raceUser.id, "qr");
       }
 
       // Dispara 6 requisições estritamente simultâneas via Promise.all
@@ -623,7 +623,7 @@ async function runQrRateLimitSuite() {
     });
 
     for (const id of allUserIds) {
-      resetRateLimit(id, "qr");
+      await resetRateLimit(id, "qr");
     }
   }
 }

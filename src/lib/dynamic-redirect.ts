@@ -1,4 +1,5 @@
 import { getAppUrl } from "./app-url";
+import { checkRateLimit } from "./rate-limit";
 
 export interface DestinationValidationResult {
   valid: boolean;
@@ -100,7 +101,7 @@ export function validateAndNormalizeDestination(
 }
 
 /**
- * Rate Limiter em memória para proteção contra abuso e flood de telemetria.
+ * Rate Limiter em memória para proteção contra abuso e flood de telemetria (fallback).
  * Limita o registro de scans repetidos do mesmo IP no mesmo shortCode (máx 60 scans/minuto).
  */
 interface RateLimitEntry {
@@ -110,7 +111,7 @@ interface RateLimitEntry {
 
 const rateLimitCache = new Map<string, RateLimitEntry>();
 
-export function checkShortCodeRateLimit(
+export function checkShortCodeRateLimitLocal(
   ipHash: string,
   shortCode: string,
   maxPerMinute: number = 60
@@ -142,4 +143,27 @@ export function checkShortCodeRateLimit(
 
   entry.count += 1;
   return { allowed: true, remaining: maxPerMinute - entry.count };
+}
+
+/**
+ * Valida a taxa de scans de um IP para um shortCode específico.
+ * Utiliza o namespace distribuído qr-master:rl:scan no Upstash Redis quando disponível,
+ * e reverte para fallback local sem nunca interromper o redirecionamento.
+ */
+export async function checkShortCodeRateLimit(
+  ipHash: string,
+  shortCode: string,
+  maxPerMinute: number = 60
+): Promise<{ allowed: boolean; remaining: number }> {
+  try {
+    const key = `${ipHash}:${shortCode}`;
+    if (maxPerMinute === 60) {
+      const res = await checkRateLimit(key, "scan");
+      return { allowed: res.allowed, remaining: res.remaining };
+    }
+    return checkShortCodeRateLimitLocal(ipHash, shortCode, maxPerMinute);
+  } catch {
+    // Falhas de telemetria nunca devem impedir o redirecionamento
+    return checkShortCodeRateLimitLocal(ipHash, shortCode, maxPerMinute);
+  }
 }

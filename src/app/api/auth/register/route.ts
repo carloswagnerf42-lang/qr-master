@@ -6,9 +6,9 @@ import { getClientIp, checkRateLimit, createRateLimitResponse } from "@/lib/rate
 export async function POST(req: NextRequest) {
   try {
     const ip = getClientIp(req);
-    const rateCheck = checkRateLimit(ip, "register");
+    const rateCheck = await checkRateLimit(ip, "register");
     if (!rateCheck.allowed) {
-      return createRateLimitResponse("register", rateCheck.retryAfter);
+      return createRateLimitResponse("register", rateCheck.retryAfter, rateCheck.resetAt);
     }
 
     const { name, email, password, company, phone } = await req.json();

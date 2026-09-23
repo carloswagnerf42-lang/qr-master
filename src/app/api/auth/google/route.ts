@@ -25,9 +25,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const ip = getClientIp(req);
-    const rateCheck = checkRateLimit(ip, "login");
+    const rateCheck = await checkRateLimit(ip, "google");
     if (!rateCheck.allowed) {
-      return createRateLimitResponse("login", rateCheck.retryAfter);
+      return createRateLimitResponse("google", rateCheck.retryAfter, rateCheck.resetAt);
     }
 
     const { credential } = await req.json().catch(() => ({}));
@@ -127,7 +127,8 @@ export async function POST(req: NextRequest) {
       });
 
       setSessionCookie(token);
-      resetRateLimit(ip, "login");
+      await resetRateLimit(ip, "google");
+      await resetRateLimit(ip, "login");
 
       await prisma.activityLog.create({
         data: {
@@ -199,7 +200,8 @@ export async function POST(req: NextRequest) {
     });
 
     setSessionCookie(token);
-    resetRateLimit(ip, "login");
+    await resetRateLimit(ip, "google");
+    await resetRateLimit(ip, "login");
 
     await prisma.activityLog.create({
       data: {

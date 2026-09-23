@@ -7,9 +7,9 @@ import { sendPasswordResetEmail } from "@/lib/email";
 export async function POST(req: NextRequest) {
   try {
     const ip = getClientIp(req);
-    const rateCheck = checkRateLimit(ip, "forgotPassword");
+    const rateCheck = await checkRateLimit(ip, "forgotPassword");
     if (!rateCheck.allowed) {
-      return createRateLimitResponse("forgotPassword", rateCheck.retryAfter);
+      return createRateLimitResponse("forgotPassword", rateCheck.retryAfter, rateCheck.resetAt);
     }
 
     const { email } = await req.json().catch(() => ({}));

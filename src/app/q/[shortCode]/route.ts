@@ -265,7 +265,7 @@ export async function GET(
     const referrer = req.headers.get("referer");
     const clientInfo = parseUserAgent(ua, ip);
 
-    const rateCheck = checkShortCodeRateLimit(clientInfo.ipHash, shortCode, 60);
+    const rateCheck = await checkShortCodeRateLimit(clientInfo.ipHash, shortCode, 60);
 
     // Registra scan de forma confiável em Serverless (Vercel) com fallback defensivo
     if (rateCheck.allowed) {

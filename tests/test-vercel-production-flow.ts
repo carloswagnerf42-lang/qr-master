@@ -76,7 +76,7 @@ async function runProductionFlowTests() {
   assert(!clientInfo.ipHash.includes("200.189"), "IP real nunca é armazenado no banco");
 
   // Rate Limiter
-  const rate1 = checkShortCodeRateLimit(clientInfo.ipHash, shortCode, 60);
+  const rate1 = await checkShortCodeRateLimit(clientInfo.ipHash, shortCode, 60);
   assert(rate1.allowed === true, "1º scan registrado com sucesso dentro do rate limit");
 
   // FLUXO 3: Autenticação, Sessão e Segurança de Senha (Login Flow)

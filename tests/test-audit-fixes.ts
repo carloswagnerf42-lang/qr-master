@@ -209,38 +209,38 @@ async function runAuditFixesTests() {
   console.log(`\n${CYAN}▶ 3. Proteção contra Abuso e Rate Limiting (Login e Cadastro):${RESET}`);
   {
     const testIpLogin = "192.168.10.100";
-    resetRateLimit(testIpLogin, "login");
+    await resetRateLimit(testIpLogin, "login");
 
     // Tentativas normais dentro da cota (máx 5)
     for (let attempt = 1; attempt <= 4; attempt++) {
-      const res = checkRateLimit(testIpLogin, "login");
+      const res = await checkRateLimit(testIpLogin, "login");
       assert(res.allowed === true && res.remaining === 5 - attempt, `Tentativa de login ${attempt}/5 permitida (saldo: ${res.remaining})`);
     }
 
     // 5ª tentativa (última permitida)
-    const fifthAttempt = checkRateLimit(testIpLogin, "login");
+    const fifthAttempt = await checkRateLimit(testIpLogin, "login");
     assert(fifthAttempt.allowed === true && fifthAttempt.remaining === 0, "5ª tentativa permitida e esgota o saldo (remaining: 0)");
 
     // 6ª tentativa (Limite atingido -> Bloqueio HTTP 429)
-    const sixthAttempt = checkRateLimit(testIpLogin, "login");
+    const sixthAttempt = await checkRateLimit(testIpLogin, "login");
     assert(sixthAttempt.allowed === false, "6ª tentativa é BLOQUEADA por Rate Limiting");
     assert(sixthAttempt.retryAfter > 0, `retryAfter informado corretamente (${sixthAttempt.retryAfter}s)`);
 
     // Reset em caso de login bem-sucedido
-    resetRateLimit(testIpLogin, "login");
-    const afterReset = checkRateLimit(testIpLogin, "login");
+    await resetRateLimit(testIpLogin, "login");
+    const afterReset = await checkRateLimit(testIpLogin, "login");
     assert(afterReset.allowed === true && afterReset.remaining === 4, "Após reset por autenticação válida, novo ciclo é liberado");
 
     // Teste de isolamento para Cadastro (Register)
     const testIpRegister = "192.168.20.200";
-    resetRateLimit(testIpRegister, "register");
+    await resetRateLimit(testIpRegister, "register");
 
     for (let i = 1; i <= 5; i++) {
-      const reg = checkRateLimit(testIpRegister, "register");
+      const reg = await checkRateLimit(testIpRegister, "register");
       assert(reg.allowed === true, `Cadastro ${i}/5 permitido`);
     }
 
-    const blockedRegister = checkRateLimit(testIpRegister, "register");
+    const blockedRegister = await checkRateLimit(testIpRegister, "register");
     assert(blockedRegister.allowed === false, "6º cadastro a partir do mesmo IP é BLOQUEADO (429)");
     assert(blockedRegister.retryAfter > 0, "retryAfter presente para o cadastro");
   }

@@ -5,6 +5,7 @@ import {
 import {
   validateAndNormalizeDestination,
   checkShortCodeRateLimit,
+  checkShortCodeRateLimitLocal,
 } from "../src/lib/dynamic-redirect";
 import { parseUserAgent } from "../src/lib/user-agent";
 
@@ -116,7 +117,7 @@ function simulateRedirectHandler(
 
   // 7. Telemetria e analytics
   const clientInfo = parseUserAgent(userAgent, clientIp);
-  const rate = checkShortCodeRateLimit(clientInfo.ipHash, shortCodeParam, 60);
+  const rate = checkShortCodeRateLimitLocal(clientInfo.ipHash, shortCodeParam, 60);
   if (rate.allowed) {
     qr.scanCount += 1;
     qr.lastScanAt = new Date();
@@ -397,7 +398,7 @@ async function runDynamicQRTests() {
 
     // Simula 70 requisições consecutivas no mesmo minuto
     for (let i = 0; i < 70; i++) {
-      const check = checkShortCodeRateLimit(testIpHash, testCode, 60);
+      const check = checkShortCodeRateLimitLocal(testIpHash, testCode, 60);
       if (check.allowed) allowedCount++;
       else blockedCount++;
     }

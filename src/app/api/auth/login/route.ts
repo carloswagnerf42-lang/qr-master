@@ -6,9 +6,9 @@ import { getClientIp, checkRateLimit, resetRateLimit, createRateLimitResponse } 
 export async function POST(req: NextRequest) {
   try {
     const ip = getClientIp(req);
-    const rateCheck = checkRateLimit(ip, "login");
+    const rateCheck = await checkRateLimit(ip, "login");
     if (!rateCheck.allowed) {
-      return createRateLimitResponse("login", rateCheck.retryAfter);
+      return createRateLimitResponse("login", rateCheck.retryAfter, rateCheck.resetAt);
     }
 
     const { email, password } = await req.json();
@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
     });
 
     setSessionCookie(token);
-    resetRateLimit(ip, "login");
+    await resetRateLimit(ip, "login");
 
     // Registra log de atividade
     await prisma.activityLog.create({

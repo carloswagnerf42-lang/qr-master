@@ -105,7 +105,7 @@ export async function POST(req: NextRequest) {
 
     // Rate Limiting técnico por usuário autenticado (30 requisições por 60 segundos)
     try {
-      const rateCheck = checkRateLimit(session.id, "qr");
+      const rateCheck = await checkRateLimit(session.id, "qr");
       if (!rateCheck.allowed) {
         return createRateLimitResponse("qr", rateCheck.retryAfter, rateCheck.resetAt);
       }

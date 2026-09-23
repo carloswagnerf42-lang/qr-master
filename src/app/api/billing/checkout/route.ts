@@ -7,7 +7,7 @@ import {
   getMercadoPagoConfigAsync,
 } from "@/lib/mercadopago";
 import { getAppUrl } from "@/lib/app-url";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, createRateLimitResponse } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -20,12 +20,9 @@ export async function POST(req: NextRequest) {
     }
 
     // Rate Limiting financeiro por usuário
-    const rateLimit = checkRateLimit(session.id, "checkout");
+    const rateLimit = await checkRateLimit(session.id, "checkout");
     if (!rateLimit.allowed) {
-      return NextResponse.json(
-        { error: "Muitas tentativas de checkout em curto intervalo. Por favor, aguarde alguns minutos." },
-        { status: 429 }
-      );
+      return createRateLimitResponse("checkout", rateLimit.retryAfter, rateLimit.resetAt);
     }
 
     const body = await req.json();

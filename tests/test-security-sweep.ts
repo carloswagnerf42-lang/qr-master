@@ -225,27 +225,27 @@ async function runSecuritySweep() {
   console.log(`\n${YELLOW}▶ 5. Proteção Anti-Abuso, Força Bruta e Rate Limiting:${RESET}`);
 
   const testIp = "192.168.100.50";
-  resetRateLimit(testIp, "login");
+  await resetRateLimit(testIp, "login");
 
   // Realiza 5 tentativas permitidas
   for (let i = 1; i <= 5; i++) {
-    const check = checkRateLimit(testIp, "login");
+    const check = await checkRateLimit(testIp, "login");
     assert(check.allowed, `Tentativa de login ${i}/5 permitida`);
   }
 
   // 6ª tentativa deve ser terminantemente bloqueada
-  const sixthAttempt = checkRateLimit(testIp, "login");
+  const sixthAttempt = await checkRateLimit(testIp, "login");
   assert(!sixthAttempt.allowed, "6ª tentativa é BLOQUEADA por Rate Limiting (Proteção contra brute force)");
   assert(sixthAttempt.retryAfter > 0, `Tempo de espera informado corretamente: ${sixthAttempt.retryAfter}s`);
 
   // Rate limit de telemetria de scans
-  const scanRate1 = checkShortCodeRateLimit("ip_hash_abc", "short_1", 3);
+  const scanRate1 = await checkShortCodeRateLimit("ip_hash_abc", "short_1", 3);
   assert(scanRate1.allowed, "1º scan registrado");
-  const scanRate2 = checkShortCodeRateLimit("ip_hash_abc", "short_1", 3);
+  const scanRate2 = await checkShortCodeRateLimit("ip_hash_abc", "short_1", 3);
   assert(scanRate2.allowed, "2º scan registrado");
-  const scanRate3 = checkShortCodeRateLimit("ip_hash_abc", "short_1", 3);
+  const scanRate3 = await checkShortCodeRateLimit("ip_hash_abc", "short_1", 3);
   assert(scanRate3.allowed, "3º scan registrado");
-  const scanRate4 = checkShortCodeRateLimit("ip_hash_abc", "short_1", 3);
+  const scanRate4 = await checkShortCodeRateLimit("ip_hash_abc", "short_1", 3);
   assert(!scanRate4.allowed, "4º scan consecutivo é BLOQUEADO (Proteção contra flood de telemetria)");
 
 

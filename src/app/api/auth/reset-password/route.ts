@@ -6,9 +6,9 @@ import { getClientIp, checkRateLimit, resetRateLimit, createRateLimitResponse } 
 export async function POST(req: NextRequest) {
   try {
     const ip = getClientIp(req);
-    const rateCheck = checkRateLimit(ip, "resetPassword");
+    const rateCheck = await checkRateLimit(ip, "resetPassword");
     if (!rateCheck.allowed) {
-      return createRateLimitResponse("resetPassword", rateCheck.retryAfter);
+      return createRateLimitResponse("resetPassword", rateCheck.retryAfter, rateCheck.resetAt);
     }
 
     const { token, password } = await req.json().catch(() => ({}));
@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
     });
 
     // Reseta o rate limit para este IP
-    resetRateLimit(ip, "resetPassword");
+    await resetRateLimit(ip, "resetPassword");
 
     // Registra log de auditoria
     await prisma.activityLog.create({
