@@ -182,8 +182,7 @@ function LoginForm() {
           {/* Botão de Autenticação com Google */}
           <div className="space-y-4">
             <GoogleSignInButton
-              text="continue_with"
-              onSuccess={handleGoogleSuccess}
+              text="signin_with"
               disabled={loading || googleLoading}
             />
 

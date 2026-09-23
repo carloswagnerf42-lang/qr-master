@@ -119,7 +119,6 @@ export default function RegisterPage() {
         <div className="space-y-4">
           <GoogleSignInButton
             text="signup_with"
-            onSuccess={handleGoogleSuccess}
             disabled={loading || googleLoading}
           />
 
