@@ -47,7 +47,9 @@
     "test:pro-business-upgrade": "tsx tests/test-pro-business-upgrade.ts",
     "test:landing": "tsx tests/test-landing-page.ts",
     "test:claims": "tsx tests/test-commercial-claims.ts",
-    "test:help": "tsx tests/test-dashboard-help.ts"
+    "test:help": "tsx tests/test-dashboard-help.ts",
+    "test:reset": "tsx tests/test-password-reset.ts",
+    "test:google": "tsx tests/test-google-auth.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.21.1",

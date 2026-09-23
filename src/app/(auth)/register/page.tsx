@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { Lock, Mail, User, Building, ArrowRight, Sparkles } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { BrandLogo } from "@/components/brand/BrandLogo";
+import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
+import { LinkGoogleAccountModal } from "@/components/auth/LinkGoogleAccountModal";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -15,6 +17,53 @@ export default function RegisterPage() {
   const [company, setCompany] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+
+  const [linkingModal, setLinkingModal] = useState<{
+    isOpen: boolean;
+    email: string;
+    credential: string;
+  }>({
+    isOpen: false,
+    email: "",
+    credential: "",
+  });
+
+  const handleGoogleSuccess = async (credential: string) => {
+    setGoogleLoading(true);
+    try {
+      const res = await fetch("/api/auth/google", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ credential }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast.error("Erro no cadastro com Google", data.error || "Tente novamente.");
+        setGoogleLoading(false);
+        return;
+      }
+
+      if (data.requiresLink) {
+        setLinkingModal({
+          isOpen: true,
+          email: data.email,
+          credential,
+        });
+        setGoogleLoading(false);
+        return;
+      }
+
+      toast.success("Conta criada com sucesso!", "Redirecionando para o seu dashboard...");
+      router.push("/dashboard");
+      router.refresh();
+    } catch {
+      toast.error("Erro de conexão", "Não foi possível conectar ao servidor.");
+      setGoogleLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,9 +115,25 @@ export default function RegisterPage() {
           </p>
         </div>
 
+        {/* Botão de Cadastro com Google */}
+        <div className="space-y-4">
+          <GoogleSignInButton
+            text="signup_with"
+            onSuccess={handleGoogleSuccess}
+            disabled={loading || googleLoading}
+          />
+
+          <div className="relative flex items-center justify-center">
+            <div className="w-full border-t border-slate-800" />
+            <span className="absolute px-3 bg-[#0c1427] text-[10px] uppercase tracking-wider font-semibold text-slate-500">
+              ou cadastre-se com seu e-mail
+            </span>
+          </div>
+        </div>
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+            <label className="block text-xs font-semibold text-slate-300 mb-1">
               Nome Completo
             </label>
             <div className="relative">
@@ -145,7 +210,7 @@ export default function RegisterPage() {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || googleLoading}
             className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-[#006CFF] to-[#0084FF] hover:from-[#006CFF] hover:to-[#00E0FF] text-white font-bold text-sm shadow-md shadow-blue-500/25 flex items-center justify-center gap-2 transition-all active:scale-[0.99] disabled:opacity-50 mt-4"
           >
             {loading ? (
@@ -166,6 +231,19 @@ export default function RegisterPage() {
           </Link>
         </div>
       </div>
+
+      {/* Modal de confirmação para vincular Google a conta existente (Cenário C) */}
+      <LinkGoogleAccountModal
+        isOpen={linkingModal.isOpen}
+        email={linkingModal.email}
+        credential={linkingModal.credential}
+        onClose={() => setLinkingModal((prev) => ({ ...prev, isOpen: false }))}
+        onSuccess={() => {
+          setLinkingModal((prev) => ({ ...prev, isOpen: false }));
+          router.push("/dashboard");
+          router.refresh();
+        }}
+      />
     </div>
   );
 }

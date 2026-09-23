@@ -31,6 +31,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (!user.passwordHash) {
+      return NextResponse.json(
+        { error: "Esta conta foi cadastrada com o Google. Por favor, entre usando 'Continuar com Google' ou recupere sua senha." },
+        { status: 400 }
+      );
+    }
+
     const isValid = await verifyPassword(password, user.passwordHash);
     if (!isValid) {
       return NextResponse.json(

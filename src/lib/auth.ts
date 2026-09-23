@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { cookies } from "next/headers";
@@ -29,8 +30,26 @@ export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 10);
 }
 
-export async function verifyPassword(password: string, hash: string): Promise<boolean> {
+export async function verifyPassword(password: string, hash?: string | null): Promise<boolean> {
+  if (!hash) return false;
   return bcrypt.compare(password, hash);
+}
+
+/**
+ * Gera um token criptográfico seguro de 32 bytes (64 caracteres hexadecimais)
+ * e o hash SHA-256 para armazenamento persistente no banco de dados.
+ */
+export function generateSecureToken(): { rawToken: string; tokenHash: string } {
+  const rawToken = crypto.randomBytes(32).toString("hex");
+  const tokenHash = hashToken(rawToken);
+  return { rawToken, tokenHash };
+}
+
+/**
+ * Calcula o hash SHA-256 de um token para comparação segura.
+ */
+export function hashToken(token: string): string {
+  return crypto.createHash("sha256").update(token).digest("hex");
 }
 
 export function signToken(user: SessionUser): string {

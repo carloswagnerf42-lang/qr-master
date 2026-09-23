@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { Lock, Mail, ArrowRight, ShieldCheck, Sparkles } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { BrandLogo } from "@/components/brand/BrandLogo";
+import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
+import { LinkGoogleAccountModal } from "@/components/auth/LinkGoogleAccountModal";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -13,6 +15,54 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+
+  // Estado para o modal de vinculação segura (Cenário C)
+  const [linkingModal, setLinkingModal] = useState<{
+    isOpen: boolean;
+    email: string;
+    credential: string;
+  }>({
+    isOpen: false,
+    email: "",
+    credential: "",
+  });
+
+  const handleGoogleSuccess = async (credential: string) => {
+    setGoogleLoading(true);
+    try {
+      const res = await fetch("/api/auth/google", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ credential }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast.error("Erro no login com Google", data.error || "Tente novamente.");
+        setGoogleLoading(false);
+        return;
+      }
+
+      if (data.requiresLink) {
+        setLinkingModal({
+          isOpen: true,
+          email: data.email,
+          credential,
+        });
+        setGoogleLoading(false);
+        return;
+      }
+
+      toast.success("Bem-vindo ao QR MASTER!", "Redirecionando para o painel...");
+      router.push("/dashboard");
+      router.refresh();
+    } catch {
+      toast.error("Erro de conexão", "Não foi possível conectar ao servidor.");
+      setGoogleLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -110,10 +160,25 @@ export default function LoginPage() {
             </p>
           </div>
 
+          {/* Botão de Autenticação com Google */}
+          <div className="space-y-4">
+            <GoogleSignInButton
+              text="continue_with"
+              onSuccess={handleGoogleSuccess}
+              disabled={loading || googleLoading}
+            />
+
+            <div className="relative flex items-center justify-center">
+              <div className="w-full border-t border-slate-800" />
+              <span className="absolute px-3 bg-[#0c1427] text-[10px] uppercase tracking-wider font-semibold text-slate-500">
+                ou entre com seu e-mail
+              </span>
+            </div>
+          </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                 E-mail
               </label>
               <div className="relative">
@@ -125,7 +190,7 @@ export default function LoginPage() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-700 bg-slate-800 text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0084FF] transition-colors"
                   placeholder="seu@email.com"
                 />
               </div>
@@ -133,15 +198,11 @@ export default function LoginPage() {
 
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                <label className="block text-xs font-semibold text-slate-300">
                   Senha
                 </label>
                 <Link
-                  href="#"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    toast.info("Recuperação de Senha", "O link de redefinição foi enviado para seu e-mail.");
-                  }}
+                  href="/forgot-password"
                   className="text-xs text-cyan-400 hover:text-cyan-300 hover:underline"
                 >
                   Esqueci minha senha
@@ -164,7 +225,7 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || googleLoading}
               className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-[#006CFF] to-[#0084FF] hover:from-[#006CFF] hover:to-[#00E0FF] text-white font-bold text-sm shadow-md shadow-blue-500/25 flex items-center justify-center gap-2 transition-all active:scale-[0.99] disabled:opacity-50 mt-2"
             >
               {loading ? (
@@ -186,6 +247,19 @@ export default function LoginPage() {
           </div>
         </div>
       </div>
+
+      {/* Modal de confirmação para vincular Google a conta existente (Cenário C) */}
+      <LinkGoogleAccountModal
+        isOpen={linkingModal.isOpen}
+        email={linkingModal.email}
+        credential={linkingModal.credential}
+        onClose={() => setLinkingModal((prev) => ({ ...prev, isOpen: false }))}
+        onSuccess={() => {
+          setLinkingModal((prev) => ({ ...prev, isOpen: false }));
+          router.push("/dashboard");
+          router.refresh();
+        }}
+      />
     </div>
   );
 }

@@ -12,7 +12,7 @@ model User {
   id            String         @id @default(cuid())
   name          String
   email         String         @unique
-  passwordHash  String
+  passwordHash  String?
   role          String         @default("USER") // USER, ADMIN
   company       String?
   phone         String?
@@ -30,6 +30,8 @@ model User {
   activityLogs  ActivityLog[]
   subscription  Subscription?
   generatedFiles GeneratedFile[]
+  accounts      AuthAccount[]
+  passwordResetTokens PasswordResetToken[]
 
   @@index([email])
 }
@@ -284,3 +286,32 @@ model SystemSetting {
 
   @@index([key])
 }
+
+model AuthAccount {
+  id                String   @id @default(cuid())
+  userId            String
+  provider          String   // "google"
+  providerAccountId String   // Google sub ID
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique // SHA-256 do token
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
+}
+

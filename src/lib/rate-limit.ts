@@ -13,7 +13,7 @@ export interface RateLimitResult {
   resetAt: number;    // timestamp Unix
 }
 
-export type RateLimitAction = "login" | "register" | "checkout" | "portal" | "qr";
+export type RateLimitAction = "login" | "register" | "checkout" | "portal" | "qr" | "forgotPassword" | "resetPassword";
 
 // Configurações por endpoint
 export const RATE_LIMIT_CONFIGS: Record<RateLimitAction, RateLimitConfig> = {
@@ -41,6 +41,16 @@ export const RATE_LIMIT_CONFIGS: Record<RateLimitAction, RateLimitConfig> = {
     maxAttempts: 30,
     windowSeconds: 60, // 60 segundos
     errorMessage: "Muitas tentativas de criação de QR Code em curto intervalo. Por favor, aguarde alguns instantes.",
+  },
+  forgotPassword: {
+    maxAttempts: 5,
+    windowSeconds: 15 * 60, // 15 minutos
+    errorMessage: "Muitas solicitações de recuperação de senha. Por favor, aguarde alguns minutos antes de tentar novamente.",
+  },
+  resetPassword: {
+    maxAttempts: 5,
+    windowSeconds: 15 * 60, // 15 minutos
+    errorMessage: "Muitas tentativas de redefinição de senha. Por favor, aguarde alguns minutos.",
   },
 };
 
