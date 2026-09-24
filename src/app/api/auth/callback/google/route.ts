@@ -17,9 +17,16 @@ import {
  * 2. POST: Fluxo Google Identity Services em modo redirect (form-data com 'credential')
  */
 
-function clearOAuthCookies(res: NextResponse): NextResponse {
+export const dynamic = "force-dynamic";
+
+function clearOAuthCookies(res: NextResponse, hostname?: string): NextResponse {
+  const cookieOptions = getOAuthCookieOptions(0, hostname);
+  res.cookies.set(OAUTH_STATE_COOKIE, "", cookieOptions);
+  res.cookies.set(OAUTH_VERIFIER_COOKIE, "", cookieOptions);
   res.cookies.set(OAUTH_STATE_COOKIE, "", { maxAge: 0, path: "/" });
   res.cookies.set(OAUTH_VERIFIER_COOKIE, "", { maxAge: 0, path: "/" });
+  res.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.headers.set("Pragma", "no-cache");
   return res;
 }
 
@@ -185,6 +192,7 @@ async function processGoogleUserAndRedirect(
     });
 
     const res = NextResponse.redirect(`${appUrl}/dashboard`);
+    res.cookies.set(GOOGLE_LINK_COOKIE, "", getOAuthCookieOptions(0, appUrl));
     res.cookies.set(GOOGLE_LINK_COOKIE, "", { maxAge: 0, path: "/" });
     return clearOAuthCookies(res);
   }
@@ -200,7 +208,7 @@ async function processGoogleUserAndRedirect(
       const res = NextResponse.redirect(
         `${appUrl}/login?link_email=${encodeURIComponent(existingUser.email)}`
       );
-      res.cookies.set(GOOGLE_LINK_COOKIE, credential, getOAuthCookieOptions(300));
+      res.cookies.set(GOOGLE_LINK_COOKIE, credential, getOAuthCookieOptions(300, appUrl));
       return clearOAuthCookies(res);
     }
 
@@ -232,6 +240,7 @@ async function processGoogleUserAndRedirect(
     });
 
     const res = NextResponse.redirect(`${appUrl}/dashboard`);
+    res.cookies.set(GOOGLE_LINK_COOKIE, "", getOAuthCookieOptions(0, appUrl));
     res.cookies.set(GOOGLE_LINK_COOKIE, "", { maxAge: 0, path: "/" });
     return clearOAuthCookies(res);
   }
@@ -296,6 +305,7 @@ async function processGoogleUserAndRedirect(
   });
 
   const res = NextResponse.redirect(`${appUrl}/dashboard`);
+  res.cookies.set(GOOGLE_LINK_COOKIE, "", getOAuthCookieOptions(0, appUrl));
   res.cookies.set(GOOGLE_LINK_COOKIE, "", { maxAge: 0, path: "/" });
   return clearOAuthCookies(res);
 }

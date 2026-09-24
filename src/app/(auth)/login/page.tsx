@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from "react";
+import React, { useState, useEffect, useRef, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Lock, Mail, ArrowRight, ShieldCheck, Sparkles } from "lucide-react";
@@ -29,6 +29,8 @@ function LoginForm() {
     credential: "",
   });
 
+  const handledErrorRef = useRef<string | null>(null);
+
   useEffect(() => {
     const linkEmail = searchParams.get("link_email");
     const error = searchParams.get("error");
@@ -41,7 +43,8 @@ function LoginForm() {
       });
     }
 
-    if (error) {
+    if (error && handledErrorRef.current !== error) {
+      handledErrorRef.current = error;
       const errorMap: Record<string, string> = {
         invalid_oauth_state: "Falha na validação de segurança OAuth. Por favor, tente novamente.",
         token_exchange_failed: "Não foi possível validar o código de autorização com o Google.",
@@ -51,6 +54,13 @@ function LoginForm() {
       };
       const decodedError = decodeURIComponent(error);
       toast.error("Erro na autenticação", errorMap[decodedError] || decodedError);
+
+      // Remove o parâmetro 'error' da URL de forma segura sem loop de render
+      if (typeof window !== "undefined") {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("error");
+        window.history.replaceState({}, "", url.pathname + (url.search ? url.search : ""));
+      }
     }
   }, [searchParams, toast]);
 

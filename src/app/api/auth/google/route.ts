@@ -12,9 +12,21 @@ import {
   OAUTH_VERIFIER_COOKIE,
 } from "@/lib/google-auth";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(req: NextRequest) {
-  const clientId = process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+  const host = req.headers.get("host") || req.nextUrl.hostname || "";
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://qrmasterdigital.com").replace(/\/$/, "");
+
+  // Canonicalização: Se a requisição foi iniciada através do host www, redireciona para a origem canônica oficial
+  if (host.startsWith("www.qrmasterdigital.com")) {
+    const canonicalRes = NextResponse.redirect(`https://qrmasterdigital.com/api/auth/google`, 307);
+    canonicalRes.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    canonicalRes.headers.set("Pragma", "no-cache");
+    return canonicalRes;
+  }
+
+  const clientId = process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 
   if (!clientId) {
     return NextResponse.redirect(`${appUrl}/login?error=google_client_id_not_configured`);
@@ -36,8 +48,11 @@ export async function GET(req: NextRequest) {
   googleAuthUrl.searchParams.set("code_challenge", codeChallenge);
   googleAuthUrl.searchParams.set("code_challenge_method", "S256");
 
-  const response = NextResponse.redirect(googleAuthUrl.toString());
-  const cookieOptions = getOAuthCookieOptions(300);
+  const response = NextResponse.redirect(googleAuthUrl.toString(), 307);
+  response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  response.headers.set("Pragma", "no-cache");
+
+  const cookieOptions = getOAuthCookieOptions(300, host);
   response.cookies.set(OAUTH_STATE_COOKIE, state, cookieOptions);
   response.cookies.set(OAUTH_VERIFIER_COOKIE, codeVerifier, cookieOptions);
 

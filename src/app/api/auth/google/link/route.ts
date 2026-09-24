@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { verifyPassword, signToken, setSessionCookie } from "@/lib/auth";
 import { getClientIp, checkRateLimit, resetRateLimit, createRateLimitResponse } from "@/lib/rate-limit";
-import { verifyGoogleIdToken, GOOGLE_LINK_COOKIE } from "@/lib/google-auth";
+import { verifyGoogleIdToken, GOOGLE_LINK_COOKIE, getOAuthCookieOptions } from "@/lib/google-auth";
 
 export async function POST(req: NextRequest) {
   try {
@@ -114,13 +114,9 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    response.cookies.set(GOOGLE_LINK_COOKIE, "", {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: 0,
-    });
+    const clearLinkOptions = getOAuthCookieOptions(0);
+    response.cookies.set(GOOGLE_LINK_COOKIE, "", clearLinkOptions);
+    response.cookies.set(GOOGLE_LINK_COOKIE, "", { maxAge: 0, path: "/" });
 
     return response;
   } catch (error) {

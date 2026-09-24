@@ -8,13 +8,32 @@ export const OAUTH_STATE_COOKIE = "oauth_state";
 export const OAUTH_VERIFIER_COOKIE = "oauth_code_verifier";
 export const GOOGLE_LINK_COOKIE = "qrmaster_link_credential";
 
-export function getOAuthCookieOptions(maxAgeSeconds = 300) {
+export function getOAuthCookieDomain(hostname?: string): string | undefined {
+  if (process.env.NODE_ENV !== "production") {
+    return undefined;
+  }
+  if (!hostname) {
+    return ".qrmasterdigital.com";
+  }
+  const clean = hostname.split(":")[0].toLowerCase();
+  if (clean === "localhost" || clean === "127.0.0.1") {
+    return undefined;
+  }
+  if (clean.includes("qrmasterdigital.com")) {
+    return ".qrmasterdigital.com";
+  }
+  return undefined;
+}
+
+export function getOAuthCookieOptions(maxAgeSeconds = 300, hostname?: string) {
+  const domain = getOAuthCookieDomain(hostname);
   return {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax" as const,
     path: "/",
     maxAge: maxAgeSeconds,
+    ...(domain ? { domain } : {}),
   };
 }
 
