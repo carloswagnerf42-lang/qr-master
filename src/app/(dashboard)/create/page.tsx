@@ -35,7 +35,7 @@ import {
 } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { QRCodeRenderer } from "@/components/qr/QRCodeRenderer";
-import { QRCodeType, QRCodeContentPayload, formatQRDestination } from "@/lib/qr-generator";
+import { QRCodeType, QRCodeContentPayload, formatQRDestination, validateQRContent } from "@/lib/qr-generator";
 import { QRCodeStyleConfig, DEFAULT_STYLE_CONFIG, QRCodeModuleType, QRCodeEyeType, QRCodeFrameType } from "@/types/qr";
 import { checkQRContrast } from "@/lib/contrast";
 import { downloadPng, downloadSvg, downloadPdf, ExportResolution } from "@/lib/export";
@@ -45,39 +45,42 @@ import { useToast } from "@/components/ui/Toast";
 import { NEW_QR_EVENT } from "@/lib/qr-events";
 
 const INITIAL_CONTENT: QRCodeContentPayload = {
-  url: "https://minhaempresa.com.br",
-  phone: "5511999999999",
-  message: "Olá! Gostaria de mais informações.",
-  text: "Texto de exemplo para o QR Code.",
-  email: "contato@empresa.com",
-  subject: "Atendimento",
-  body: "Olá, gostaria de tirar uma dúvida.",
-  ssid: "WiFi_Escritorio_5G",
-  password: "SenhaSegura123",
+  url: "",
+  phone: "",
+  message: "",
+  text: "",
+  email: "",
+  subject: "",
+  body: "",
+  ssid: "",
+  password: "",
   encryption: "WPA2",
   hidden: false,
-  latitude: -23.55052,
-  longitude: -46.633308,
-  firstName: "Carlos",
-  lastName: "Silva",
-  company: "Nexus Digital",
-  title: "Diretor Comercial",
-  cellPhone: "+55 (11) 98765-4321",
-  contactEmail: "carlos@nexusdigital.com.br",
-  website: "https://nexusdigital.com.br",
-  eventTitle: "Workshop de Inovação",
-  eventLocation: "Auditório Central",
-  eventDescription: "Apresentação de novos produtos e networking.",
-  startDate: "2026-10-15T14:00",
-  endDate: "2026-10-15T18:00",
-  pixKey: "carlos@nexusdigital.com.br",
-  merchantName: "CARLOS SILVA",
-  merchantCity: "SAO PAULO",
-  amount: 99.9,
-  txId: "PAG1234",
-  infoMessage: "Inscrição Workshop",
+  latitude: "",
+  longitude: "",
+  address: "",
+  firstName: "",
+  lastName: "",
+  company: "",
+  title: "",
+  cellPhone: "",
+  workPhone: "",
+  contactEmail: "",
+  website: "",
+  eventTitle: "",
+  eventLocation: "",
+  eventDescription: "",
+  startDate: "",
+  endDate: "",
+  pixKey: "",
+  merchantName: "",
+  merchantCity: "",
+  amount: null,
+  txId: "",
+  infoMessage: "",
   socialPlatform: "instagram",
-  socialUrl: "https://instagram.com/nexusdigital",
+  socialUrl: "",
+  multiLinkId: "",
 };
 
 export default function CreateQRCodePage() {
@@ -240,6 +243,30 @@ export default function CreateQRCodePage() {
     };
   }, []);
 
+  // Check for template selection from /templates (sessionStorage)
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem("qrmaster_selected_template");
+      if (saved) {
+        sessionStorage.removeItem("qrmaster_selected_template");
+        const t = JSON.parse(saved);
+        if (t.type) setSelectedType(t.type);
+        if (t.name) setName(t.name);
+        if (t.styleConfig) {
+          const parsedStyle = typeof t.styleConfig === "string" ? JSON.parse(t.styleConfig) : t.styleConfig;
+          setStyle((prev) => ({ ...prev, ...parsedStyle }));
+        }
+        if (t.content) {
+          const parsedContent = typeof t.content === "string" ? JSON.parse(t.content) : t.content;
+          setContent((prev) => ({ ...prev, ...parsedContent }));
+        }
+        setActiveTab("content");
+      }
+    } catch (err) {
+      console.error("Erro ao carregar template:", err);
+    }
+  }, []);
+
   // Compute Destination String based on type & content
   const destinationString = useMemo(() => {
     return formatQRDestination(selectedType, content);
@@ -254,6 +281,16 @@ export default function CreateQRCodePage() {
   const updateContent = (field: keyof QRCodeContentPayload, val: unknown) => {
     setContent((prev) => ({ ...prev, [field]: val }));
     if (createdQr) setCreatedQr(null);
+  };
+
+  // Validation and step navigation helper
+  const handleAdvanceFromContent = () => {
+    const check = validateQRContent(selectedType, content);
+    if (!check.valid) {
+      toast.error("Campo obrigatório", check.error || "Preencha os campos obrigatórios do QR Code.");
+      return;
+    }
+    setActiveTab("style");
   };
 
   // Handle Logo Upload
@@ -290,6 +327,21 @@ export default function CreateQRCodePage() {
   const handleSave = async () => {
     if (!name.trim()) {
       toast.error("Nome obrigatório", "Dê um nome ao seu QR Code.");
+      setActiveTab("details");
+      return;
+    }
+
+    // Validação estrita do conteúdo antes de salvar
+    const contentCheck = validateQRContent(selectedType, content);
+    if (!contentCheck.valid) {
+      toast.error("Conteúdo incompleto", contentCheck.error || "Preencha os campos obrigatórios.");
+      setActiveTab("content");
+      return;
+    }
+
+    if (!destinationString || destinationString.trim() === "") {
+      toast.error("Destino vazio", "Preencha os campos de conteúdo do QR Code antes de salvar.");
+      setActiveTab("content");
       return;
     }
 
@@ -354,6 +406,12 @@ export default function CreateQRCodePage() {
 
   // Test QR Destination in new tab
   const handleTestDestination = () => {
+    const check = validateQRContent(selectedType, content);
+    if (!check.valid) {
+      toast.error("Atenção", check.error || "Preencha o conteúdo do QR Code antes de testar.");
+      setActiveTab("content");
+      return;
+    }
     if (isDynamic && createdQr?.shortCode) {
       window.open(`/q/${createdQr.shortCode}`, "_blank");
     } else {
@@ -364,6 +422,17 @@ export default function CreateQRCodePage() {
         window.open(destinationString, "_blank");
       }
     }
+  };
+
+  // Open Download Modal with validation
+  const handleOpenDownload = () => {
+    const check = validateQRContent(selectedType, content);
+    if (!check.valid) {
+      toast.error("Atenção", check.error || "Preencha os campos obrigatórios do QR Code antes de exportar.");
+      setActiveTab("content");
+      return;
+    }
+    setDownloadModalOpen(true);
   };
 
   const typesList = [
@@ -543,8 +612,35 @@ export default function CreateQRCodePage() {
             {activeTab === "content" && (
               <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4">
                 <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white capitalize flex items-center gap-2">
-                    <span>Configuração de {selectedType}</span>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <span>
+                      Configuração de{" "}
+                      {selectedType === "phone"
+                        ? "Telefone"
+                        : selectedType === "url"
+                        ? "URL / Link"
+                        : selectedType === "whatsapp"
+                        ? "WhatsApp"
+                        : selectedType === "sms"
+                        ? "SMS"
+                        : selectedType === "text"
+                        ? "Texto Livre"
+                        : selectedType === "email"
+                        ? "E-mail"
+                        : selectedType === "pix"
+                        ? "Pix (BR Code)"
+                        : selectedType === "wifi"
+                        ? "Wi-Fi"
+                        : selectedType === "contact"
+                        ? "Contato (vCard)"
+                        : selectedType === "social"
+                        ? "Rede Social"
+                        : selectedType === "location"
+                        ? "Localização"
+                        : selectedType === "event"
+                        ? "Evento"
+                        : "Multi-Link"}
+                    </span>
                   </h3>
                   <span className="text-xs text-slate-400">Campos validados automaticamente</span>
                 </div>
@@ -553,7 +649,7 @@ export default function CreateQRCodePage() {
                 {selectedType === "url" && (
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      URL de Destino
+                      URL de Destino *
                     </label>
                     <input
                       type="url"
@@ -562,6 +658,30 @@ export default function CreateQRCodePage() {
                       placeholder="https://meusite.com.br"
                       className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                     />
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      Insira o link completo para onde o QR Code deve direcionar o visitante.
+                    </p>
+                  </div>
+                )}
+
+                {/* Telefone */}
+                {selectedType === "phone" && (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        Número de Telefone *
+                      </label>
+                      <input
+                        type="tel"
+                        value={content.phone || ""}
+                        onChange={(e) => updateContent("phone", e.target.value)}
+                        placeholder="+55 11 99999-9999 ou (11) 99999-9999"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                      />
+                      <p className="text-[11px] text-slate-400 mt-1">
+                        Suporta formato nacional com DDD ou internacional com DDI (ex: +55 11 99999-9999). Gera a URI tel:+5511999999999 para abrir o discador diretamente.
+                      </p>
+                    </div>
                   </div>
                 )}
 
@@ -570,19 +690,19 @@ export default function CreateQRCodePage() {
                   <div className="space-y-3">
                     <div>
                       <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                        Número com DDD (ex: 5511999999999)
+                        Número do WhatsApp com DDD *
                       </label>
                       <input
                         type="tel"
                         value={content.phone || ""}
                         onChange={(e) => updateContent("phone", e.target.value)}
-                        placeholder="5511999999999"
+                        placeholder="+55 11 99999-9999 ou (11) 99999-9999"
                         className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                       />
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                        Mensagem Automática Inicial
+                        Mensagem Automática Inicial (Opcional)
                       </label>
                       <textarea
                         rows={3}
@@ -595,19 +715,112 @@ export default function CreateQRCodePage() {
                   </div>
                 )}
 
+                {/* SMS */}
+                {selectedType === "sms" && (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        Número do Celular *
+                      </label>
+                      <input
+                        type="tel"
+                        value={content.phone || ""}
+                        onChange={(e) => updateContent("phone", e.target.value)}
+                        placeholder="+55 11 99999-9999 ou (11) 99999-9999"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        Mensagem de Texto (Opcional)
+                      </label>
+                      <textarea
+                        rows={3}
+                        value={content.message || ""}
+                        onChange={(e) => updateContent("message", e.target.value)}
+                        placeholder="Texto pré-definido para envio por SMS..."
+                        className="w-full px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Texto Livre */}
+                {selectedType === "text" && (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        Texto a ser Codificado *
+                      </label>
+                      <textarea
+                        rows={4}
+                        value={content.text || ""}
+                        onChange={(e) => updateContent("text", e.target.value)}
+                        placeholder="Digite o texto, código, cupom ou anotação que deseja exibir no QR Code..."
+                        className="w-full px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                      />
+                      <p className="text-[11px] text-slate-400 mt-1">
+                        Ao ser escaneado, o texto completo será exibido na tela do smartphone sem abrir navegador.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* E-mail */}
+                {selectedType === "email" && (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        E-mail de Destino *
+                      </label>
+                      <input
+                        type="email"
+                        value={content.email || ""}
+                        onChange={(e) => updateContent("email", e.target.value)}
+                        placeholder="destinatario@empresa.com"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        Assunto do E-mail (Opcional)
+                      </label>
+                      <input
+                        type="text"
+                        value={content.subject || ""}
+                        onChange={(e) => updateContent("subject", e.target.value)}
+                        placeholder="Ex: Solicitação de Orçamento"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        Mensagem Pré-formatada (Opcional)
+                      </label>
+                      <textarea
+                        rows={3}
+                        value={content.body || ""}
+                        onChange={(e) => updateContent("body", e.target.value)}
+                        placeholder="Olá! Gostaria de receber mais detalhes sobre..."
+                        className="w-full px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                )}
+
                 {/* Pix (EMV BR Code) */}
                 {selectedType === "pix" && (
                   <div className="space-y-3">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                          Chave Pix (CPF, CNPJ, Email ou Telefone)
+                          Chave Pix (CPF, CNPJ, Email ou Telefone) *
                         </label>
                         <input
                           type="text"
                           value={content.pixKey || ""}
                           onChange={(e) => updateContent("pixKey", e.target.value)}
-                          placeholder="chave@empresa.com"
+                          placeholder="suachave@pix.com ou 11999999999"
                           className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none font-mono"
                         />
                       </div>
@@ -631,20 +844,20 @@ export default function CreateQRCodePage() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                          Nome do Beneficiário (máx 25)
+                          Nome do Beneficiário (máx 25) *
                         </label>
                         <input
                           type="text"
                           maxLength={25}
                           value={content.merchantName || ""}
                           onChange={(e) => updateContent("merchantName", e.target.value)}
-                          placeholder="EMPRESA EXEMPLO"
+                          placeholder="NOME DO BENEFICIARIO"
                           className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none uppercase"
                         />
                       </div>
                       <div>
                         <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                          Cidade do Beneficiário (máx 15)
+                          Cidade do Beneficiário (máx 15) *
                         </label>
                         <input
                           type="text"
@@ -699,7 +912,7 @@ export default function CreateQRCodePage() {
                   <div className="space-y-3">
                     <div>
                       <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                        Nome da Rede Wi-Fi (SSID)
+                        Nome da Rede Wi-Fi (SSID) *
                       </label>
                       <input
                         type="text"
@@ -857,13 +1070,13 @@ export default function CreateQRCodePage() {
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                        URL do Perfil
+                        Link ou Usuário do Perfil *
                       </label>
                       <input
-                        type="url"
+                        type="text"
                         value={content.socialUrl || ""}
                         onChange={(e) => updateContent("socialUrl", e.target.value)}
-                        placeholder="https://instagram.com/seu.perfil"
+                        placeholder="@seu.perfil ou https://instagram.com/seu.perfil"
                         className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                       />
                     </div>
@@ -876,11 +1089,11 @@ export default function CreateQRCodePage() {
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                          Latitude
+                          Latitude *
                         </label>
                         <input
                           type="text"
-                          value={content.latitude || ""}
+                          value={content.latitude ?? ""}
                           onChange={(e) => updateContent("latitude", e.target.value)}
                           placeholder="-23.55052"
                           className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
@@ -888,11 +1101,11 @@ export default function CreateQRCodePage() {
                       </div>
                       <div>
                         <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                          Longitude
+                          Longitude *
                         </label>
                         <input
                           type="text"
-                          value={content.longitude || ""}
+                          value={content.longitude ?? ""}
                           onChange={(e) => updateContent("longitude", e.target.value)}
                           placeholder="-46.633308"
                           className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
@@ -907,7 +1120,7 @@ export default function CreateQRCodePage() {
                   <div className="space-y-3">
                     <div>
                       <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                        Título do Evento
+                        Título do Evento *
                       </label>
                       <input
                         type="text"
@@ -920,7 +1133,7 @@ export default function CreateQRCodePage() {
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                          Data e Hora Inicial
+                          Data e Hora Inicial *
                         </label>
                         <input
                           type="datetime-local"
@@ -931,7 +1144,7 @@ export default function CreateQRCodePage() {
                       </div>
                       <div>
                         <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                          Data e Hora Final
+                          Data e Hora Final (Opcional)
                         </label>
                         <input
                           type="datetime-local"
@@ -944,6 +1157,27 @@ export default function CreateQRCodePage() {
                   </div>
                 )}
 
+                {/* Multi-Link */}
+                {selectedType === "multilink" && (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        Link da Página Multi-Link *
+                      </label>
+                      <input
+                        type="url"
+                        value={content.url || ""}
+                        onChange={(e) => updateContent("url", e.target.value)}
+                        placeholder="https://qrmasterdigital.com/m/sua-pagina"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                      />
+                      <p className="text-[11px] text-slate-400 mt-1">
+                        Insira a URL da sua página de bio/links múltiplos para direcionar seu público.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex justify-between pt-2">
                   <button
                     onClick={() => setActiveTab("type")}
@@ -952,7 +1186,7 @@ export default function CreateQRCodePage() {
                     ← Voltar aos Tipos
                   </button>
                   <button
-                    onClick={() => setActiveTab("style")}
+                    onClick={handleAdvanceFromContent}
                     className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-sm transition-colors"
                   >
                     Avançar para Personalização →

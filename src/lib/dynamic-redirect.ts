@@ -26,8 +26,8 @@ export function validateAndNormalizeDestination(
 
   const trimmed = destination.trim();
 
-  // 1. Verificação de null bytes e caracteres de controle
-  if (/[\x00-\x1F\x7F]/.test(trimmed)) {
+  // 1. Verificação de null bytes e caracteres de controle (preservando quebras de linha e tabs para vCard/vCalendar/texto)
+  if (/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/.test(trimmed)) {
     return { valid: false, error: "Destino contém caracteres de controle inválidos." };
   }
 
@@ -40,8 +40,34 @@ export function validateAndNormalizeDestination(
     }
   }
 
-  // 3. Verificação de esquemas especiais válidos (tel:, mailto:, sms:, geo:, whatsapp:, wifi:, begin:vcard, mecard:)
-  if (/^(tel:|mailto:|sms:|geo:|whatsapp:|wifi:|begin:vcard|mecard:)/i.test(trimmed)) {
+  // 3. Verificação de esquemas especiais válidos (tel:, sms:, mailto:, geo:, whatsapp:, wifi:, begin:vcard, mecard:, 000201, begin:vcalendar)
+  if (/^tel:/i.test(trimmed)) {
+    const phonePart = trimmed.replace(/^tel:/i, "").trim();
+    const digits = phonePart.replace(/\D/g, "");
+    if (digits.length < 8 || digits.length > 15) {
+      return { valid: false, error: "Número de telefone inválido no destino tel: (esperado entre 8 e 15 dígitos)." };
+    }
+    return { valid: true, sanitizedUrl: trimmed };
+  }
+
+  if (/^sms:/i.test(trimmed)) {
+    const smsPart = trimmed.replace(/^sms:/i, "").split("?")[0].trim();
+    const digits = smsPart.replace(/\D/g, "");
+    if (digits.length < 8 || digits.length > 15) {
+      return { valid: false, error: "Número de telefone inválido no destino sms: (esperado entre 8 e 15 dígitos)." };
+    }
+    return { valid: true, sanitizedUrl: trimmed };
+  }
+
+  if (/^mailto:/i.test(trimmed)) {
+    const mailPart = trimmed.replace(/^mailto:/i, "").split("?")[0].trim();
+    if (!mailPart || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mailPart)) {
+      return { valid: false, error: "Endereço de e-mail inválido no destino mailto:." };
+    }
+    return { valid: true, sanitizedUrl: trimmed };
+  }
+
+  if (/^(geo:|whatsapp:|wifi:|begin:vcard|mecard:|000201|begin:vcalendar)/i.test(trimmed)) {
     return { valid: true, sanitizedUrl: trimmed };
   }
 

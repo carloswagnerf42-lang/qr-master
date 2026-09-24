@@ -5,6 +5,7 @@ import { getUserPlanAndUsage, checkPermission } from "@/lib/permissions";
 import { generateUniqueShortCode } from "@/lib/short-code";
 import { validateAndNormalizeDestination } from "@/lib/dynamic-redirect";
 import { checkRateLimit, createRateLimitResponse } from "@/lib/rate-limit";
+import { validateQRContent } from "@/lib/qr-generator";
 
 export async function GET(req: NextRequest) {
   try {
@@ -133,6 +134,17 @@ export async function POST(req: NextRequest) {
         { error: "Nome e destino do QR Code são obrigatórios." },
         { status: 400 }
       );
+    }
+
+    // Validação profunda de campos por tipo de QR Code
+    if (type && content && typeof content === "object") {
+      const contentCheck = validateQRContent(type, content);
+      if (!contentCheck.valid) {
+        return NextResponse.json(
+          { error: contentCheck.error || "Conteúdo do QR Code inválido." },
+          { status: 400 }
+        );
+      }
     }
 
     // Validação central de limites e plano do usuário
