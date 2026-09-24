@@ -36,26 +36,44 @@ export async function POST(req: NextRequest) {
       // Body pode ser vazio em IPN via querystring
     }
 
-    if (!entityId) {
-      // Responde 200 para testes de ping do Mercado Pago
-      return NextResponse.json({ received: true, note: "Webhook recebido sem ID específico" }, { status: 200 });
-    }
-
     const config = await getMercadoPagoConfigAsync();
+    const isProduction = process.env.NODE_ENV === "production";
 
-    // Verificação de assinatura HMAC SHA-256 quando webhookSecret estiver configurado
-    const xSignature = req.headers.get("x-signature");
-    const xRequestId = req.headers.get("x-request-id");
-    const secretsToCheck = [
+    // MP-HARDEN-01-B: Segredos de produção válidos (não inclui segredos de teste)
+    const prodSecrets = [
       config.webhookSecret,
       process.env.MP_WEBHOOK_SECRET,
-      process.env.MP_TEST_WEBHOOK_SECRET,
       process.env.MERCADOPAGO_WEBHOOK_SECRET,
-    ].filter(Boolean) as string[];
+    ]
+      .filter((s): s is string => typeof s === "string" && s.trim().length > 0)
+      .map((s) => s.trim());
 
-    if (secretsToCheck.length > 0) {
+    // Em produção, se o segredo de webhook não estiver configurado, falha fechado (HTTP 503)
+    if (isProduction && prodSecrets.length === 0) {
+      console.error("[MP Webhook] Webhook Mercado Pago não configurado em produção (MP_WEBHOOK_SECRET ausente).");
+      return NextResponse.json(
+        { error: "Webhook Mercado Pago não configurado." },
+        { status: 503 }
+      );
+    }
+
+    // Em produção, MP_TEST_WEBHOOK_SECRET NUNCA é aceito
+    const testSecret =
+      !isProduction && process.env.MP_TEST_WEBHOOK_SECRET
+        ? process.env.MP_TEST_WEBHOOK_SECRET.trim()
+        : "";
+
+    const secretsToCheck = isProduction
+      ? prodSecrets
+      : [...prodSecrets, testSecret].filter((s) => s.length > 0);
+
+    // Verificação de assinatura HMAC SHA-256
+    const xSignature = req.headers.get("x-signature");
+    const xRequestId = req.headers.get("x-request-id");
+
+    if (isProduction || secretsToCheck.length > 0) {
       if (!xSignature) {
-        console.warn("[MP Webhook] Assinatura x-signature ausente rejeitada (segredo configurado).");
+        console.warn("[MP Webhook] Assinatura x-signature ausente rejeitada.");
         return NextResponse.json(
           { error: "Assinatura do webhook ausente (x-signature)." },
           { status: 401 }
@@ -81,9 +99,13 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    if (!entityId) {
+      // Responde 200 para testes de ping do Mercado Pago autenticados
+      return NextResponse.json({ received: true, note: "Webhook recebido sem ID específico" }, { status: 200 });
+    }
+
     // Caso 1: Notificação de Merchant Order (Checkout Pro)
     if (topic === "merchant_order" || topic === "order") {
-      const config = await getMercadoPagoConfigAsync();
       if (config.isConfigured) {
         try {
           const orderRes = await fetch(`https://api.mercadopago.com/merchant_orders/${entityId}`, {
@@ -122,20 +144,12 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export async function GET(req: NextRequest) {
-  const url = new URL(req.url);
-  const topic = url.searchParams.get("topic");
-  const id = url.searchParams.get("id");
-
-  if (topic === "payment" && id) {
-    try {
-      const result = await processMercadoPagoNotification(id);
-      return NextResponse.json({ success: true, ...result }, { status: 200 });
-    } catch (error: any) {
-      console.error("Erro no processamento IPN GET Mercado Pago:", error);
-      return NextResponse.json({ error: error?.message }, { status: 200 });
-    }
-  }
-
-  return NextResponse.json({ status: "Mercado Pago Webhook Endpoint Ativo" }, { status: 200 });
+export async function GET(_req: NextRequest) {
+  // MP-HARDEN-01-A: Health-check estritamente passivo.
+  // Nenhum processamento financeiro ou mutação de banco de dados é permitido via GET,
+  // mesmo que parâmetros como topic, id ou type sejam fornecidos na querystring.
+  return NextResponse.json(
+    { status: "Mercado Pago Webhook Endpoint Ativo" },
+    { status: 200 }
+  );
 }
