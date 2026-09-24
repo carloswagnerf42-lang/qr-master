@@ -247,8 +247,8 @@ export default function CreateQRCodePage() {
 
   // Contrast & Readability validation
   const contrastCheck = useMemo(() => {
-    return checkQRContrast(style.dotsColor, style.bgColor);
-  }, [style.dotsColor, style.bgColor]);
+    return checkQRContrast(style.dotsColor, style.bgColor, style);
+  }, [style]);
 
   // Update field helper
   const updateContent = (field: keyof QRCodeContentPayload, val: unknown) => {

@@ -92,9 +92,8 @@ export async function downloadPng(
           return;
         }
 
-        // Draw image smoothly
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = "high";
+        // Disable image smoothing for barcodes/QR codes to prevent module edge blurring
+        ctx.imageSmoothingEnabled = false;
         ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
 
         const dataUrl = canvas.toDataURL("image/png");
@@ -169,8 +168,8 @@ export async function downloadPdf(
   await new Promise<void>((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = "high";
+      // Disable image smoothing for crisp vector-to-bitmap rasterization
+      ctx.imageSmoothingEnabled = false;
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       URL.revokeObjectURL(blobURL);
       resolve();

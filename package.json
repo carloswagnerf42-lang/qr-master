@@ -49,7 +49,8 @@
     "test:claims": "tsx tests/test-commercial-claims.ts",
     "test:help": "tsx tests/test-dashboard-help.ts",
     "test:reset": "tsx tests/test-password-reset.ts",
-    "test:google": "tsx tests/test-google-auth.ts"
+    "test:google": "tsx tests/test-google-auth.ts",
+    "test:scannability": "tsx tests/test-qr-scannability.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.21.1",
@@ -76,6 +77,7 @@
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "autoprefixer": "^10.4.20",
+    "jsqr": "^1.4.0",
     "postcss": "^8.4.47",
     "prisma": "^5.21.1",
     "tailwindcss": "^3.4.14",

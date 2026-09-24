@@ -22,15 +22,20 @@ export const QRCodeRenderer: React.FC<QRCodeRendererProps> = ({
   const config: QRCodeStyleConfig = { ...DEFAULT_STYLE_CONFIG, ...styleConfig };
 
   const qrData = useMemo(() => {
+    // Defense-in-depth: if logo is active, force errorCorrectionLevel to 'H'
+    let effectiveEC = config.errorCorrectionLevel || "M";
+    if (config.hasLogo && config.logoUrl && (effectiveEC === "L" || effectiveEC === "M")) {
+      effectiveEC = "H";
+    }
     try {
-      const qr = QRCodeLib.create(value || "https://qrmaster.app", {
-        errorCorrectionLevel: config.errorCorrectionLevel || "H",
+      const qr = QRCodeLib.create(value || "https://qrmasterdigital.com", {
+        errorCorrectionLevel: effectiveEC,
       });
       return qr;
     } catch {
-      return QRCodeLib.create("https://qrmaster.app", { errorCorrectionLevel: "M" });
+      return QRCodeLib.create("https://qrmasterdigital.com", { errorCorrectionLevel: "M" });
     }
-  }, [value, config.errorCorrectionLevel]);
+  }, [value, config.errorCorrectionLevel, config.hasLogo, config.logoUrl]);
 
   const { moduleCount, moduleSize, finderPatternCoords, isFinderPattern } = useMemo(() => {
     const count = qrData.modules.size;
@@ -61,8 +66,11 @@ export const QRCodeRenderer: React.FC<QRCodeRendererProps> = ({
     };
   }, [qrData]);
 
-  // Dimensions
-  const paddingModules = 4;
+  // Safe Quiet Zone: ISO/IEC 18004 specifies minimum 4 modules.
+  // When a frame border is active, expand to 5 modules to guarantee that
+  // the border stroke does not encroach on the 4-module quiet zone margin.
+  const hasFrame = config.frame && config.frame !== "none";
+  const paddingModules = hasFrame ? 5 : 4;
   const qrPixelWidth = (moduleCount + paddingModules * 2) * moduleSize;
 
   // Frame heights
@@ -101,8 +109,8 @@ export const QRCodeRenderer: React.FC<QRCodeRendererProps> = ({
         {/* Base Background */}
         <rect width={totalSvgWidth} height={totalSvgHeight} fill={effectiveBg} rx={16} />
 
-        {/* Frame: Outer border if frame is active */}
-        {config.frame !== "none" && (
+        {/* Frame: Outer border if frame is active (respects quiet zone margin) */}
+        {hasFrame && (
           <rect
             x={4}
             y={4}
@@ -110,7 +118,7 @@ export const QRCodeRenderer: React.FC<QRCodeRendererProps> = ({
             height={totalSvgHeight - 8}
             fill="none"
             stroke={config.frameColor || "#4f46e5"}
-            strokeWidth={6}
+            strokeWidth={4}
             rx={14}
           />
         )}
@@ -169,11 +177,11 @@ export const QRCodeRenderer: React.FC<QRCodeRendererProps> = ({
                   return (
                     <rect
                       key={`${r}-${c}`}
-                      x={x + 0.5}
-                      y={y + 0.5}
-                      width={moduleSize - 1}
-                      height={moduleSize - 1}
-                      rx={3}
+                      x={x}
+                      y={y}
+                      width={moduleSize}
+                      height={moduleSize}
+                      rx={2.5}
                       fill={fill}
                     />
                   );
@@ -183,7 +191,7 @@ export const QRCodeRenderer: React.FC<QRCodeRendererProps> = ({
                       key={`${r}-${c}`}
                       cx={x + moduleSize / 2}
                       cy={y + moduleSize / 2}
-                      r={moduleSize / 2 - 0.75}
+                      r={moduleSize / 2 - 0.25}
                       fill={fill}
                     />
                   );
@@ -191,11 +199,11 @@ export const QRCodeRenderer: React.FC<QRCodeRendererProps> = ({
                   return (
                     <rect
                       key={`${r}-${c}`}
-                      x={x + 0.5}
-                      y={y + 0.5}
-                      width={moduleSize - 1}
-                      height={moduleSize - 1}
-                      rx={moduleSize * 0.35}
+                      x={x}
+                      y={y}
+                      width={moduleSize}
+                      height={moduleSize}
+                      rx={moduleSize * 0.3}
                       fill={fill}
                     />
                   );
@@ -215,43 +223,54 @@ export const QRCodeRenderer: React.FC<QRCodeRendererProps> = ({
             })
           )}
 
-          {/* Custom Finder Patterns (Corner Eyes) */}
+          {/* Custom Finder Patterns (Corner Eyes) - Strict ISO/IEC 18004 1:1:3:1:1 Ratio */}
           {finderPatternCoords.map((coord, idx) => {
-            const x = coord.c * moduleSize;
-            const y = coord.r * moduleSize;
-            const eyeSize = 7 * moduleSize;
+            const fx = coord.c * moduleSize;
+            const fy = coord.r * moduleSize;
             const eyeSquareColor = config.cornerSquareColor || config.dotsColor;
             const eyeDotColor = config.cornerDotColor || config.dotsColor;
 
+            // In SVG, stroke is centered on the path outline.
+            // Centerline at fx + moduleSize / 2, width 6 * moduleSize gives outer bound [fx, fx + 7*moduleSize]
+            // and inner cutout [fx + moduleSize, fx + 6*moduleSize], exactly 1 module thick with zero bleed!
+            const outerX = fx + moduleSize / 2;
+            const outerY = fy + moduleSize / 2;
+            const outerDim = 6 * moduleSize;
+
+            const innerX = fx + 2 * moduleSize;
+            const innerY = fy + 2 * moduleSize;
+            const innerDim = 3 * moduleSize;
+
             // Outer eye style
             let outerRx = 0;
-            if (config.cornerSquareType === "extra-rounded") outerRx = 14;
-            if (config.cornerSquareType === "circle") outerRx = eyeSize / 2;
-
-            // Inner eye style
             let innerRx = 0;
-            if (config.cornerSquareType === "extra-rounded") innerRx = 6;
-            if (config.cornerSquareType === "circle") innerRx = (3 * moduleSize) / 2;
+            if (config.cornerSquareType === "extra-rounded") {
+              outerRx = moduleSize;
+              innerRx = moduleSize * 0.5;
+            } else if (config.cornerSquareType === "circle") {
+              outerRx = outerDim / 2;
+              innerRx = innerDim / 2;
+            }
 
             return (
               <g key={`finder-${idx}`}>
-                {/* Outer frame 7x7 */}
+                {/* Outer frame: 7x7 modules, exactly 1 module thick, 1:1:3:1:1 compliant */}
                 <rect
-                  x={x}
-                  y={y}
-                  width={eyeSize}
-                  height={eyeSize}
+                  x={outerX}
+                  y={outerY}
+                  width={outerDim}
+                  height={outerDim}
                   fill="none"
                   stroke={eyeSquareColor}
                   strokeWidth={moduleSize}
                   rx={outerRx}
                 />
-                {/* Inner center dot 3x3 */}
+                {/* Inner center dot: 3x3 modules solid */}
                 <rect
-                  x={x + 2 * moduleSize}
-                  y={y + 2 * moduleSize}
-                  width={3 * moduleSize}
-                  height={3 * moduleSize}
+                  x={innerX}
+                  y={innerY}
+                  width={innerDim}
+                  height={innerDim}
                   fill={eyeDotColor}
                   rx={innerRx}
                 />
@@ -267,7 +286,7 @@ export const QRCodeRenderer: React.FC<QRCodeRendererProps> = ({
                 cx={(moduleCount * moduleSize) / 2}
                 cy={(moduleCount * moduleSize) / 2}
                 r={(moduleCount * moduleSize * (config.logoSize || 20)) / 200 + 4}
-                fill={effectiveBg}
+                fill={effectiveBg === "transparent" ? "#ffffff" : effectiveBg}
                 stroke={config.cornerSquareColor}
                 strokeWidth={2}
               />

@@ -1,3 +1,5 @@
+import { QRCodeStyleConfig } from "@/types/qr";
+
 /**
  * Utilitários de cálculo de luminância e contraste WCAG para QR Codes
  */
@@ -28,9 +30,14 @@ export interface ContrastCheckResult {
   isReadable: boolean;
   message: string;
   level: "success" | "warning" | "error";
+  details?: string[];
 }
 
-export function checkQRContrast(fgHex: string, bgHex: string): ContrastCheckResult {
+export function checkQRContrast(
+  fgHex: string,
+  bgHex: string,
+  styleConfig?: Partial<QRCodeStyleConfig>
+): ContrastCheckResult {
   try {
     const fg = hexToRgb(fgHex || "#000000");
     const bg = hexToRgb(bgHex || "#ffffff");
@@ -42,29 +49,78 @@ export function checkQRContrast(fgHex: string, bgHex: string): ContrastCheckResu
     const darker = Math.min(lum1, lum2);
 
     const ratio = (brighter + 0.05) / (darker + 0.05);
+    const isInverted = lum1 > lum2; // Foreground is brighter than background
 
-    if (ratio >= 4.5) {
-      return {
-        ratio: Number(ratio.toFixed(2)),
-        isReadable: true,
-        message: "✓ Boa legibilidade (Contraste ideal para leitura rápida)",
-        level: "success",
-      };
-    } else if (ratio >= 2.5) {
-      return {
-        ratio: Number(ratio.toFixed(2)),
-        isReadable: true,
-        message: "⚠ Contraste moderado (Pode apresentar lentidão em câmeras antigas)",
-        level: "warning",
-      };
-    } else {
+    const details: string[] = [];
+
+    // Critical: Insufficient contrast
+    if (ratio < 2.5) {
       return {
         ratio: Number(ratio.toFixed(2)),
         isReadable: false,
-        message: "⚠ Contraste insuficiente (A câmera pode não conseguir escanear este QR Code)",
+        message: "⚠ Contraste insuficiente (Câmeras não conseguirão escanear este QR Code)",
         level: "error",
+        details: ["Aumente a diferença entre a cor dos módulos e a cor de fundo."],
       };
     }
+
+    // Inverted QR code warning (many camera apps fail to decode light modules on dark background)
+    if (isInverted) {
+      details.push("QR invertido: Fundo escuro com módulos claros pode falhar em câmeras Android antigas.");
+      return {
+        ratio: Number(ratio.toFixed(2)),
+        isReadable: true,
+        message: "⚠ QR Code invertido (Fundo escuro pode dificultar leitura em alguns celulares)",
+        level: "warning",
+        details,
+      };
+    }
+
+    // Transparent background warning
+    if (styleConfig?.transparentBg) {
+      details.push("Fundo transparente: A leitura dependerá da superfície onde o QR Code for exibido.");
+      return {
+        ratio: Number(ratio.toFixed(2)),
+        isReadable: true,
+        message: "⚠ Fundo transparente (Garanta que a superfície de aplicação tenha fundo claro)",
+        level: "warning",
+        details,
+      };
+    }
+
+    // Logo size warning
+    if (styleConfig?.hasLogo && (styleConfig.logoSize || 20) > 28) {
+      details.push("Logo grande: Ocupa mais de 28% da matriz do QR Code.");
+      return {
+        ratio: Number(ratio.toFixed(2)),
+        isReadable: true,
+        message: "⚠ Logo muito grande (Reduza para até 25% para evitar perda de dados)",
+        level: "warning",
+        details,
+      };
+    }
+
+    // Moderate contrast
+    if (ratio < 4.0) {
+      return {
+        ratio: Number(ratio.toFixed(2)),
+        isReadable: true,
+        message: "⚠ Contraste moderado (Pode apresentar lentidão em baixa iluminação)",
+        level: "warning",
+        details: ["Recomendamos utilizar cores com maior contraste para leitura instantânea."],
+      };
+    }
+
+    // Excellent / Good readability
+    return {
+      ratio: Number(ratio.toFixed(2)),
+      isReadable: true,
+      message: ratio >= 4.5
+        ? "✓ Excelente legibilidade (Contraste ideal para leitura instantânea)"
+        : "✓ Boa legibilidade (Contraste adequado)",
+      level: "success",
+      details: ["Padrão ISO/IEC 18004 atendido com margem de segurança."],
+    };
   } catch {
     return {
       ratio: 5.0,
