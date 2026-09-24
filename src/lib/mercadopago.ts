@@ -492,6 +492,30 @@ export function toCents(value: unknown): number | null {
 }
 
 /**
+ * Verifica se um erro do Prisma (P2002) corresponde estritamente a uma colisão
+ * na chave de unicidade de evento/idempotência ('eventId' na tabela WebhookEvent).
+ * Não classifica genericamente qualquer P2002 como duplicata (evita mascarar
+ * colisões em outros campos como userId, email, etc.).
+ */
+export function isEventIdUniqueConstraintError(error: any): boolean {
+  if (error?.code !== "P2002") return false;
+
+  const target = error?.meta?.target;
+  if (Array.isArray(target) && target.includes("eventId")) {
+    return true;
+  }
+  if (typeof target === "string" && target.includes("eventId")) {
+    return true;
+  }
+  const message = String(error?.message || "");
+  if (message.includes("WebhookEvent_eventId_key") || message.includes("(`eventId`)")) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
  * Processa notificação webhook do Mercado Pago com idempotência atômica,
  * locks exclusivos via chave única de claim no banco, verificação anti-adulteração
  * e suporte não-destrutivo a estornos e chargebacks.
@@ -690,13 +714,14 @@ export async function processMercadoPagoNotification(
         });
 
         // Upsert de assinatura ativa com período exato
+        // Mercado Pago não utiliza gatewayCustomerId, evitando colisão com a constraint única
         await tx.subscription.upsert({
           where: { userId },
           create: {
             userId,
             planId: targetPlan.id,
             gateway: "mercadopago",
-            gatewayCustomerId: payerCustomerId,
+            gatewayCustomerId: null,
             gatewaySubscriptionId: gatewaySubId,
             status: "ACTIVE",
             currentPeriodStart: now,
@@ -705,8 +730,8 @@ export async function processMercadoPagoNotification(
           update: {
             planId: targetPlan.id,
             gateway: "mercadopago",
+            gatewayCustomerId: null,
             gatewaySubscriptionId: gatewaySubId,
-            ...(payerCustomerId ? { gatewayCustomerId: payerCustomerId } : {}),
             status: "ACTIVE",
             currentPeriodStart: now,
             currentPeriodEnd: periodEnd,
@@ -745,15 +770,11 @@ export async function processMercadoPagoNotification(
 
       return txResult;
     } catch (error: any) {
-      if (
-        error?.code === "P2002" &&
-        (error?.meta?.target?.includes("eventId") ||
-          String(error?.message).includes("eventId") ||
-          String(error?.message).includes("Unique constraint"))
-      ) {
-        console.log(`[MP Webhook] Concorrência bloqueada com sucesso para pagamento #${pid} (P2002 Unique Constraint).`);
+      if (isEventIdUniqueConstraintError(error)) {
+        console.log(`[MP Webhook] Concorrência bloqueada com sucesso para pagamento #${pid} (P2002 eventId duplicado).`);
         return { status: "already_processed", paymentId: pid, concurrentDuplicate: true };
       }
+      console.error(`[MP Webhook] Erro na transação de ativação do pagamento #${pid}:`, error);
       throw error;
     }
   }
@@ -846,14 +867,10 @@ export async function processMercadoPagoNotification(
           });
         });
       } catch (error: any) {
-        if (
-          error?.code === "P2002" &&
-          (error?.meta?.target?.includes("eventId") ||
-            String(error?.message).includes("eventId") ||
-            String(error?.message).includes("Unique constraint"))
-        ) {
+        if (isEventIdUniqueConstraintError(error)) {
           return { status: "already_processed", paymentId: pid, concurrentDuplicate: true, refund: true };
         }
+        console.error(`[MP Webhook] Erro na transação de estorno do pagamento #${pid}:`, error);
         throw error;
       }
     }
@@ -949,14 +966,10 @@ export async function processMercadoPagoNotification(
           });
         });
       } catch (error: any) {
-        if (
-          error?.code === "P2002" &&
-          (error?.meta?.target?.includes("eventId") ||
-            String(error?.message).includes("eventId") ||
-            String(error?.message).includes("Unique constraint"))
-        ) {
+        if (isEventIdUniqueConstraintError(error)) {
           return { status: "already_processed", paymentId: pid, concurrentDuplicate: true, chargeback: true };
         }
+        console.error(`[MP Webhook] Erro na transação de contestação (chargeback) do pagamento #${pid}:`, error);
         throw error;
       }
     }

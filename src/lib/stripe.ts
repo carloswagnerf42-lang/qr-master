@@ -35,16 +35,16 @@ export interface CreateCheckoutSessionParams {
  * Cria ou recupera o ID do cliente na Stripe associado ao usuário do QR MASTER
  */
 export async function getOrCreateStripeCustomer(userId: string, email: string, name: string): Promise<string> {
-  const stripe = getStripeClient();
-
-  // Verifica se já existe assinatura gravada com gatewayCustomerId
+  // Verifica se já existe assinatura gravada com gatewayCustomerId para a Stripe
   const existingSub = await prisma.subscription.findUnique({
     where: { userId },
   });
 
-  if (existingSub?.gatewayCustomerId) {
+  if (existingSub?.gatewayCustomerId && existingSub.gateway === "stripe") {
     return existingSub.gatewayCustomerId;
   }
+
+  const stripe = getStripeClient();
 
   // Busca cliente existente por e-mail na Stripe
   const customers = await stripe.customers.list({

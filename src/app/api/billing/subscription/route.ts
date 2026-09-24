@@ -55,7 +55,10 @@ export async function GET(req: NextRequest) {
             cancelAtPeriodEnd: sub.cancelAtPeriodEnd,
             canceledAt: sub.canceledAt,
             isActive,
-            hasCustomerPortal: Boolean(sub.gatewayCustomerId),
+            hasCustomerPortal:
+              sub.gateway === "stripe" &&
+              typeof sub.gatewayCustomerId === "string" &&
+              sub.gatewayCustomerId.trim().length > 0,
           }
         : null,
       usage: {
