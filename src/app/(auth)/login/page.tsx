@@ -31,19 +31,26 @@ function LoginForm() {
 
   useEffect(() => {
     const linkEmail = searchParams.get("link_email");
-    const googleCredential = searchParams.get("google_credential");
     const error = searchParams.get("error");
 
-    if (linkEmail && googleCredential) {
+    if (linkEmail) {
       setLinkingModal({
         isOpen: true,
         email: linkEmail,
-        credential: googleCredential,
+        credential: "",
       });
     }
 
     if (error) {
-      toast.error("Erro na autenticação", decodeURIComponent(error));
+      const errorMap: Record<string, string> = {
+        invalid_oauth_state: "Falha na validação de segurança OAuth. Por favor, tente novamente.",
+        token_exchange_failed: "Não foi possível validar o código de autorização com o Google.",
+        missing_code: "Código de autorização não recebido do Google.",
+        oauth_configuration_missing: "Configuração do Google OAuth ausente no servidor.",
+        unverified_google_account: "Sua conta Google não possui e-mail verificado.",
+      };
+      const decodedError = decodeURIComponent(error);
+      toast.error("Erro na autenticação", errorMap[decodedError] || decodedError);
     }
   }, [searchParams, toast]);
 

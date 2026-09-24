@@ -1,6 +1,54 @@
+import crypto from "crypto";
+
 /**
- * Utilitário de validação segura de credenciais do Google Identity Services.
+ * Utilitário de validação segura de credenciais do Google Identity Services e OAuth 2.0.
  */
+
+export const OAUTH_STATE_COOKIE = "oauth_state";
+export const OAUTH_VERIFIER_COOKIE = "oauth_code_verifier";
+export const GOOGLE_LINK_COOKIE = "qrmaster_link_credential";
+
+export function getOAuthCookieOptions(maxAgeSeconds = 300) {
+  return {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax" as const,
+    path: "/",
+    maxAge: maxAgeSeconds,
+  };
+}
+
+/**
+ * Gera um state criptograficamente aleatório para prevenção de OAuth CSRF.
+ */
+export function generateOAuthState(): string {
+  return crypto.randomBytes(32).toString("hex");
+}
+
+/**
+ * Gera um code_verifier seguro para PKCE (RFC 7636).
+ */
+export function generatePkceVerifier(): string {
+  return crypto.randomBytes(32).toString("base64url");
+}
+
+/**
+ * Gera o code_challenge a partir do code_verifier utilizando SHA256 base64url (S256).
+ */
+export function generatePkceChallenge(codeVerifier: string): string {
+  return crypto.createHash("sha256").update(codeVerifier).digest("base64url");
+}
+
+/**
+ * Comparação segura em tempo constante para mitigar timing attacks.
+ */
+export function safeCompare(a?: string | null, b?: string | null): boolean {
+  if (!a || !b || typeof a !== "string" || typeof b !== "string") return false;
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
 
 export interface GooglePayload {
   sub: string;

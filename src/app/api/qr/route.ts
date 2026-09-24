@@ -202,6 +202,37 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Validação estrita de propriedade (Anti-IDOR) de Categoria e Campanha
+    let finalCategoryId: string | null = null;
+    if (categoryId && typeof categoryId === "string") {
+      const cat = await prisma.category.findFirst({
+        where: { id: categoryId, userId: session.id },
+        select: { id: true },
+      });
+      if (!cat) {
+        return NextResponse.json(
+          { error: "Categoria inválida ou não encontrada." },
+          { status: 400 }
+        );
+      }
+      finalCategoryId = cat.id;
+    }
+
+    let finalCampaignId: string | null = null;
+    if (campaignId && typeof campaignId === "string") {
+      const camp = await prisma.campaign.findFirst({
+        where: { id: campaignId, userId: session.id },
+        select: { id: true },
+      });
+      if (!camp) {
+        return NextResponse.json(
+          { error: "Campanha inválida ou não encontrada." },
+          { status: 400 }
+        );
+      }
+      finalCampaignId = camp.id;
+    }
+
     // 5. Validação de formato e segurança do destino
     const destValidation = validateAndNormalizeDestination(destination);
     if (!destValidation.valid || !destValidation.sanitizedUrl) {
@@ -268,8 +299,8 @@ export async function POST(req: NextRequest) {
           destination: finalDestination,
           content: typeof content === "string" ? content : JSON.stringify(content || {}),
           styleConfig: typeof styleConfig === "string" ? styleConfig : JSON.stringify(styleConfig || {}),
-          categoryId: categoryId || null,
-          campaignId: campaignId || null,
+          categoryId: finalCategoryId,
+          campaignId: finalCampaignId,
           logoUrl: logoUrl || null,
           status: "ACTIVE",
         },

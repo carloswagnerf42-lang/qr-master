@@ -1,18 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { signToken, setSessionCookie } from "@/lib/auth";
-import { verifyGoogleIdToken } from "@/lib/google-auth";
+import {
+  verifyGoogleIdToken,
+  safeCompare,
+  getOAuthCookieOptions,
+  OAUTH_STATE_COOKIE,
+  OAUTH_VERIFIER_COOKIE,
+  GOOGLE_LINK_COOKIE,
+} from "@/lib/google-auth";
 
 /**
  * Endpoint de Callback do Google OAuth 2.0
  * Suporta:
- * 1. GET: Fluxo padrão OAuth 2.0 Authorization Code (code -> tokens -> sessão -> redirect)
+ * 1. GET: Fluxo padrão OAuth 2.0 Authorization Code com State e PKCE S256
  * 2. POST: Fluxo Google Identity Services em modo redirect (form-data com 'credential')
  */
+
+function clearOAuthCookies(res: NextResponse): NextResponse {
+  res.cookies.set(OAUTH_STATE_COOKIE, "", { maxAge: 0, path: "/" });
+  res.cookies.set(OAUTH_VERIFIER_COOKIE, "", { maxAge: 0, path: "/" });
+  return res;
+}
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const code = searchParams.get("code");
+  const state = searchParams.get("state");
   const error = searchParams.get("error");
   const errorDescription = searchParams.get("error_description");
 
@@ -20,11 +34,23 @@ export async function GET(req: NextRequest) {
 
   if (error) {
     console.error("[Google OAuth Callback Error]:", error, errorDescription);
-    return NextResponse.redirect(`${appUrl}/login?error=${encodeURIComponent(errorDescription || error)}`);
+    const res = NextResponse.redirect(`${appUrl}/login?error=${encodeURIComponent(errorDescription || error)}`);
+    return clearOAuthCookies(res);
+  }
+
+  // 1. Validação Criptográfica de State (OAuth CSRF Protection)
+  const storedState = req.cookies.get(OAUTH_STATE_COOKIE)?.value;
+  const storedVerifier = req.cookies.get(OAUTH_VERIFIER_COOKIE)?.value;
+
+  if (!state || !storedState || !safeCompare(state, storedState)) {
+    console.error("[Google OAuth Callback Error]: State ausente ou inválido.");
+    const res = NextResponse.redirect(`${appUrl}/login?error=invalid_oauth_state`);
+    return clearOAuthCookies(res);
   }
 
   if (!code) {
-    return NextResponse.redirect(`${appUrl}/login?error=missing_code`);
+    const res = NextResponse.redirect(`${appUrl}/login?error=missing_code`);
+    return clearOAuthCookies(res);
   }
 
   const clientId = process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
@@ -33,47 +59,58 @@ export async function GET(req: NextRequest) {
 
   if (!clientId || !clientSecret) {
     console.error("[Google OAuth Error]: GOOGLE_CLIENT_ID ou GOOGLE_CLIENT_SECRET ausentes no ambiente.");
-    return NextResponse.redirect(`${appUrl}/login?error=oauth_configuration_missing`);
+    const res = NextResponse.redirect(`${appUrl}/login?error=oauth_configuration_missing`);
+    return clearOAuthCookies(res);
   }
 
   try {
-    // 1. Troca o Authorization Code pelo ID Token e Access Token com o Google
+    // 2. Troca o Authorization Code pelo ID Token e Access Token com Google (incluindo PKCE code_verifier)
+    const tokenParams = new URLSearchParams({
+      code,
+      client_id: clientId,
+      client_secret: clientSecret,
+      redirect_uri: redirectUri,
+      grant_type: "authorization_code",
+    });
+
+    if (storedVerifier) {
+      tokenParams.set("code_verifier", storedVerifier);
+    }
+
     const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        code,
-        client_id: clientId,
-        client_secret: clientSecret,
-        redirect_uri: redirectUri,
-        grant_type: "authorization_code",
-      }),
+      body: tokenParams,
     });
 
     if (!tokenResponse.ok) {
       const errBody = await tokenResponse.text();
       console.error("[Google Token Exchange Failed]:", errBody);
-      return NextResponse.redirect(`${appUrl}/login?error=token_exchange_failed`);
+      const res = NextResponse.redirect(`${appUrl}/login?error=token_exchange_failed`);
+      return clearOAuthCookies(res);
     }
 
     const tokenData = await tokenResponse.json();
     const idToken = tokenData.id_token;
 
     if (!idToken) {
-      return NextResponse.redirect(`${appUrl}/login?error=missing_id_token`);
+      const res = NextResponse.redirect(`${appUrl}/login?error=missing_id_token`);
+      return clearOAuthCookies(res);
     }
 
-    // 2. Valida o ID Token recebido
+    // 3. Valida o ID Token recebido
     const googleUser = await verifyGoogleIdToken(idToken);
     if (!googleUser || !googleUser.emailVerified) {
-      return NextResponse.redirect(`${appUrl}/login?error=unverified_google_account`);
+      const res = NextResponse.redirect(`${appUrl}/login?error=unverified_google_account`);
+      return clearOAuthCookies(res);
     }
 
-    // 3. Processa Login / Cadastro / Vinculação
+    // 4. Processa Login / Cadastro / Vinculação Segura
     return await processGoogleUserAndRedirect(googleUser, idToken, appUrl);
   } catch (err) {
     console.error("[Google OAuth Exception]:", err);
-    return NextResponse.redirect(`${appUrl}/login?error=server_error`);
+    const res = NextResponse.redirect(`${appUrl}/login?error=server_error`);
+    return clearOAuthCookies(res);
   }
 }
 
@@ -93,18 +130,21 @@ export async function POST(req: NextRequest) {
     }
 
     if (!credential) {
-      return NextResponse.redirect(`${appUrl}/login?error=missing_credential`);
+      const res = NextResponse.redirect(`${appUrl}/login?error=missing_credential`);
+      return clearOAuthCookies(res);
     }
 
     const googleUser = await verifyGoogleIdToken(credential);
     if (!googleUser || !googleUser.emailVerified) {
-      return NextResponse.redirect(`${appUrl}/login?error=unverified_google_account`);
+      const res = NextResponse.redirect(`${appUrl}/login?error=unverified_google_account`);
+      return clearOAuthCookies(res);
     }
 
     return await processGoogleUserAndRedirect(googleUser, credential, appUrl);
   } catch (err) {
     console.error("[Google OAuth POST Exception]:", err);
-    return NextResponse.redirect(`${appUrl}/login?error=server_error`);
+    const res = NextResponse.redirect(`${appUrl}/login?error=server_error`);
+    return clearOAuthCookies(res);
   }
 }
 
@@ -144,7 +184,9 @@ async function processGoogleUserAndRedirect(
       },
     });
 
-    return NextResponse.redirect(`${appUrl}/dashboard`);
+    const res = NextResponse.redirect(`${appUrl}/dashboard`);
+    res.cookies.set(GOOGLE_LINK_COOKIE, "", { maxAge: 0, path: "/" });
+    return clearOAuthCookies(res);
   }
 
   // B. Verifica se usuário já existe pelo e-mail
@@ -153,13 +195,13 @@ async function processGoogleUserAndRedirect(
   });
 
   if (existingUser) {
-    // Se possui senha, exige vinculação segura (Cenário C)
+    // Se possui senha, exige vinculação segura (Cenário C) SEM expor token na URL (AUTH-01-02)
     if (existingUser.passwordHash) {
-      return NextResponse.redirect(
-        `${appUrl}/login?link_email=${encodeURIComponent(existingUser.email)}&google_credential=${encodeURIComponent(
-          credential
-        )}`
+      const res = NextResponse.redirect(
+        `${appUrl}/login?link_email=${encodeURIComponent(existingUser.email)}`
       );
+      res.cookies.set(GOOGLE_LINK_COOKIE, credential, getOAuthCookieOptions(300));
+      return clearOAuthCookies(res);
     }
 
     // Se não tem senha (ex: outro OAuth), vincula direto
@@ -189,7 +231,9 @@ async function processGoogleUserAndRedirect(
       },
     });
 
-    return NextResponse.redirect(`${appUrl}/dashboard`);
+    const res = NextResponse.redirect(`${appUrl}/dashboard`);
+    res.cookies.set(GOOGLE_LINK_COOKIE, "", { maxAge: 0, path: "/" });
+    return clearOAuthCookies(res);
   }
 
   // C. Usuário novo: cadastro com plano FREE
@@ -251,5 +295,7 @@ async function processGoogleUserAndRedirect(
     },
   });
 
-  return NextResponse.redirect(`${appUrl}/dashboard`);
+  const res = NextResponse.redirect(`${appUrl}/dashboard`);
+  res.cookies.set(GOOGLE_LINK_COOKIE, "", { maxAge: 0, path: "/" });
+  return clearOAuthCookies(res);
 }

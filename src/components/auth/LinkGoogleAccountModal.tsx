@@ -9,7 +9,7 @@ interface LinkGoogleAccountModalProps {
   isOpen: boolean;
   onClose: () => void;
   email: string;
-  credential: string;
+  credential?: string;
   onSuccess: () => void;
 }
 
@@ -35,7 +35,10 @@ export function LinkGoogleAccountModal({
       const res = await fetch("/api/auth/google/link", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ credential, password }),
+        body: JSON.stringify({
+          credential: credential || undefined,
+          password,
+        }),
       });
 
       const data = await res.json();

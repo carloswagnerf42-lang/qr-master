@@ -2,7 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { signToken, setSessionCookie } from "@/lib/auth";
 import { getClientIp, checkRateLimit, resetRateLimit, createRateLimitResponse } from "@/lib/rate-limit";
-import { verifyGoogleIdToken } from "@/lib/google-auth";
+import {
+  verifyGoogleIdToken,
+  generateOAuthState,
+  generatePkceVerifier,
+  generatePkceChallenge,
+  getOAuthCookieOptions,
+  OAUTH_STATE_COOKIE,
+  OAUTH_VERIFIER_COOKIE,
+} from "@/lib/google-auth";
 
 export async function GET(req: NextRequest) {
   const clientId = process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
@@ -13,13 +21,27 @@ export async function GET(req: NextRequest) {
   }
 
   const redirectUri = `${appUrl}/api/auth/callback/google`;
-  const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(
-    clientId
-  )}&redirect_uri=${encodeURIComponent(
-    redirectUri
-  )}&response_type=code&scope=openid%20email%20profile&access_type=offline&prompt=select_account`;
+  const state = generateOAuthState();
+  const codeVerifier = generatePkceVerifier();
+  const codeChallenge = generatePkceChallenge(codeVerifier);
 
-  return NextResponse.redirect(googleAuthUrl);
+  const googleAuthUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+  googleAuthUrl.searchParams.set("client_id", clientId);
+  googleAuthUrl.searchParams.set("redirect_uri", redirectUri);
+  googleAuthUrl.searchParams.set("response_type", "code");
+  googleAuthUrl.searchParams.set("scope", "openid email profile");
+  googleAuthUrl.searchParams.set("access_type", "offline");
+  googleAuthUrl.searchParams.set("prompt", "select_account");
+  googleAuthUrl.searchParams.set("state", state);
+  googleAuthUrl.searchParams.set("code_challenge", codeChallenge);
+  googleAuthUrl.searchParams.set("code_challenge_method", "S256");
+
+  const response = NextResponse.redirect(googleAuthUrl.toString());
+  const cookieOptions = getOAuthCookieOptions(300);
+  response.cookies.set(OAUTH_STATE_COOKIE, state, cookieOptions);
+  response.cookies.set(OAUTH_VERIFIER_COOKIE, codeVerifier, cookieOptions);
+
+  return response;
 }
 
 export async function POST(req: NextRequest) {

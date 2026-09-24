@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { verifyPassword, signToken, setSessionCookie } from "@/lib/auth";
 import { getClientIp, checkRateLimit, resetRateLimit, createRateLimitResponse } from "@/lib/rate-limit";
-import { verifyGoogleIdToken } from "@/lib/google-auth";
+import { verifyGoogleIdToken, GOOGLE_LINK_COOKIE } from "@/lib/google-auth";
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,7 +12,16 @@ export async function POST(req: NextRequest) {
       return createRateLimitResponse("google", rateCheck.retryAfter, rateCheck.resetAt);
     }
 
-    const { credential, password } = await req.json().catch(() => ({}));
+    const body = await req.json().catch(() => ({}));
+    let { credential, password } = body;
+
+    // Recupera credencial transitória do cookie seguro caso não venha no body
+    if (!credential) {
+      const linkCookie = req.cookies.get(GOOGLE_LINK_COOKIE)?.value;
+      if (linkCookie) {
+        credential = linkCookie;
+      }
+    }
 
     if (!credential || !password) {
       return NextResponse.json(
@@ -94,7 +103,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       message: "Conta vinculada com sucesso!",
       user: {
@@ -104,6 +113,16 @@ export async function POST(req: NextRequest) {
         role: user.role,
       },
     });
+
+    response.cookies.set(GOOGLE_LINK_COOKIE, "", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 0,
+    });
+
+    return response;
   } catch (error) {
     console.error("Erro na vinculação de conta Google:", error);
     return NextResponse.json(
