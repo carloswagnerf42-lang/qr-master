@@ -83,7 +83,8 @@ export async function verifyGoogleIdToken(idToken: string): Promise<GooglePayloa
   }
 
   // Suporte a ambiente de testes controlados (evita dependência de rede externa nos testes automatizados)
-  if (process.env.NODE_ENV === "test" || process.env.ENABLE_TEST_AUTH === "true") {
+  // Bloqueio rigoroso em produção: mocks de teste NUNCA são permitidos quando NODE_ENV === "production"
+  if (process.env.NODE_ENV !== "production" && (process.env.NODE_ENV === "test" || process.env.ENABLE_TEST_AUTH === "true")) {
     if (idToken.startsWith("test_mock_token:")) {
       try {
         const payloadJson = Buffer.from(idToken.replace("test_mock_token:", ""), "base64").toString("utf-8");
@@ -99,6 +100,13 @@ export async function verifyGoogleIdToken(idToken: string): Promise<GooglePayloa
         return null;
       }
     }
+  }
+
+  // Validação estrita do Client ID (Fail-Closed):
+  // Se o Client ID não estiver configurado no ambiente, o token DEVE ser rejeitado
+  const googleClientId = process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+  if (!googleClientId || !googleClientId.trim()) {
+    return null;
   }
 
   try {
@@ -124,9 +132,9 @@ export async function verifyGoogleIdToken(idToken: string): Promise<GooglePayloa
       return null;
     }
 
-    // Valida Audience (Client ID) se estiver configurado no ambiente
-    const googleClientId = process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-    if (googleClientId && data.aud !== googleClientId) {
+    // Valida Audience (Client ID) de forma estrita (Fail-Closed):
+    // aud ausente ou divergente do Client ID configurado -> rejeita
+    if (!data.aud || data.aud !== googleClientId.trim()) {
       return null;
     }
 
