@@ -701,33 +701,28 @@ async function runSuite() {
   assert(!cdHeader.substring(cdHeader.indexOf('"') + 1, cdHeader.indexOf('";')).includes('"'), "Parâmetro filename em ASCII não contém aspas não escapadas");
   assert(cdHeader.includes("filename*=UTF-8''"), "Header inclui parâmetro filename* conforme padrão RFC 5987");
 
-  // 9.5 Simulação de Fallback de Transição em downloadFileBuffer
-  // Cenário 1: Arquivo presente no bucket privado -> retornado imediatamente
+  // 9.5 STORAGE-HARDEN-04: Eliminação do Fallback Público e Download Estritamente Privado
+  // Cenário: Arquivo presente no bucket privado -> retornado imediatamente
   const mockStorageStore: Record<string, Record<string, Buffer>> = {
     "qrmaster-private": {
       "users/user-A/exports/novo_export.png": Buffer.from("conteúdo do bucket privado"),
+      "users/user-uuid-A/exports/export.png": Buffer.from("conteúdo do arquivo 1 de A"),
     },
     "qrmaster-files": {
-      "users/user-A/exports/legado_export.png": Buffer.from("conteúdo do bucket legado"),
-      "users/user-uuid-A/exports/export.png": Buffer.from("conteúdo do arquivo 1 de A"),
+      "users/user-A/exports/legado_export.png": Buffer.from("conteúdo que existia apenas no legado"),
     },
   };
 
   async function simulateDownloadFileBuffer(storagePath: string) {
     if (!storagePath.startsWith("users/")) throw new Error("Namespace inválido");
 
-    // Tentativa 1: Private
+    // Busca EXCLUSIVAMENTE no bucket privado (sem fallback para qrmaster-files)
     const inPrivate = mockStorageStore["qrmaster-private"][storagePath];
     if (inPrivate) {
       return { buffer: inPrivate, sourceBucket: "qrmaster-private", contentLength: inPrivate.length };
     }
 
-    // Tentativa 2: Fallback público legado
-    const inLegacy = mockStorageStore["qrmaster-files"][storagePath];
-    if (inLegacy) {
-      return { buffer: inLegacy, sourceBucket: "qrmaster-files", contentLength: inLegacy.length };
-    }
-
+    // Fail-closed: se ausente no privado, retorna null imediatamente
     return null;
   }
 
@@ -737,10 +732,13 @@ async function runSuite() {
     "Objeto presente em qrmaster-private é servido diretamente do bucket privado"
   );
 
-  const resLegacy = await simulateDownloadFileBuffer("users/user-A/exports/legado_export.png");
+  // REGRESSÃO CRÍTICA (STORAGE-HARDEN-04):
+  // Cenário: storagePath X existe em qrmaster-files, mas NÃO existe em qrmaster-private.
+  // Resultado obrigatório: downloadFileBuffer NÃO retorna o arquivo público (retorna null).
+  const resFallbackBlocked = await simulateDownloadFileBuffer("users/user-A/exports/legado_export.png");
   assert(
-    resLegacy?.sourceBucket === "qrmaster-files",
-    "Objeto ausente no privado mas existente no legado aciona fallback seguro para qrmaster-files"
+    resFallbackBlocked === null,
+    "REGRESSÃO CRÍTICA: Objeto presente em qrmaster-files mas ausente em qrmaster-private NÃO é retornado (fallback eliminado)"
   );
 
   const resMissing = await simulateDownloadFileBuffer("users/user-A/exports/inexistente.png");
@@ -748,6 +746,58 @@ async function runSuite() {
     resMissing === null,
     "Objeto ausente em ambos os buckets retorna null de forma segura sem lançar exceções não tratadas"
   );
+
+  // 9.5.1 Verificação direta de downloadFileBuffer real (com fetch mockado)
+  const originalFetch = global.fetch;
+  const originalSupaUrl = process.env.SUPABASE_URL;
+  const originalSupaKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const fetchCalls: { url: string; method?: string }[] = [];
+  try {
+    process.env.SUPABASE_URL = "https://mock.supabase.co";
+    process.env.SUPABASE_SERVICE_ROLE_KEY = "mock-service-key";
+
+    global.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const urlStr = input.toString();
+      fetchCalls.push({ url: urlStr, method: init?.method || "GET" });
+
+      // Se for consulta a qrmaster-private, simula 404 (arquivo não encontrado no privado)
+      if (urlStr.includes("/object/authenticated/qrmaster-private/")) {
+        return new Response(JSON.stringify({ statusCode: "404", error: "not_found", message: "Object not found" }), {
+          status: 404,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      // Se qualquer código tentar consultar qrmaster-files, responde 200 para capturar eventual vazamento
+      if (urlStr.includes("qrmaster-files")) {
+        return new Response(Buffer.from("leak-publico"), {
+          status: 200,
+          headers: { "Content-Type": "image/png" },
+        });
+      }
+
+      return new Response("Not Found", { status: 404 });
+    }) as any;
+
+    fetchCalls.length = 0;
+    const realResultMissing = await downloadFileBuffer("users/test-user/exports/test-missing.png");
+    assert(
+      realResultMissing === null,
+      "downloadFileBuffer real retorna null (fail-closed) quando objeto inexiste no bucket privado"
+    );
+    assert(
+      fetchCalls.some((c) => c.url.includes("qrmaster-private")),
+      "downloadFileBuffer real consulta o bucket privado qrmaster-private"
+    );
+    assert(
+      !fetchCalls.some((c) => c.url.includes("qrmaster-files")),
+      "REGRESSÃO CRÍTICA: downloadFileBuffer real NUNCA consulta o bucket público legado qrmaster-files"
+    );
+  } finally {
+    global.fetch = originalFetch;
+    process.env.SUPABASE_URL = originalSupaUrl;
+    process.env.SUPABASE_SERVICE_ROLE_KEY = originalSupaKey;
+  }
 
   // 9.6 Simulação da nova rota de Download Stream com Headers de Segurança
   async function simulateSecureDownloadRoute(session: { id: string } | null, fileId: string) {

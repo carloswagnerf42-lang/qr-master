@@ -274,8 +274,8 @@ export interface DownloadFileResult {
 
 /**
  * Baixa o buffer de um arquivo do Storage no servidor de forma autenticada.
- * Busca prioritariamente no bucket privado (qrmaster-private).
- * Caso não encontre (404), executa fallback temporário para o bucket público legado (qrmaster-files).
+ * Busca exclusivamente no bucket privado (qrmaster-private).
+ * Fallback público legado completamente removido conforme STORAGE-HARDEN-04.
  */
 export async function downloadFileBuffer(storagePath: string): Promise<DownloadFileResult | null> {
   if (!storagePath || typeof storagePath !== "string") {
@@ -294,12 +294,11 @@ export async function downloadFileBuffer(storagePath: string): Promise<DownloadF
 
   const config = getSupabaseStorageConfig();
 
-  // 1. Produção: Supabase Storage REST API
+  // 1. Produção: Supabase Storage REST API (estritamente bucket privado)
   if (config.isConfigured) {
     const privateBucket = config.privateBucket;
-    const publicBucket = config.publicBucket;
 
-    // Tentativa 1: Buscar no bucket privado (qrmaster-private)
+    // Busca exclusivamente no bucket privado (qrmaster-private)
     const privateUrl = `${config.supabaseUrl}/storage/v1/object/authenticated/${privateBucket}/${storagePath}`;
     try {
       const resPrivate = await fetch(privateUrl, {
@@ -321,48 +320,15 @@ export async function downloadFileBuffer(storagePath: string): Promise<DownloadF
         };
       }
 
-      if (resPrivate.status !== 404 && resPrivate.status !== 400) {
-        const errText = await resPrivate.text();
-        console.error(`Erro na leitura do bucket privado ${privateBucket}:`, resPrivate.status, errText);
-        throw new Error(`Erro na comunicação com o serviço de armazenamento (${resPrivate.statusText}).`);
-      }
-    } catch (err: any) {
-      if (err.message && err.message.includes("Erro na comunicação")) {
-        throw err;
-      }
-      console.warn(`Tentativa em ${privateBucket} falhou, tentando fallback legado:`, err?.message);
-    }
-
-    // TODO STORAGE-HARDEN: remove legacy public fallback after migration of all GeneratedFile exports.
-    // Tentativa 2: Fallback temporário para o bucket público legado (qrmaster-files)
-    const fallbackUrl = `${config.supabaseUrl}/storage/v1/object/authenticated/${publicBucket}/${storagePath}`;
-    try {
-      const resFallback = await fetch(fallbackUrl, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${config.serviceKey}`,
-        },
-      });
-
-      if (resFallback.ok) {
-        const arrayBuf = await resFallback.arrayBuffer();
-        const buffer = Buffer.from(arrayBuf);
-        const mimeType = resFallback.headers.get("content-type") || undefined;
-        return {
-          buffer,
-          contentLength: buffer.length,
-          mimeType,
-          sourceBucket: publicBucket,
-        };
+      // Se não encontrado no bucket privado (404/400), falha controlada (fail-closed)
+      // O bucket público legado (qrmaster-files) NUNCA é consultado
+      if (resPrivate.status === 404 || resPrivate.status === 400) {
+        return null;
       }
 
-      if (resFallback.status === 404 || resFallback.status === 400) {
-        return null; // Não encontrado em nenhum dos buckets
-      }
-
-      const errText = await resFallback.text();
-      console.error(`Erro no fallback legado ${publicBucket}:`, resFallback.status, errText);
-      throw new Error(`Erro na comunicação com o serviço de armazenamento (${resFallback.statusText}).`);
+      const errText = await resPrivate.text();
+      console.error(`Erro na leitura do bucket privado ${privateBucket}:`, resPrivate.status, errText);
+      throw new Error(`Erro na comunicação com o serviço de armazenamento (${resPrivate.statusText}).`);
     } catch (err: any) {
       if (err.message && err.message.includes("Erro na comunicação")) {
         throw err;
