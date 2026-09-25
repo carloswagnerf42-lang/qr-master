@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession, verifyPassword, hashPassword } from "@/lib/auth";
+import { getSession, verifyPassword, hashPassword, revokeAllUserSessions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getSession();
+    const session = await getSession(req);
     if (!session) {
       return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
     }
@@ -63,6 +63,9 @@ export async function POST(req: NextRequest) {
       where: { id: session.id },
       data: { passwordHash: newHash },
     });
+
+    // Revoga todas as outras sessões ativas do usuário em outros dispositivos
+    await revokeAllUserSessions(session.id, { exceptSessionId: session.sid });
 
     await prisma.activityLog.create({
       data: {

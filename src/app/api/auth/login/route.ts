@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { verifyPassword, signToken, setSessionCookie } from "@/lib/auth";
+import { verifyPassword, createAuthenticatedSessionToken, setSessionCookie } from "@/lib/auth";
 import { getClientIp, checkRateLimit, resetRateLimit, createRateLimitResponse } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
@@ -46,13 +46,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const token = signToken({
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      planId: user.planId,
-    });
+    const userAgent = req.headers.get("user-agent");
+    const { token } = await createAuthenticatedSessionToken(
+      {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        planId: user.planId,
+      },
+      { userAgent, ipAddress: ip }
+    );
 
     setSessionCookie(token);
     await resetRateLimit(ip, "login");

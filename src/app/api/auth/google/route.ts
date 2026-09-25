@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { signToken, setSessionCookie } from "@/lib/auth";
+import { createAuthenticatedSessionToken, setSessionCookie } from "@/lib/auth";
 import { getClientIp, checkRateLimit, resetRateLimit, createRateLimitResponse } from "@/lib/rate-limit";
 import {
   verifyGoogleIdToken,
@@ -97,16 +97,21 @@ export async function POST(req: NextRequest) {
       include: { user: true },
     });
 
+    const userAgent = req.headers.get("user-agent");
+
     if (existingAccount && existingAccount.user) {
       const user = existingAccount.user;
 
-      const token = signToken({
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        planId: user.planId,
-      });
+      const { token } = await createAuthenticatedSessionToken(
+        {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          planId: user.planId,
+        },
+        { userAgent, ipAddress: ip }
+      );
 
       setSessionCookie(token);
       resetRateLimit(ip, "login");
@@ -155,13 +160,16 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      const token = signToken({
-        id: existingUser.id,
-        name: existingUser.name,
-        email: existingUser.email,
-        role: existingUser.role,
-        planId: existingUser.planId,
-      });
+      const { token } = await createAuthenticatedSessionToken(
+        {
+          id: existingUser.id,
+          name: existingUser.name,
+          email: existingUser.email,
+          role: existingUser.role,
+          planId: existingUser.planId,
+        },
+        { userAgent, ipAddress: ip }
+      );
 
       setSessionCookie(token);
       await resetRateLimit(ip, "google");
@@ -228,13 +236,16 @@ export async function POST(req: NextRequest) {
       ],
     });
 
-    const token = signToken({
-      id: newUser.id,
-      name: newUser.name,
-      email: newUser.email,
-      role: newUser.role,
-      planId: newUser.planId,
-    });
+    const { token } = await createAuthenticatedSessionToken(
+      {
+        id: newUser.id,
+        name: newUser.name,
+        email: newUser.email,
+        role: newUser.role,
+        planId: newUser.planId,
+      },
+      { userAgent, ipAddress: ip }
+    );
 
     setSessionCookie(token);
     await resetRateLimit(ip, "google");

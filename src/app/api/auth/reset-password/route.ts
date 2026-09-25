@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { hashPassword, hashToken } from "@/lib/auth";
+import { hashPassword, hashToken, revokeAllUserSessions } from "@/lib/auth";
 import { getClientIp, checkRateLimit, resetRateLimit, createRateLimitResponse } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
@@ -64,6 +64,9 @@ export async function POST(req: NextRequest) {
       where: { id: tokenRecord.userId },
       data: { passwordHash: newPasswordHash },
     });
+
+    // Revoga todas as sessões ativas do usuário em todos os dispositivos
+    await revokeAllUserSessions(tokenRecord.userId);
 
     // Marca o token como utilizado
     await prisma.passwordResetToken.update({

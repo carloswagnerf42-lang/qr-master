@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { signToken, setSessionCookie } from "@/lib/auth";
+import { createAuthenticatedSessionToken, setSessionCookie } from "@/lib/auth";
 import {
   verifyGoogleIdToken,
   safeCompare,
@@ -173,7 +173,7 @@ async function processGoogleUserAndRedirect(
 
   if (existingAccount && existingAccount.user) {
     const user = existingAccount.user;
-    const token = signToken({
+    const { token } = await createAuthenticatedSessionToken({
       id: user.id,
       name: user.name,
       email: user.email,
@@ -221,7 +221,7 @@ async function processGoogleUserAndRedirect(
       },
     });
 
-    const token = signToken({
+    const { token } = await createAuthenticatedSessionToken({
       id: existingUser.id,
       name: existingUser.name,
       email: existingUser.email,
@@ -286,7 +286,7 @@ async function processGoogleUserAndRedirect(
     ],
   });
 
-  const token = signToken({
+  const { token } = await createAuthenticatedSessionToken({
     id: newUser.id,
     name: newUser.name,
     email: newUser.email,

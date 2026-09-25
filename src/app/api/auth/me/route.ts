@@ -184,7 +184,7 @@ export async function PATCH(req: NextRequest) {
       }
     }
 
-    // 3. Se o e-mail ou nome mudou, atualiza o token de sessão JWT
+    // 3. Se o e-mail ou nome mudou, atualiza o token de sessão JWT mantendo o vínculo sid
     if (emailChanged || (dataToUpdate.name && dataToUpdate.name !== session.name)) {
       const newToken = signToken({
         id: updatedUser.id,
@@ -192,6 +192,7 @@ export async function PATCH(req: NextRequest) {
         email: updatedUser.email,
         role: updatedUser.role,
         planId: updatedUser.planId,
+        sid: session.sid,
       });
       setSessionCookie(newToken);
     }
