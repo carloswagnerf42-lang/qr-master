@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { getUserPlanAndUsage, checkPermission } from "@/lib/permissions";
 import { validateAndNormalizeDestination } from "@/lib/dynamic-redirect";
+import { updateUserQRCode, deleteUserQRCode, QRCodeNotFoundError } from "@/lib/qr-service";
 
 export async function GET(
   req: NextRequest,
@@ -173,8 +174,9 @@ export async function PUT(
       }
     }
 
-    const updated = await prisma.qRCode.update({
-      where: { id: params.id },
+    const updated = await updateUserQRCode({
+      qrId: params.id,
+      userId: session.id,
       data: {
         name: name !== undefined ? name.trim() : existing.name,
         description: description !== undefined ? (description ? description.trim() : null) : existing.description,
@@ -186,10 +188,6 @@ export async function PUT(
         status: status !== undefined ? status : existing.status,
         favorite: favorite !== undefined ? !!favorite : existing.favorite,
         logoUrl: logoUrl !== undefined ? logoUrl : existing.logoUrl,
-      },
-      include: {
-        category: true,
-        campaign: true,
       },
     });
 
@@ -204,7 +202,10 @@ export async function PUT(
     });
 
     return NextResponse.json({ success: true, qrCode: updated });
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.status === 404 || error instanceof QRCodeNotFoundError) {
+      return NextResponse.json({ error: "QR Code não encontrado" }, { status: 404 });
+    }
     console.error("Erro ao atualizar QR:", error);
     return NextResponse.json({ error: "Erro ao atualizar QR Code" }, { status: 500 });
   }
@@ -227,40 +228,31 @@ export async function DELETE(
     const { searchParams } = new URL(req.url);
     const permanent = searchParams.get("permanent") === "true";
 
-    if (permanent || existing.deletedAt !== null) {
-      // Exclusão definitiva
-      await prisma.qRCode.delete({
-        where: { id: params.id },
-      });
+    const result = await deleteUserQRCode({
+      qrId: params.id,
+      userId: session.id,
+      permanent,
+    });
 
-      await prisma.activityLog.create({
-        data: {
-          userId: session.id,
-          action: "DELETE_PERMANENT",
-          description: `QR Code "${existing.name}" foi excluído definitivamente.`,
-        },
-      });
+    await prisma.activityLog.create({
+      data: {
+        userId: session.id,
+        action: result.permanent ? "DELETE_PERMANENT" : "DELETE_QR",
+        entityId: result.permanent ? undefined : result.qr.id,
+        description: result.permanent
+          ? `QR Code "${result.qr.name}" foi excluído definitivamente.`
+          : `QR Code "${result.qr.name}" movido para a lixeira.`,
+      },
+    });
 
-      return NextResponse.json({ success: true, message: "Excluído permanentemente." });
-    } else {
-      // Soft Delete para a Lixeira
-      await prisma.qRCode.update({
-        where: { id: params.id },
-        data: { deletedAt: new Date() },
-      });
-
-      await prisma.activityLog.create({
-        data: {
-          userId: session.id,
-          action: "DELETE_QR",
-          entityId: existing.id,
-          description: `QR Code "${existing.name}" movido para a lixeira.`,
-        },
-      });
-
-      return NextResponse.json({ success: true, message: "Movido para a lixeira com sucesso." });
+    return NextResponse.json({
+      success: true,
+      message: result.permanent ? "Excluído permanentemente." : "Movido para a lixeira com sucesso.",
+    });
+  } catch (error: any) {
+    if (error?.status === 404 || error instanceof QRCodeNotFoundError) {
+      return NextResponse.json({ error: "QR Code não encontrado" }, { status: 404 });
     }
-  } catch (error) {
     console.error("Erro ao deletar QR:", error);
     return NextResponse.json({ error: "Erro ao deletar QR Code" }, { status: 500 });
   }
