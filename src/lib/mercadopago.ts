@@ -1068,16 +1068,52 @@ export async function getMercadoPagoPaymentStatus(
     payment = await response.json();
   }
 
-  if (expectedUserId && payment.external_reference) {
+  if (expectedUserId !== undefined) {
+    const createAccessDeniedError = (reason: string): Error => {
+      const authErr = new Error(`Acesso negado: ${reason}`);
+      (authErr as any).status = 403;
+      return authErr;
+    };
+
+    const normalizedExpectedUserId =
+      typeof expectedUserId === "string" ? expectedUserId.trim() : "";
+    if (!normalizedExpectedUserId) {
+      throw createAccessDeniedError(
+        "identificador do usuário autenticado ausente ou inválido."
+      );
+    }
+
+    const rawExternalRef = payment?.external_reference;
+    if (typeof rawExternalRef !== "string" || rawExternalRef.trim().length === 0) {
+      throw createAccessDeniedError(
+        "referência de propriedade (external_reference) ausente ou vazia no pagamento."
+      );
+    }
+
+    let parsedRef: unknown;
     try {
-      const parsed = JSON.parse(payment.external_reference);
-      if (parsed.userId && parsed.userId !== expectedUserId) {
-        const authErr = new Error("Acesso negado: este pagamento pertence a outro usuário.");
-        (authErr as any).status = 403;
-        throw authErr;
-      }
-    } catch (e: any) {
-      if (e.status === 403 || e.message.includes("Acesso negado")) throw e;
+      parsedRef = JSON.parse(rawExternalRef);
+    } catch {
+      throw createAccessDeniedError(
+        "referência de propriedade (external_reference) em formato JSON inválido."
+      );
+    }
+
+    if (!parsedRef || typeof parsedRef !== "object" || Array.isArray(parsedRef)) {
+      throw createAccessDeniedError(
+        "referência de propriedade (external_reference) não representa um objeto válido."
+      );
+    }
+
+    const paymentUserId = (parsedRef as Record<string, unknown>).userId;
+    if (typeof paymentUserId !== "string" || paymentUserId.trim().length === 0) {
+      throw createAccessDeniedError(
+        "identificador de proprietário (userId) ausente ou vazio no pagamento."
+      );
+    }
+
+    if (paymentUserId.trim() !== normalizedExpectedUserId) {
+      throw createAccessDeniedError("este pagamento pertence a outro usuário.");
     }
   }
 
