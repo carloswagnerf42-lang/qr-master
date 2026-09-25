@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { parseUserAgent } from "@/lib/user-agent";
 import { isValidShortCode } from "@/lib/short-code";
 import { validateAndNormalizeDestination, checkShortCodeRateLimit } from "@/lib/dynamic-redirect";
+import { normalizeVCardPayload } from "@/lib/qr-generator";
 import { isSubscriptionActive } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
@@ -214,7 +215,14 @@ export async function GET(
     }
 
     // 6. Verificação de Plano e Assinatura do Proprietário (incluindo Grace Period)
-    if (qr.user.role !== "ADMIN") {
+    // Nota: QR Codes do tipo Cartão de Visita (vCard) e Evento (vCalendar) são payloads nativos
+    // de contato/agenda e devem sempre entregar o arquivo .vcf/.ics mesmo que tenham sido salvos com shortCode.
+    const isNativeStaticPayload =
+      qr.type === "contact" ||
+      qr.type === "event" ||
+      /^BEGIN:(VCARD|VCALENDAR)/i.test(qr.destination || "");
+
+    if (qr.user.role !== "ADMIN" && !isNativeStaticPayload) {
       const planSupportsDynamic = qr.user.plan?.dynamicQRs ?? false;
 
       if (!planSupportsDynamic) {
@@ -294,7 +302,40 @@ export async function GET(
       }
     }
 
-    // 9. Redirecionamento 307 (Temporary Redirect) com Headers Rígidos Anti-Cache
+    // 9. Entrega nativa para vCard (Cartão de Visita) e vCalendar (Evento)
+    // Redirecionamento HTTP 307 para "BEGIN:VCARD..." falha porque não é uma URL válida
+    // e contém quebras de linha. O navegador/SO móvel exige resposta direta text/vcard (.vcf).
+    if (qr.type === "contact" || /^BEGIN:VCARD/i.test(finalDestination)) {
+      const vcardPayload = normalizeVCardPayload(finalDestination);
+      return new NextResponse(vcardPayload, {
+        status: 200,
+        headers: {
+          "Content-Type": "text/vcard; charset=utf-8",
+          "Content-Disposition": 'inline; filename="contato.vcf"',
+          "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0",
+          "Pragma": "no-cache",
+          "Expires": "0",
+          "X-Content-Type-Options": "nosniff",
+        },
+      });
+    }
+
+    if (qr.type === "event" || /^BEGIN:VCALENDAR/i.test(finalDestination)) {
+      const icsPayload = finalDestination.replace(/\r?\n/g, "\r\n");
+      return new NextResponse(icsPayload, {
+        status: 200,
+        headers: {
+          "Content-Type": "text/calendar; charset=utf-8",
+          "Content-Disposition": 'inline; filename="evento.ics"',
+          "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0",
+          "Pragma": "no-cache",
+          "Expires": "0",
+          "X-Content-Type-Options": "nosniff",
+        },
+      });
+    }
+
+    // 10. Redirecionamento 307 (Temporary Redirect) com Headers Rígidos Anti-Cache
     return NextResponse.redirect(finalDestination, {
       status: 307,
       headers: {

@@ -3,6 +3,7 @@
 import React, { useMemo } from "react";
 import QRCodeLib from "qrcode";
 import { QRCodeStyleConfig, DEFAULT_STYLE_CONFIG } from "@/types/qr";
+import { normalizeVCardPayload } from "@/lib/qr-generator";
 
 interface QRCodeRendererProps {
   value: string;
@@ -28,7 +29,11 @@ export const QRCodeRenderer: React.FC<QRCodeRendererProps> = ({
       effectiveEC = "H";
     }
     try {
-      const qr = QRCodeLib.create(value || "https://qrmasterdigital.com", {
+      const normalizedValue =
+        value && /^BEGIN:VCARD/i.test(value.trim())
+          ? normalizeVCardPayload(value)
+          : value;
+      const qr = QRCodeLib.create(normalizedValue || "https://qrmasterdigital.com", {
         errorCorrectionLevel: effectiveEC,
       });
       return qr;

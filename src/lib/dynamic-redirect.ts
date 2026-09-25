@@ -1,5 +1,6 @@
 import { getAppUrl } from "./app-url";
 import { checkRateLimit } from "./rate-limit";
+import { normalizeVCardPayload } from "./qr-generator";
 
 export interface DestinationValidationResult {
   valid: boolean;
@@ -67,7 +68,14 @@ export function validateAndNormalizeDestination(
     return { valid: true, sanitizedUrl: trimmed };
   }
 
-  if (/^(geo:|whatsapp:|wifi:|begin:vcard|mecard:|000201|begin:vcalendar)/i.test(trimmed)) {
+  if (/^begin:vcard/i.test(trimmed)) {
+    if (!/\bend:vcard\s*$/i.test(trimmed)) {
+      return { valid: false, error: "Payload vCard inválido: END:VCARD ausente." };
+    }
+    return { valid: true, sanitizedUrl: normalizeVCardPayload(trimmed) };
+  }
+
+  if (/^(geo:|whatsapp:|wifi:|mecard:|000201|begin:vcalendar)/i.test(trimmed)) {
     return { valid: true, sanitizedUrl: trimmed };
   }
 

@@ -422,7 +422,8 @@ export default function MyQRsPage() {
                       }
 
                       const origin = getAppUrl();
-                      const dynamicUrl = qr.isDynamic && qr.shortCode ? `${origin}/q/${qr.shortCode}` : null;
+                      const isVCard = qr.type === "contact" || /^BEGIN:VCARD/i.test(qr.destination || "");
+                      const dynamicUrl = !isVCard && qr.isDynamic && qr.shortCode ? `${origin}/q/${qr.shortCode}` : null;
                       const finalDest = dynamicUrl || qr.destination;
 
                       return (
@@ -598,7 +599,8 @@ export default function MyQRsPage() {
                   }
 
                   const origin = getAppUrl();
-                  const dynamicUrl = qr.isDynamic && qr.shortCode ? `${origin}/q/${qr.shortCode}` : null;
+                  const isVCard = qr.type === "contact" || /^BEGIN:VCARD/i.test(qr.destination || "");
+                  const dynamicUrl = !isVCard && qr.isDynamic && qr.shortCode ? `${origin}/q/${qr.shortCode}` : null;
                   const finalDest = dynamicUrl || qr.destination;
 
                   return (
@@ -808,7 +810,9 @@ export default function MyQRsPage() {
               <QRCodeRenderer
                 id={`modal-qr-${activeModalQr.id}`}
                 value={
-                  activeModalQr.isDynamic && activeModalQr.shortCode
+                  activeModalQr.type === "contact" || /^BEGIN:VCARD/i.test(activeModalQr.destination || "")
+                    ? activeModalQr.destination
+                    : activeModalQr.isDynamic && activeModalQr.shortCode
                     ? `${getAppUrl()}/q/${activeModalQr.shortCode}`
                     : activeModalQr.destination
                 }

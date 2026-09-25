@@ -112,6 +112,54 @@ export function normalizeE164Phone(rawPhone?: string): string {
   return `+${digits}`;
 }
 
+/**
+ * Escapa caracteres especiais de valores de propriedades vCard 3.0 (RFC 2426 / RFC 6350)
+ * e neutraliza quebras de linha (\r, \n) para impedir injeção de linhas/propriedades no vCard.
+ */
+export function escapeVCardValue(raw?: string | null): string {
+  if (!raw || typeof raw !== "string") return "";
+  const singleLine = raw.replace(/[\r\n]+/g, " ").trim();
+  if (!singleLine) return "";
+  return singleLine
+    .replace(/\\/g, "\\\\")
+    .replace(/;/g, "\\;")
+    .replace(/,/g, "\\,");
+}
+
+/**
+ * Normaliza qualquer payload BEGIN:VCARD existente:
+ * - garante quebras de linha CRLF (\r\n) exigidas pelo padrão vCard 3.0 / RFC 6350;
+ * - normaliza números de telefone em linhas TEL para o formato internacional E.164 (+55...);
+ * - remove linhas vazias intermediárias preservando BEGIN:VCARD ... END:VCARD.
+ */
+export function normalizeVCardPayload(raw?: string | null): string {
+  if (!raw || typeof raw !== "string") return "";
+  const trimmed = raw.trim();
+  if (!/^BEGIN:VCARD/i.test(trimmed)) return trimmed;
+
+  const rawLines = trimmed
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  const normalizedLines = rawLines.map((line) => {
+    if (/^TEL(;[^:]*)?:/i.test(line)) {
+      const colonIdx = line.indexOf(":");
+      if (colonIdx !== -1) {
+        const prefix = line.slice(0, colonIdx);
+        const phoneVal = line.slice(colonIdx + 1).trim();
+        const e164 = normalizeE164Phone(phoneVal);
+        return e164 ? `${prefix}:${e164}` : line;
+      }
+    }
+    return line;
+  });
+
+  return normalizedLines.join("\r\n");
+}
+
 export interface QRContentValidationResult {
   valid: boolean;
   error?: string;
@@ -204,8 +252,13 @@ export function validateQRContent(
       const hasName = Boolean((data.firstName || "").trim() || (data.lastName || "").trim());
       const hasCompany = Boolean((data.company || "").trim());
       const hasPhone = Boolean((data.cellPhone || "").trim() || (data.workPhone || "").trim());
-      if (!hasName && !hasCompany && !hasPhone) {
-        return { valid: false, error: "Informe pelo menos o nome, empresa ou telefone do contato." };
+      const email = (data.contactEmail || "").trim();
+      const hasEmail = Boolean(email);
+      if (!hasName && !hasCompany && !hasPhone && !hasEmail) {
+        return { valid: false, error: "Informe pelo menos o nome, empresa, telefone ou e-mail do contato." };
+      }
+      if (hasEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return { valid: false, error: "Informe um e-mail de contato válido." };
       }
       return { valid: true };
     }
@@ -317,23 +370,45 @@ export function formatQRDestination(type: QRCodeType, data: QRCodeContentPayload
     }
 
     case "contact": {
-      const fn = `${data.firstName || ""} ${data.lastName || ""}`.trim();
-      if (!fn && !data.company && !data.cellPhone && !data.workPhone) return "";
+      const firstRaw = (data.firstName || "").replace(/[\r\n]+/g, " ").trim();
+      const lastRaw = (data.lastName || "").replace(/[\r\n]+/g, " ").trim();
+      const fnRaw = [firstRaw, lastRaw].filter(Boolean).join(" ");
+
+      const first = escapeVCardValue(firstRaw);
+      const last = escapeVCardValue(lastRaw);
+      const company = escapeVCardValue(data.company);
+      const title = escapeVCardValue(data.title);
+      const cellPhone = normalizeE164Phone(data.cellPhone);
+      const workPhone = normalizeE164Phone(data.workPhone);
+      const contactEmail = (data.contactEmail || "").replace(/[\r\n]+/g, "").trim();
+      const website = (data.website || "").replace(/[\r\n]+/g, "").trim();
+      const street = escapeVCardValue(data.street);
+      const city = escapeVCardValue(data.city);
+      const state = escapeVCardValue(data.state);
+      const zip = escapeVCardValue(data.zip);
+      const country = escapeVCardValue(data.country);
+
+      if (!fnRaw && !company && !cellPhone && !workPhone && !contactEmail) return "";
+
+      const fn = escapeVCardValue(fnRaw || data.company || "Contato");
+
       const lines = [
         "BEGIN:VCARD",
         "VERSION:3.0",
-        `N:${data.lastName || ""};${data.firstName || ""};;;`,
-        `FN:${fn || data.company || "Contato"}`,
-        data.company ? `ORG:${data.company}` : null,
-        data.title ? `TITLE:${data.title}` : null,
-        data.cellPhone ? `TEL;TYPE=CELL:${data.cellPhone}` : null,
-        data.workPhone ? `TEL;TYPE=WORK:${data.workPhone}` : null,
-        data.contactEmail ? `EMAIL;TYPE=INTERNET:${data.contactEmail}` : null,
-        data.website ? `URL:${data.website}` : null,
-        data.street || data.city ? `ADR;TYPE=WORK:;;${data.street || ""};${data.city || ""};${data.state || ""};${data.zip || ""};${data.country || ""}` : null,
+        `N:${last};${first};;;`,
+        `FN:${fn}`,
+        company ? `ORG:${company}` : null,
+        title ? `TITLE:${title}` : null,
+        cellPhone ? `TEL;TYPE=CELL:${cellPhone}` : null,
+        workPhone ? `TEL;TYPE=WORK:${workPhone}` : null,
+        contactEmail ? `EMAIL;TYPE=INTERNET:${contactEmail}` : null,
+        website ? `URL:${website}` : null,
+        street || city || state || zip || country
+          ? `ADR;TYPE=WORK:;;${street};${city};${state};${zip};${country}`
+          : null,
         "END:VCARD",
       ];
-      return lines.filter(Boolean).join("\n");
+      return lines.filter(Boolean).join("\r\n");
     }
 
     case "event": {

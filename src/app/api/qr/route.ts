@@ -5,7 +5,7 @@ import { getUserPlanAndUsage, checkPermission } from "@/lib/permissions";
 import { generateUniqueShortCode } from "@/lib/short-code";
 import { validateAndNormalizeDestination } from "@/lib/dynamic-redirect";
 import { checkRateLimit, createRateLimitResponse } from "@/lib/rate-limit";
-import { validateQRContent } from "@/lib/qr-generator";
+import { validateQRContent, formatQRDestination } from "@/lib/qr-generator";
 
 export async function GET(req: NextRequest) {
   try {
@@ -129,7 +129,12 @@ export async function POST(req: NextRequest) {
       logoUrl,
     } = body;
 
-    if (!name || !destination) {
+    const effectiveDestination =
+      type === "contact" && content && typeof content === "object"
+        ? formatQRDestination("contact", content) || destination
+        : destination;
+
+    if (!name || !effectiveDestination) {
       return NextResponse.json(
         { error: "Nome e destino do QR Code são obrigatórios." },
         { status: 400 }
@@ -246,7 +251,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 5. Validação de formato e segurança do destino
-    const destValidation = validateAndNormalizeDestination(destination);
+    const destValidation = validateAndNormalizeDestination(effectiveDestination);
     if (!destValidation.valid || !destValidation.sanitizedUrl) {
       return NextResponse.json(
         { error: destValidation.error || "Destino inválido." },

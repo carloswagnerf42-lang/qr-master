@@ -412,12 +412,32 @@ export default function CreateQRCodePage() {
       setActiveTab("content");
       return;
     }
+    if (selectedType === "contact") {
+      if (isDynamic && createdQr?.shortCode) {
+        window.open(`/q/${createdQr.shortCode}`, "_blank");
+        return;
+      }
+      const blob = new Blob([destinationString], { type: "text/vcard;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "contato.vcf";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast.info("Cartão de Visita (.vcf)", "Arquivo vCard gerado para teste de importação de contato.");
+      return;
+    }
     if (isDynamic && createdQr?.shortCode) {
       window.open(`/q/${createdQr.shortCode}`, "_blank");
     } else {
       if (selectedType === "pix") {
         navigator.clipboard.writeText(destinationString);
         toast.info("Chave Pix Copiada", "O código Pix Copia e Cola foi copiado para a área de transferência!");
+      } else if (selectedType === "wifi" || selectedType === "text") {
+        navigator.clipboard.writeText(destinationString);
+        toast.info("Conteúdo Copiado", "O conteúdo do QR Code foi copiado para a área de transferência!");
       } else {
         window.open(destinationString, "_blank");
       }
@@ -524,12 +544,19 @@ export default function CreateQRCodePage() {
                         key={t.id}
                         onClick={() => {
                           setSelectedType(t.id as QRCodeType);
-                          if (t.id === "pix") {
+                          if (t.id === "contact") {
+                            setIsDynamic(false);
+                            setName("Cartão de Visita");
+                          } else if (t.id === "pix") {
+                            setIsDynamic(false);
                             setName("Pix Cobrança");
                           } else if (t.id === "whatsapp") {
                             setName("WhatsApp Comercial");
                           } else if (t.id === "wifi") {
+                            setIsDynamic(false);
                             setName("Wi-Fi Visitantes");
+                          } else if (t.id === "text") {
+                            setIsDynamic(false);
                           }
                         }}
                         className={`p-3.5 rounded-2xl border text-left transition-all ${
@@ -1547,7 +1574,9 @@ export default function CreateQRCodePage() {
                 <QRCodeRenderer
                   id="generator-qr-code"
                   value={
-                    isDynamic && createdQr?.shortCode
+                    selectedType === "contact"
+                      ? destinationString
+                      : isDynamic && createdQr?.shortCode
                       ? `${getAppUrl()}/q/${createdQr.shortCode}`
                       : destinationString
                   }
