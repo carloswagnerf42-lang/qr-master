@@ -32,6 +32,7 @@ model User {
   generatedFiles GeneratedFile[]
   accounts      AuthAccount[]
   passwordResetTokens PasswordResetToken[]
+  sessions      Session[]
 
   @@index([email])
 }
@@ -313,5 +314,25 @@ model PasswordResetToken {
 
   @@index([userId])
   @@index([tokenHash])
+}
+
+model Session {
+  id        String   @id
+  userId    String
+
+  expiresAt DateTime
+  revokedAt DateTime?
+
+  userAgent String?
+  ipAddress String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([revokedAt])
 }
 
