@@ -129,7 +129,8 @@ export function validateFile(
 }
 
 export function getMimeTypeFromExt(ext: string): string {
-  switch (ext.toLowerCase().replace(".", "")) {
+  const parsed = path.extname(ext) ? path.extname(ext) : ext;
+  switch (parsed.toLowerCase().replace(".", "")) {
     case "png":
       return "image/png";
     case "jpg":
@@ -147,12 +148,33 @@ export function getMimeTypeFromExt(ext: string): string {
 }
 
 /**
+ * Determina o bucket de destino com base no tipo de conteúdo (folder).
+ * Arquivos de exportação (GeneratedFile) vão estritamente para o bucket privado (qrmaster-private).
+ * Logotipos e avatares vão para o bucket público (qrmaster-files).
+ */
+export function resolveStorageBucket(folder: StorageFolder): string {
+  if (folder === "exports") {
+    return process.env.SUPABASE_PRIVATE_STORAGE_BUCKET || "qrmaster-private";
+  }
+  return process.env.SUPABASE_STORAGE_BUCKET || "qrmaster-files";
+}
+
+export function resolveBucketFromPath(storagePath: string): string {
+  if (storagePath.includes("/exports/")) {
+    return process.env.SUPABASE_PRIVATE_STORAGE_BUCKET || "qrmaster-private";
+  }
+  return process.env.SUPABASE_STORAGE_BUCKET || "qrmaster-files";
+}
+
+/**
  * Obtém configuração do Supabase Storage
  */
-function getSupabaseStorageConfig() {
+function getSupabaseStorageConfig(folder?: StorageFolder) {
   const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.STORAGE_SECRET_KEY;
-  const bucket = process.env.SUPABASE_STORAGE_BUCKET || "qrmaster-files";
+  const publicBucket = process.env.SUPABASE_STORAGE_BUCKET || "qrmaster-files";
+  const privateBucket = process.env.SUPABASE_PRIVATE_STORAGE_BUCKET || "qrmaster-private";
+  const bucket = folder ? resolveStorageBucket(folder) : publicBucket;
 
   const isConfigured = Boolean(supabaseUrl && serviceKey);
 
@@ -161,6 +183,8 @@ function getSupabaseStorageConfig() {
     supabaseUrl: supabaseUrl ? supabaseUrl.replace(/\/$/, "") : "",
     serviceKey: serviceKey || "",
     bucket,
+    publicBucket,
+    privateBucket,
   };
 }
 
@@ -183,11 +207,13 @@ export async function uploadFile(options: UploadFileOptions): Promise<UploadResu
 
   // 2. Cria o storage path padronizado users/{userId}/{folder}/{safeName}
   const storagePath = buildUserStoragePath(userId, folder, fileName);
-  const config = getSupabaseStorageConfig();
+  const config = getSupabaseStorageConfig(folder);
+  const targetBucket = resolveStorageBucket(folder);
+  const isPrivate = folder === "exports";
 
   // 3. Produção: Supabase Storage REST API
   if (config.isConfigured) {
-    const uploadEndpoint = `${config.supabaseUrl}/storage/v1/object/${config.bucket}/${storagePath}`;
+    const uploadEndpoint = `${config.supabaseUrl}/storage/v1/object/${targetBucket}/${storagePath}`;
 
     const res = await fetch(uploadEndpoint, {
       method: "POST",
@@ -205,8 +231,11 @@ export async function uploadFile(options: UploadFileOptions): Promise<UploadResu
       throw new Error(`Falha no upload para o Supabase Storage: ${res.statusText}`);
     }
 
-    // URL pública oficial no Supabase CDN
-    const downloadUrl = `${config.supabaseUrl}/storage/v1/object/public/${config.bucket}/${storagePath}`;
+    // Para arquivos privados (exports), não expomos URL pública direta (/object/public/)
+    // O download ocorre exclusivamente pela rota autenticada /api/files/[id]/download
+    const downloadUrl = isPrivate
+      ? `/api/files/download?path=${encodeURIComponent(storagePath)}`
+      : `${config.supabaseUrl}/storage/v1/object/public/${targetBucket}/${storagePath}`;
 
     return {
       storagePath,
@@ -236,6 +265,126 @@ export async function uploadFile(options: UploadFileOptions): Promise<UploadResu
   };
 }
 
+export interface DownloadFileResult {
+  buffer: Buffer;
+  contentLength: number;
+  mimeType?: string;
+  sourceBucket: string;
+}
+
+/**
+ * Baixa o buffer de um arquivo do Storage no servidor de forma autenticada.
+ * Busca prioritariamente no bucket privado (qrmaster-private).
+ * Caso não encontre (404), executa fallback temporário para o bucket público legado (qrmaster-files).
+ */
+export async function downloadFileBuffer(storagePath: string): Promise<DownloadFileResult | null> {
+  if (!storagePath || typeof storagePath !== "string") {
+    throw new Error("Caminho de armazenamento inválido.");
+  }
+
+  // Validação estrita de isolamento de namespace
+  if (!storagePath.startsWith("users/")) {
+    throw new Error("Caminho de armazenamento fora do namespace permitido.");
+  }
+
+  // Defesa adicional contra path traversal
+  if (storagePath.includes("..") || storagePath.includes("\\")) {
+    throw new Error("Caminho de armazenamento contém caracteres não permitidos.");
+  }
+
+  const config = getSupabaseStorageConfig();
+
+  // 1. Produção: Supabase Storage REST API
+  if (config.isConfigured) {
+    const privateBucket = config.privateBucket;
+    const publicBucket = config.publicBucket;
+
+    // Tentativa 1: Buscar no bucket privado (qrmaster-private)
+    const privateUrl = `${config.supabaseUrl}/storage/v1/object/authenticated/${privateBucket}/${storagePath}`;
+    try {
+      const resPrivate = await fetch(privateUrl, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${config.serviceKey}`,
+        },
+      });
+
+      if (resPrivate.ok) {
+        const arrayBuf = await resPrivate.arrayBuffer();
+        const buffer = Buffer.from(arrayBuf);
+        const mimeType = resPrivate.headers.get("content-type") || undefined;
+        return {
+          buffer,
+          contentLength: buffer.length,
+          mimeType,
+          sourceBucket: privateBucket,
+        };
+      }
+
+      if (resPrivate.status !== 404 && resPrivate.status !== 400) {
+        const errText = await resPrivate.text();
+        console.error(`Erro na leitura do bucket privado ${privateBucket}:`, resPrivate.status, errText);
+        throw new Error(`Erro na comunicação com o serviço de armazenamento (${resPrivate.statusText}).`);
+      }
+    } catch (err: any) {
+      if (err.message && err.message.includes("Erro na comunicação")) {
+        throw err;
+      }
+      console.warn(`Tentativa em ${privateBucket} falhou, tentando fallback legado:`, err?.message);
+    }
+
+    // TODO STORAGE-HARDEN: remove legacy public fallback after migration of all GeneratedFile exports.
+    // Tentativa 2: Fallback temporário para o bucket público legado (qrmaster-files)
+    const fallbackUrl = `${config.supabaseUrl}/storage/v1/object/authenticated/${publicBucket}/${storagePath}`;
+    try {
+      const resFallback = await fetch(fallbackUrl, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${config.serviceKey}`,
+        },
+      });
+
+      if (resFallback.ok) {
+        const arrayBuf = await resFallback.arrayBuffer();
+        const buffer = Buffer.from(arrayBuf);
+        const mimeType = resFallback.headers.get("content-type") || undefined;
+        return {
+          buffer,
+          contentLength: buffer.length,
+          mimeType,
+          sourceBucket: publicBucket,
+        };
+      }
+
+      if (resFallback.status === 404 || resFallback.status === 400) {
+        return null; // Não encontrado em nenhum dos buckets
+      }
+
+      const errText = await resFallback.text();
+      console.error(`Erro no fallback legado ${publicBucket}:`, resFallback.status, errText);
+      throw new Error(`Erro na comunicação com o serviço de armazenamento (${resFallback.statusText}).`);
+    } catch (err: any) {
+      if (err.message && err.message.includes("Erro na comunicação")) {
+        throw err;
+      }
+      return null;
+    }
+  }
+
+  // 2. Modo Desenvolvimento Local / Fallback em Disco
+  const fullLocalPath = path.join(process.cwd(), "public", "uploads", "storage", storagePath);
+  if (fs.existsSync(fullLocalPath)) {
+    const buffer = fs.readFileSync(fullLocalPath);
+    return {
+      buffer,
+      contentLength: buffer.length,
+      sourceBucket: "local",
+    };
+  }
+
+  return null;
+}
+
 /**
  * Remove um arquivo do Storage com validação de isolamento de usuário
  */
@@ -252,7 +401,8 @@ export async function deleteFile(storagePath: string, userId: string): Promise<b
 
   // 1. Produção: Supabase Storage REST API
   if (config.isConfigured) {
-    const deleteEndpoint = `${config.supabaseUrl}/storage/v1/object/${config.bucket}`;
+    const targetBucket = resolveBucketFromPath(storagePath);
+    const deleteEndpoint = `${config.supabaseUrl}/storage/v1/object/${targetBucket}`;
     try {
       const res = await fetch(deleteEndpoint, {
         method: "DELETE",
@@ -262,6 +412,24 @@ export async function deleteFile(storagePath: string, userId: string): Promise<b
         },
         body: JSON.stringify({ prefixes: [storagePath] }),
       });
+
+      // Se for exportação e durante período de transição, tenta também no bucket legado
+      if (storagePath.includes("/exports/")) {
+        try {
+          const legacyEndpoint = `${config.supabaseUrl}/storage/v1/object/${config.publicBucket}`;
+          await fetch(legacyEndpoint, {
+            method: "DELETE",
+            headers: {
+              Authorization: `Bearer ${config.serviceKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ prefixes: [storagePath] }),
+          });
+        } catch {
+          // Ignora falha de exclusão secundária no legado
+        }
+      }
+
       return res.ok;
     } catch (err) {
       console.error("Erro ao deletar arquivo no Supabase Storage:", err);

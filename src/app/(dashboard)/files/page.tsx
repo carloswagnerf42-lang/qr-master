@@ -184,7 +184,7 @@ export default function FilesPage() {
 
                     <div className="flex items-center gap-2 self-end sm:self-center">
                       <a
-                        href={file.downloadUrl?.startsWith("http") ? file.downloadUrl : `/api/files/${file.id}/download`}
+                        href={`/api/files/${file.id}/download`}
                         download={file.fileName}
                         className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-colors"
                       >

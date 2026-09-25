@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
-import fs from "fs";
-import path from "path";
+import { downloadFileBuffer } from "@/lib/storage";
 
 export async function GET(
   req: NextRequest,
@@ -23,37 +22,36 @@ export async function GET(
       return NextResponse.json({ error: "Arquivo não encontrado ou acesso não autorizado." }, { status: 404 });
     }
 
-    // 2. Se a URL já for externa (ex: Supabase Storage CDN ou Cloud Storage)
-    if (file.downloadUrl.startsWith("http://") || file.downloadUrl.startsWith("https://")) {
-      return NextResponse.redirect(file.downloadUrl);
+    if (!file.storagePath) {
+      return NextResponse.json({ error: "Caminho do arquivo não localizado no registro." }, { status: 404 });
     }
 
-    // 3. Se for arquivo no mirror local (dev/fallback)
-    let fullFilePath = "";
-    if (file.storagePath && file.storagePath.startsWith("users/")) {
-      fullFilePath = path.join(process.cwd(), "public", "uploads", "storage", file.storagePath);
-    } else if (file.storagePath) {
-      fullFilePath = file.storagePath;
+    // 2. Busca os bytes do arquivo no Storage de forma autenticada no servidor
+    const result = await downloadFileBuffer(file.storagePath);
+
+    if (!result || !result.buffer || result.buffer.length === 0) {
+      return NextResponse.json({ error: "Conteúdo do arquivo não localizado no armazenamento." }, { status: 404 });
     }
 
-    if (fullFilePath && fs.existsSync(fullFilePath)) {
-      const fileBuffer = fs.readFileSync(fullFilePath);
-      return new NextResponse(fileBuffer, {
-        status: 200,
-        headers: {
-          "Content-Type": file.mimeType || "application/octet-stream",
-          "Content-Disposition": `attachment; filename="${encodeURIComponent(file.fileName)}"`,
-          "Content-Length": fileBuffer.length.toString(),
-        },
-      });
-    }
+    // 3. Sanitização defensiva do Content-Disposition contra CRLF, quotes e header injection
+    const rawFileName = file.fileName || `export_${file.id}.${file.fileType || "png"}`;
+    const safeAsciiName = rawFileName.replace(/[\r\n";]/g, "_").replace(/[^\x20-\x7E]/g, "_");
+    const encodedUtf8Name = encodeURIComponent(rawFileName);
+    const contentDisposition = `attachment; filename="${safeAsciiName}"; filename*=UTF-8''${encodedUtf8Name}`;
 
-    // Fallback se arquivo físico tiver sido migrado para downloadUrl relativo
-    if (file.downloadUrl.startsWith("/")) {
-      return NextResponse.redirect(new URL(file.downloadUrl, req.url));
-    }
+    const effectiveMime = file.mimeType || result.mimeType || "application/octet-stream";
 
-    return NextResponse.json({ error: "Conteúdo do arquivo não localizado no armazenamento." }, { status: 404 });
+    // 4. Retorna os bytes via stream HTTP com headers de segurança
+    return new NextResponse(new Uint8Array(result.buffer), {
+      status: 200,
+      headers: {
+        "Content-Type": effectiveMime,
+        "Content-Disposition": contentDisposition,
+        "Content-Length": result.contentLength.toString(),
+        "Cache-Control": "private, no-store, must-revalidate",
+        "X-Content-Type-Options": "nosniff",
+      },
+    });
   } catch (error) {
     console.error("Erro no download autenticado de arquivo:", error);
     return NextResponse.json({ error: "Erro interno ao processar download." }, { status: 500 });
