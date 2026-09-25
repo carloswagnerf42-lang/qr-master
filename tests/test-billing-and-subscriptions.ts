@@ -4,6 +4,7 @@ import {
   can,
   calculateAnnualDiscountPercent,
   calculateUserMonthlyQuotaWindow,
+  resolveMonthlyQuota,
   PlanDetails,
   UserPlanContext,
   SubscriptionDetails,
@@ -498,9 +499,26 @@ async function runBillingAndSubscriptionTests() {
     // =================================================================
     // 6. Testes do Sistema de Cotas Mensais e Reset (Free, Pro e Business)
     // =================================================================
-    console.log(`\n${CYAN}▶ 5. Validação de Cotas Mensais com Reset (Free 5, Pro Anual 15, Pro Mensal 50, Business Ilimitado):${RESET}`);
+    console.log(`\n${CYAN}▶ 5. Validação de Cotas Mensais com Reset (Free 5, Pro Anual 15, Pro Mensal 15, Business Ilimitado):${RESET}`);
 
-    // A. Cálculo de Janela Mensal para Assinatura Anual
+    // A. Resolução Determinística de Cotas (resolveMonthlyQuota)
+    // PRO Padrão (15)
+    assert(resolveMonthlyQuota({ name: "PRO", maxQRCodes: 15 }, false) === 15, "PRO mensal com maxQRCodes=15 resolve para cota 15");
+    // PRO Customizado (20)
+    assert(resolveMonthlyQuota({ name: "PRO", maxQRCodes: 20 }, false) === 20, "PRO mensal com maxQRCodes customizado=20 resolve para cota 20");
+    // PRO Fallback Seguro (null / undefined -> NUNCA 50)
+    assert(resolveMonthlyQuota({ name: "PRO", maxQRCodes: null }, false) === 15, "PRO mensal com maxQRCodes=null recai em 15 com segurança (NUNCA 50)");
+    assert(resolveMonthlyQuota({ name: "PRO", maxQRCodes: undefined }, false) === 15, "PRO mensal com maxQRCodes=undefined recai em 15 com segurança (NUNCA 50)");
+    // PRO Anual (15 por janela mensal)
+    assert(resolveMonthlyQuota({ name: "PRO", maxQRCodesYear: 15 }, true) === 15, "PRO anual com maxQRCodesYear=15 resolve para 15 por janela mensal");
+    assert(resolveMonthlyQuota({ name: "PRO", maxQRCodesYear: null }, true) === 15, "PRO anual com maxQRCodesYear=null recai em 15 com segurança");
+    // FREE (5)
+    assert(resolveMonthlyQuota({ name: "FREE", maxQRCodes: 5 }, false) === 5, "FREE com maxQRCodes=5 resolve para cota 5");
+    assert(resolveMonthlyQuota({ name: "FREE", maxQRCodes: null }, false) === 5, "FREE com maxQRCodes=null recai em 5 com segurança");
+    // BUSINESS (ilimitado)
+    assert(resolveMonthlyQuota({ name: "BUSINESS", maxQRCodes: 999999 }, false) === 999999, "BUSINESS resolve para cota ilimitada (999999)");
+
+    // B. Cálculo de Janela Mensal para Assinatura Anual
     const now = new Date();
     const subAnualStart = new Date(now.getTime() - 45 * 24 * 60 * 60 * 1000); // 45 dias atrás (Mês 2 da assinatura)
     const subAnualEnd = new Date(subAnualStart.getTime() + 365 * 24 * 60 * 60 * 1000);
@@ -512,7 +530,7 @@ async function runBillingAndSubscriptionTests() {
     assert(windowAnual.currentMonthStart.getTime() > subAnualStart.getTime(), "Início do mês 2 avança além da data de início da assinatura");
     assert(windowAnual.currentMonthEnd.getTime() > windowAnual.currentMonthStart.getTime(), "Término da janela mensal é posterior ao início");
 
-    // B. Plano FREE: 5 QRs mensais
+    // C. Plano FREE: 5 QRs mensais
     const freeMonthlyUser: UserPlanContext = {
       id: "usr_free_month",
       role: "USER",
@@ -525,12 +543,13 @@ async function runBillingAndSubscriptionTests() {
     const checkFreeBlocked = checkPermission(freeMonthlyUser, "create_qr");
     assert(checkFreeBlocked.allowed === false, "Free com 5/5 criados no mês é BLOQUEADO");
     assert(checkFreeBlocked.code === "LIMIT_REACHED", "Erro retornado para Free é LIMIT_REACHED");
+    assert(checkFreeBlocked.limit === 5, "Limite reportado para Free é exatamente 5");
 
-    // C. Plano PRO ANUAL: 15 QRs mensais
+    // D. Plano PRO ANUAL: 15 QRs mensais
     const proYearlyUser: UserPlanContext = {
       id: "usr_pro_yearly",
       role: "USER",
-      plan: { ...proPlan, maxQRCodes: 50, maxQRCodesYear: 15 },
+      plan: { ...proPlan, maxQRCodes: 15, maxQRCodesYear: 15 },
       currentMonthLimit: 15,
       isYearly: true,
       qrCodeCount: 14, // 14 criados neste mês
@@ -542,22 +561,53 @@ async function runBillingAndSubscriptionTests() {
     assert(checkProYearlyBlocked.code === "LIMIT_REACHED", "Erro retornado para PRO Anual é LIMIT_REACHED");
     assert(checkProYearlyBlocked.limit === 15, "Limite reportado para PRO Anual é exatamente 15");
 
-    // D. Plano PRO MENSAL: 50 QRs mensais
+    // E. Plano PRO MENSAL PADRÃO: 15 QRs mensais (Regra oficial)
     const proMonthlyUser: UserPlanContext = {
       id: "usr_pro_monthly",
       role: "USER",
-      plan: { ...proPlan, maxQRCodes: 50, maxQRCodesYear: 15 },
-      currentMonthLimit: 50,
+      plan: { ...proPlan, maxQRCodes: 15, maxQRCodesYear: 15 },
+      currentMonthLimit: 15,
       isYearly: false,
-      qrCodeCount: 49,
+      qrCodeCount: 14,
     };
-    assert(checkPermission(proMonthlyUser, "create_qr").allowed === true, "PRO Mensal com 49/50 criados no mês pode criar o 50º");
-    proMonthlyUser.qrCodeCount = 50;
+    assert(checkPermission(proMonthlyUser, "create_qr").allowed === true, "PRO Mensal com 14/15 criados no mês pode criar o 15º");
+    proMonthlyUser.qrCodeCount = 15;
     const checkProMonthlyBlocked = checkPermission(proMonthlyUser, "create_qr");
-    assert(checkProMonthlyBlocked.allowed === false, "PRO Mensal com 50/50 criados no mês é BLOQUEADO");
-    assert(checkProMonthlyBlocked.limit === 50, "Limite reportado para PRO Mensal é exatamente 50");
+    assert(checkProMonthlyBlocked.allowed === false, "PRO Mensal com 15/15 criados no mês é BLOQUEADO");
+    assert(checkProMonthlyBlocked.code === "LIMIT_REACHED", "Erro retornado para PRO Mensal é LIMIT_REACHED");
+    assert(checkProMonthlyBlocked.limit === 15, "Limite reportado para PRO Mensal é exatamente 15");
 
-    // E. Plano BUSINESS: Ilimitado
+    // F. Plano PRO MENSAL CUSTOMIZADO: maxQRCodes = 20
+    const proCustomUser: UserPlanContext = {
+      id: "usr_pro_custom",
+      role: "USER",
+      plan: { ...proPlan, maxQRCodes: 20 },
+      currentMonthLimit: 20,
+      isYearly: false,
+      qrCodeCount: 19,
+    };
+    assert(checkPermission(proCustomUser, "create_qr").allowed === true, "PRO Customizado com 19/20 criados no mês pode criar o 20º");
+    proCustomUser.qrCodeCount = 20;
+    const checkProCustomBlocked = checkPermission(proCustomUser, "create_qr");
+    assert(checkProCustomBlocked.allowed === false, "PRO Customizado com 20/20 criados no mês é BLOQUEADO");
+    assert(checkProCustomBlocked.limit === 20, "Limite reportado para PRO Customizado é exatamente 20");
+
+    // G. Plano PRO MENSAL COM FALLBACK SEGURO: maxQRCodes = null/undefined -> NUNCA 50
+    const resolvedFallbackLimit = resolveMonthlyQuota({ name: "PRO", maxQRCodes: null }, false);
+    assert(resolvedFallbackLimit === 15, "PRO maxQRCodes=null recai em 15 com segurança (NUNCA 50)");
+    const proFallbackUser: UserPlanContext = {
+      id: "usr_pro_fallback",
+      role: "USER",
+      plan: { ...proPlan, maxQRCodes: resolvedFallbackLimit },
+      currentMonthLimit: resolvedFallbackLimit,
+      isYearly: false,
+      qrCodeCount: 15,
+    };
+    const checkProFallbackBlocked = checkPermission(proFallbackUser, "create_qr");
+    assert(checkProFallbackBlocked.allowed === false, "PRO Fallback com 15/15 criados no mês é BLOQUEADO");
+    assert(checkProFallbackBlocked.limit === 15, "Limite reportado para PRO Fallback é rigorosamente 15 (NUNCA 50)");
+
+    // H. Plano BUSINESS: Ilimitado
     const bizUser: UserPlanContext = {
       id: "usr_biz",
       role: "USER",

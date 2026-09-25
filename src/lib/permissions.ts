@@ -44,7 +44,7 @@ export interface UserPlanContext {
   plan?: PlanDetails | null;
   qrCodeCount: number; // QRs criados no mês/ciclo atual
   totalQrCodeCount?: number; // QRs totais no acervo
-  currentMonthLimit?: number; // Limite mensal aplicável (ex: 5, 15, 50, 999999)
+  currentMonthLimit?: number; // Limite mensal aplicável (ex: 5, 15, 999999)
   currentMonthStart?: Date;
   currentMonthEnd?: Date;
   isYearly?: boolean;
@@ -198,6 +198,32 @@ export function calculateUserMonthlyQuotaWindow(
 }
 
 /**
+ * Determina a cota mensal aplicável para o plano e ciclo do usuário:
+ * - FREE: 5 QRs/mês (ou configurado no Plan)
+ * - PRO Anual: 15 QRs/mês (ou configurado em maxQRCodesYear)
+ * - PRO Mensal: 15 QRs/ciclo (ou configurado em maxQRCodes)
+ * - BUSINESS: 999999 (Ilimitado)
+ */
+export function resolveMonthlyQuota(
+  plan: { name: string; maxQRCodes?: number | null; maxQRCodesYear?: number | null },
+  isYearly: boolean = false
+): number {
+  if (plan.name === "PRO") {
+    if (isYearly) {
+      // Cota mensal para assinantes PRO do plano anual: 15 QR/mês (ou configurado no Plan)
+      return plan.maxQRCodesYear ?? 15;
+    }
+    // Cota mensal para assinantes PRO do plano mensal: 15 QR/ciclo (ou configurado no Plan)
+    return plan.maxQRCodes ?? 15;
+  } else if (plan.name === "BUSINESS") {
+    return 999999;
+  } else if (plan.name === "FREE") {
+    return plan.maxQRCodes ?? 5;
+  }
+  return plan.maxQRCodes ?? 5;
+}
+
+/**
  * Busca o usuário com seu plano ativo e contagem real de QR codes ativos
  */
 export async function getUserPlanAndUsage(userId: string): Promise<UserPlanContext | null> {
@@ -289,20 +315,7 @@ export async function getUserPlanAndUsage(userId: string): Promise<UserPlanConte
   }
 
   // Determina o limite mensal aplicável
-  let currentMonthLimit = plan.maxQRCodes ?? 5;
-  if (plan.name === "PRO") {
-    if (isYearly) {
-      // Cota mensal para assinantes PRO do plano anual: 15 QR/mês
-      currentMonthLimit = plan.maxQRCodesYear ?? 15;
-    } else {
-      // Cota mensal para assinantes PRO do plano mensal: 50 QR/mês (ou configurado no Admin)
-      currentMonthLimit = plan.maxQRCodes ?? 50;
-    }
-  } else if (plan.name === "BUSINESS") {
-    currentMonthLimit = 999999;
-  } else if (plan.name === "FREE") {
-    currentMonthLimit = plan.maxQRCodes ?? 5;
-  }
+  const currentMonthLimit = resolveMonthlyQuota(plan, isYearly);
 
   const effectivePlan: PlanDetails = {
     ...plan,
