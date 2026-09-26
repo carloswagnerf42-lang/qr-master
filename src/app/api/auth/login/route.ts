@@ -24,17 +24,10 @@ export async function POST(req: NextRequest) {
       where: { email: email.toLowerCase().trim() },
     });
 
-    if (!user) {
+    if (!user || !user.passwordHash) {
       return NextResponse.json(
         { error: "Credenciais inválidas. Verifique seu e-mail e senha." },
         { status: 401 }
-      );
-    }
-
-    if (!user.passwordHash) {
-      return NextResponse.json(
-        { error: "Esta conta foi cadastrada com o Google. Por favor, entre usando 'Continuar com Google' ou recupere sua senha." },
-        { status: 400 }
       );
     }
 
