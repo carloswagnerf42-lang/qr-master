@@ -187,7 +187,11 @@ export async function PUT(
         campaignId: finalCampaignId,
         status: status !== undefined ? status : existing.status,
         favorite: favorite !== undefined ? !!favorite : existing.favorite,
-        logoUrl: logoUrl !== undefined ? logoUrl : existing.logoUrl,
+        logoUrl: logoUrl !== undefined ? logoUrl : (
+          styleConfig && typeof styleConfig === "object" && "logoUrl" in styleConfig
+            ? (styleConfig as any).logoUrl || null
+            : existing.logoUrl
+        ),
       },
     });
 

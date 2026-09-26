@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser, getSession, signToken, setSessionCookie } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getUserPlanAndUsage, can } from "@/lib/permissions";
+import { cleanupReplacedManagedFile } from "@/lib/storage-lifecycle";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -123,8 +124,14 @@ export async function PATCH(req: NextRequest) {
     if (phone !== undefined) {
       dataToUpdate.phone = phone ? String(phone).trim() : null;
     }
+    let previousAvatarUrl: string | null = null;
     if (avatarUrl !== undefined) {
       dataToUpdate.avatarUrl = avatarUrl ? String(avatarUrl).trim() : null;
+      const currentRec = await prisma.user.findUnique({
+        where: { id: session.id },
+        select: { avatarUrl: true },
+      });
+      previousAvatarUrl = currentRec?.avatarUrl || null;
     }
 
     // 1. Atualiza dados cadastrais do usuário
@@ -144,6 +151,20 @@ export async function PATCH(req: NextRequest) {
         settings: true,
       },
     });
+
+    // 2. Limpeza segura de avatar antigo substituído (STORAGE-LIFECYCLE-07)
+    if (previousAvatarUrl && previousAvatarUrl !== dataToUpdate.avatarUrl) {
+      try {
+        await cleanupReplacedManagedFile({
+          oldFileUrlOrPath: previousAvatarUrl,
+          newFileUrlOrPath: dataToUpdate.avatarUrl,
+          userId: session.id,
+          resourceType: "avatar",
+        });
+      } catch (cleanupErr) {
+        console.error("Falha no lifecycle de limpeza de avatar substituído:", cleanupErr);
+      }
+    }
 
     // 2. Atualiza ou cria as preferências reais de UserSettings caso enviadas
     if (settings && typeof settings === "object") {

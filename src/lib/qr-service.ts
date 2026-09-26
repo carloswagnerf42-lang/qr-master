@@ -1,5 +1,6 @@
 import { prisma } from "./db";
 import { QRCode } from "@prisma/client";
+import { cleanupReplacedManagedFile } from "./storage-lifecycle";
 
 /**
  * Erro de autorização/ownership e não localização de QR Code.
@@ -86,6 +87,25 @@ export async function updateUserQRCode(params: UpdateUserQRCodeInput): Promise<Q
       campaign: true,
     },
   });
+
+  // Limpeza segura de logotipo substituído (STORAGE-LIFECYCLE-07)
+  if (
+    params.data.logoUrl !== undefined &&
+    existing.logoUrl &&
+    existing.logoUrl !== params.data.logoUrl
+  ) {
+    try {
+      await cleanupReplacedManagedFile({
+        oldFileUrlOrPath: existing.logoUrl,
+        newFileUrlOrPath: params.data.logoUrl,
+        userId: cleanUserId,
+        resourceType: "logo",
+        activeResourceId: existing.id,
+      });
+    } catch (cleanupErr) {
+      console.error("[QRService] Falha no lifecycle de logotipo substituído:", cleanupErr);
+    }
+  }
 
   return updated;
 }
