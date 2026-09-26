@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { getUserPlanAndUsage, checkPermission } from "@/lib/permissions";
+import { checkRateLimit, createRateLimitResponse } from "@/lib/rate-limit";
 
 export async function GET(req: NextRequest) {
   try {
@@ -52,6 +53,12 @@ export async function POST(req: NextRequest) {
   try {
     const session = await getSession(req);
     if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+
+    // Rate Limiting de criação de campanha por usuário autenticado
+    const rateCheck = await checkRateLimit(session.id, "campaign");
+    if (!rateCheck.allowed) {
+      return createRateLimitResponse("campaign", rateCheck.retryAfter, rateCheck.resetAt);
+    }
 
     // Validação central de permissão para gerenciamento de campanhas
     const userContext = await getUserPlanAndUsage(session.id);

@@ -27,7 +27,9 @@ export type RateLimitAction =
   | "resetPassword"
   | "google"
   | "scan"
-  | "upload";
+  | "upload"
+  | "category"
+  | "campaign";
 
 // Namespaces dedicados e isolados para cada limitador
 export const RATE_LIMIT_NAMESPACES: Record<RateLimitAction, string> = {
@@ -41,6 +43,8 @@ export const RATE_LIMIT_NAMESPACES: Record<RateLimitAction, string> = {
   portal: "qr-master:rl:portal",
   scan: "qr-master:rl:scan",
   upload: "qr-master:rl:upload",
+  category: "qr-master:rl:category",
+  campaign: "qr-master:rl:campaign",
 };
 
 // Configurações por endpoint preservando os limites auditados
@@ -94,6 +98,16 @@ export const RATE_LIMIT_CONFIGS: Record<RateLimitAction, RateLimitConfig> = {
     maxAttempts: 20,
     windowSeconds: 10 * 60, // 10 minutos
     errorMessage: "Muitas tentativas de upload em curto intervalo. Por favor, aguarde alguns minutos.",
+  },
+  category: {
+    maxAttempts: 20,
+    windowSeconds: 60, // 60 segundos
+    errorMessage: "Muitas tentativas de criação de categoria em curto intervalo. Por favor, aguarde alguns instantes.",
+  },
+  campaign: {
+    maxAttempts: 20,
+    windowSeconds: 60, // 60 segundos
+    errorMessage: "Muitas tentativas de criação de campanha em curto intervalo. Por favor, aguarde alguns instantes.",
   },
 };
 
@@ -389,6 +403,22 @@ function getRatelimitInstances(): Record<RateLimitAction, Ratelimit> {
           `${RATE_LIMIT_CONFIGS.upload.windowSeconds} s`
         ),
         prefix: RATE_LIMIT_NAMESPACES.upload,
+      }),
+      category: new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(
+          RATE_LIMIT_CONFIGS.category.maxAttempts,
+          `${RATE_LIMIT_CONFIGS.category.windowSeconds} s`
+        ),
+        prefix: RATE_LIMIT_NAMESPACES.category,
+      }),
+      campaign: new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(
+          RATE_LIMIT_CONFIGS.campaign.maxAttempts,
+          `${RATE_LIMIT_CONFIGS.campaign.windowSeconds} s`
+        ),
+        prefix: RATE_LIMIT_NAMESPACES.campaign,
       }),
     };
   }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { checkRateLimit, createRateLimitResponse } from "@/lib/rate-limit";
 
 export async function GET() {
   try {
@@ -26,8 +27,14 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getSession();
+    const session = await getSession(req);
     if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+
+    // Rate Limiting de criação de categoria por usuário autenticado
+    const rateCheck = await checkRateLimit(session.id, "category");
+    if (!rateCheck.allowed) {
+      return createRateLimitResponse("category", rateCheck.retryAfter, rateCheck.resetAt);
+    }
 
     const { name, color, icon } = await req.json();
     if (!name) return NextResponse.json({ error: "Nome é obrigatório" }, { status: 400 });
