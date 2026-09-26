@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { getUserPlanAndUsage, checkPermission } from "@/lib/permissions";
-import { uploadFile, getMimeTypeFromExt } from "@/lib/storage";
+import { uploadFile, deleteFile, getMimeTypeFromExt } from "@/lib/storage";
 
 export async function POST(req: NextRequest) {
   try {
@@ -54,48 +54,76 @@ export async function POST(req: NextRequest) {
 
     const normalizedFileName = fileName.endsWith(`.${fileType}`) ? fileName : `${fileName}.${fileType}`;
 
-    // Upload to centralized Storage (Supabase Storage in production, or structured mirror in dev)
-    const uploadResult = await uploadFile({
-      userId: session.id,
-      folder: "exports",
-      fileName: normalizedFileName,
-      buffer,
-      mimeType: finalMime,
-    });
+    let uploadResult: { storagePath: string; downloadUrl: string; fileSize: number } | null = null;
 
-    let verifiedQrCodeId: string | null = null;
-    if (qrCodeId && typeof qrCodeId === "string") {
-      const userQr = await prisma.qRCode.findFirst({
-        where: { id: qrCodeId, userId: session.id },
-        select: { id: true },
-      });
-      if (userQr) {
-        verifiedQrCodeId = userQr.id;
-      }
-    }
-
-    // Save record into Prisma database
-    const fileRecord = await prisma.generatedFile.create({
-      data: {
+    try {
+      // Upload to centralized Storage (Supabase Storage in production, or structured mirror in dev)
+      uploadResult = await uploadFile({
         userId: session.id,
-        qrCodeId: verifiedQrCodeId,
+        folder: "exports",
         fileName: normalizedFileName,
-        fileType,
-        fileSize: uploadResult.fileSize,
+        buffer,
         mimeType: finalMime,
-        storagePath: uploadResult.storagePath,
-        downloadUrl: uploadResult.downloadUrl,
-      },
-    });
+      });
 
-    return NextResponse.json({
-      success: true,
-      file: fileRecord,
-    });
+      let verifiedQrCodeId: string | null = null;
+      if (qrCodeId && typeof qrCodeId === "string") {
+        const userQr = await prisma.qRCode.findFirst({
+          where: { id: qrCodeId, userId: session.id },
+          select: { id: true },
+        });
+        if (userQr) {
+          verifiedQrCodeId = userQr.id;
+        }
+      }
+
+      // Save record into Prisma database
+      const fileRecord = await prisma.generatedFile.create({
+        data: {
+          userId: session.id,
+          qrCodeId: verifiedQrCodeId,
+          fileName: normalizedFileName,
+          fileType,
+          fileSize: uploadResult.fileSize,
+          mimeType: finalMime,
+          storagePath: uploadResult.storagePath,
+          downloadUrl: uploadResult.downloadUrl,
+        },
+      });
+
+      return NextResponse.json({
+        success: true,
+        file: fileRecord,
+      });
+    } catch (saveError: any) {
+      // Compensação em armazenamento: se o upload ocorreu mas o banco de dados falhou,
+      // remove imediatamente o objeto órfão criado no storage sob o namespace do usuário.
+      if (uploadResult?.storagePath) {
+        try {
+          await deleteFile(uploadResult.storagePath, session.id);
+        } catch (compensationError) {
+          const compMsg = compensationError instanceof Error ? compensationError.message : String(compensationError);
+          const safeCompLog = compMsg
+            .replace(/(?:postgres|postgresql):\/\/[^\s]+/gi, "[DATABASE_URL_REDACTED]")
+            .replace(/(?:password|senha|secret|token|key)=\S+/gi, "[CREDENTIAL_REDACTED]")
+            .replace(/Bearer\s+[A-Za-z0-9._-]+/gi, "Bearer [REDACTED]");
+          console.error("Falha na compensação de armazenamento após erro no banco de dados:", safeCompLog);
+        }
+      }
+
+      // Propaga o erro original do banco/processo para o tratamento unificado
+      throw saveError;
+    }
   } catch (error: any) {
-    console.error("Erro ao salvar arquivo no storage:", error);
+    const rawMessage = error instanceof Error ? error.message : String(error);
+    const safeErrorLog = rawMessage
+      .replace(/(?:postgres|postgresql):\/\/[^\s]+/gi, "[DATABASE_URL_REDACTED]")
+      .replace(/(?:password|senha|secret|token|key)=\S+/gi, "[CREDENTIAL_REDACTED]")
+      .replace(/Bearer\s+[A-Za-z0-9._-]+/gi, "Bearer [REDACTED]");
+    console.error("Erro ao salvar arquivo no storage:", safeErrorLog);
+
     return NextResponse.json(
-      { error: error?.message || "Erro ao salvar arquivo no serviço de armazenamento." },
+      { error: "Não foi possível salvar o arquivo. Tente novamente." },
       { status: 500 }
     );
   }

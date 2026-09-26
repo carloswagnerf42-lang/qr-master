@@ -363,6 +363,12 @@ export async function deleteFile(storagePath: string, userId: string): Promise<b
     throw new Error("Tentativa de exclusão de arquivo não autorizado (violação de isolamento).");
   }
 
+  // Defesa em profundidade: impede que deleteFile receba prefixos genéricos de diretório
+  const relativePath = storagePath.slice(expectedPrefix.length);
+  if (!relativePath || storagePath.endsWith("/") || relativePath.includes("..")) {
+    throw new Error("Caminho de arquivo inválido: exclusão pontual não aceita prefixo genérico de diretório.");
+  }
+
   const config = getSupabaseStorageConfig();
 
   // 1. Produção: Supabase Storage REST API
@@ -434,54 +440,166 @@ export function getFileDownloadUrl(storagePath: string, userId: string): string 
 }
 
 /**
- * Remove todos os arquivos do usuário ao excluir a conta (limpeza integral)
+ * Remove todos os arquivos sob o prefixo do usuário em um bucket específico
+ * com validação estrita de namespace fail-closed.
  */
-export async function deleteUserStorageFolder(userId: string): Promise<boolean> {
-  if (!userId || typeof userId !== "string" || userId.includes("/") || userId.includes("\\") || userId.includes("..")) {
-    return false;
+async function deleteUserPrefixFromBucket(
+  config: { supabaseUrl: string; serviceKey: string },
+  bucket: string,
+  userPrefix: string
+): Promise<{ success: boolean; deletedCount: number; error?: string }> {
+  if (!config.supabaseUrl || !config.serviceKey || !bucket || !userPrefix) {
+    return { success: false, deletedCount: 0, error: "Configuração ou prefixo inválido" };
   }
 
-  const userPrefix = `users/${userId}/`;
-  const config = getSupabaseStorageConfig();
+  // Namespace fail-closed: prefixo DEVE ser no formato exato 'users/{cleanUserId}/'
+  if (
+    !userPrefix.startsWith("users/") ||
+    !userPrefix.endsWith("/") ||
+    userPrefix === "users/" ||
+    userPrefix.includes("..") ||
+    userPrefix.includes("\\")
+  ) {
+    return { success: false, deletedCount: 0, error: "Prefixo não autorizado fora do namespace users/" };
+  }
 
-  // 1. Supabase Storage API
-  if (config.isConfigured) {
-    try {
-      // Lista todos os arquivos com o prefixo do usuário
-      const listEndpoint = `${config.supabaseUrl}/storage/v1/object/list/${config.bucket}`;
-      const res = await fetch(listEndpoint, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${config.serviceKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ prefix: userPrefix, limit: 1000 }),
-      });
+  const filesToDelete: string[] = [];
 
-      if (res.ok) {
-        const files = (await res.json()) as Array<{ name: string }>;
-        if (files && files.length > 0) {
-          const deleteEndpoint = `${config.supabaseUrl}/storage/v1/object/${config.bucket}`;
-          await fetch(deleteEndpoint, {
-            method: "DELETE",
-            headers: {
-              Authorization: `Bearer ${config.serviceKey}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ prefixes: files.map((f) => `${userPrefix}${f.name}`) }),
-          });
-        }
+  // Caminhamento recursivo seguro estritamente contido no namespace do usuário
+  async function walk(prefix: string): Promise<void> {
+    const listEndpoint = `${config.supabaseUrl}/storage/v1/object/list/${bucket}`;
+    const res = await fetch(listEndpoint, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${config.serviceKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ prefix, limit: 1000 }),
+    });
+
+    if (!res.ok) {
+      throw new Error(`Falha HTTP ao listar ${bucket}: status ${res.status}`);
+    }
+
+    const items = (await res.json()) as Array<{ name: string; id?: string | null }>;
+    if (!Array.isArray(items) || items.length === 0) {
+      return;
+    }
+
+    for (const item of items) {
+      const itemPath = prefix.endsWith("/") ? `${prefix}${item.name}` : `${prefix}/${item.name}`;
+
+      // Defesa em profundidade: rejeita qualquer item cujo path não pertença ao userPrefix
+      if (!itemPath.startsWith(userPrefix)) {
+        continue;
       }
-      return true;
-    } catch (err) {
-      console.error("Erro ao limpar pasta do usuário no Supabase Storage:", err);
-      return false;
+
+      if (item.id === null) {
+        // Diretório virtual no Supabase Storage: desce recursivamente
+        await walk(`${itemPath}/`);
+        // Inclui também a entrada da pasta para exclusão de placeholders
+        filesToDelete.push(itemPath);
+      } else {
+        // Arquivo ou mock de testes
+        filesToDelete.push(itemPath);
+      }
     }
   }
 
-  // 2. Armazenamento Local
   try {
-    const userLocalDir = path.join(process.cwd(), "public", "uploads", "storage", "users", userId);
+    await walk(userPrefix);
+
+    if (filesToDelete.length > 0) {
+      // Deduplica caminhos e envia em lotes de até 1000
+      const uniqueFiles = Array.from(new Set(filesToDelete));
+      const deleteEndpoint = `${config.supabaseUrl}/storage/v1/object/${bucket}`;
+
+      for (let i = 0; i < uniqueFiles.length; i += 1000) {
+        const chunk = uniqueFiles.slice(i, i + 1000);
+        const delRes = await fetch(deleteEndpoint, {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${config.serviceKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ prefixes: chunk }),
+        });
+
+        if (!delRes.ok) {
+          throw new Error(`Falha HTTP ao deletar de ${bucket}: status ${delRes.status}`);
+        }
+      }
+
+      return { success: true, deletedCount: uniqueFiles.length };
+    }
+
+    return { success: true, deletedCount: 0 };
+  } catch (err: any) {
+    return {
+      success: false,
+      deletedCount: 0,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+/**
+ * Remove todos os arquivos do usuário ao excluir a conta (limpeza integral bicameral: público e privado)
+ */
+export async function deleteUserStorageFolder(userId: string): Promise<boolean> {
+  const cleanUserId = typeof userId === "string" ? userId.trim() : "";
+  if (
+    !cleanUserId ||
+    cleanUserId.includes("/") ||
+    cleanUserId.includes("\\") ||
+    cleanUserId.includes("..")
+  ) {
+    return false;
+  }
+
+  const userPrefix = `users/${cleanUserId}/`;
+  const config = getSupabaseStorageConfig();
+
+  // 1. Supabase Storage API (limpeza explícita em qrmaster-files e qrmaster-private)
+  if (config.isConfigured) {
+    const bucketsToClean = Array.from(new Set([config.publicBucket, config.privateBucket]));
+    let allSucceeded = true;
+
+    for (const bucket of bucketsToClean) {
+      try {
+        const result = await deleteUserPrefixFromBucket(config, bucket, userPrefix);
+        if (!result.success) {
+          console.warn(
+            `[storage] Falha ao limpar bucket '${bucket}' para o usuário '${cleanUserId}':`,
+            result.error
+          );
+          allSucceeded = false;
+        }
+      } catch (err) {
+        console.error(
+          `[storage] Erro inesperado ao limpar bucket '${bucket}' para o usuário '${cleanUserId}':`,
+          err
+        );
+        allSucceeded = false;
+      }
+    }
+
+    // Limpeza de contingência em armazenamento local
+    try {
+      const userLocalDir = path.join(process.cwd(), "public", "uploads", "storage", "users", cleanUserId);
+      if (fs.existsSync(userLocalDir)) {
+        fs.rmSync(userLocalDir, { recursive: true, force: true });
+      }
+    } catch {
+      // Ignora falha local secundária quando Supabase está ativo
+    }
+
+    return allSucceeded;
+  }
+
+  // 2. Modo Desenvolvimento Local
+  try {
+    const userLocalDir = path.join(process.cwd(), "public", "uploads", "storage", "users", cleanUserId);
     if (fs.existsSync(userLocalDir)) {
       fs.rmSync(userLocalDir, { recursive: true, force: true });
     }
