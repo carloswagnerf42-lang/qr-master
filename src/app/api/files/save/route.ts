@@ -4,12 +4,19 @@ import { getSession } from "@/lib/auth";
 import { getUserPlanAndUsage, checkPermission } from "@/lib/permissions";
 import { uploadFile, deleteFile, getMimeTypeFromExt } from "@/lib/storage";
 import { checkStorageQuota } from "@/lib/storage-quota";
+import { checkRateLimit, createRateLimitResponse } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
   try {
     const session = await getSession(req);
     if (!session) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+    }
+
+    // Rate Limiting de upload/exportação por usuário autenticado
+    const rateCheck = await checkRateLimit(session.id, "upload");
+    if (!rateCheck.allowed) {
+      return createRateLimitResponse("upload", rateCheck.retryAfter, rateCheck.resetAt);
     }
 
     const { qrCodeId, fileName, fileType, fileData, mimeType } = await req.json();
