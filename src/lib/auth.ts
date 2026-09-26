@@ -111,6 +111,15 @@ export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 10);
 }
 
+/**
+ * Hash bcrypt constante válido com cost factor 10 (idêntico ao utilizado por hashPassword).
+ * Utilizado para mitigar timing attacks e prevenir enumeração de contas por tempo de resposta,
+ * garantindo que requisições com usuário inexistente ou sem passwordHash executem o mesmo
+ * trabalho criptográfico (bcrypt.compare) que contas com senha incorreta.
+ */
+export const DUMMY_PASSWORD_HASH =
+  "$2a$10$TohEevee4AQ6PZfpPP2jv.OVnlBpDBfNQ8.u3MgBf2gOCIkce4sE6";
+
 export async function verifyPassword(password: string, hash?: string | null): Promise<boolean> {
   if (!hash) return false;
   return bcrypt.compare(password, hash);

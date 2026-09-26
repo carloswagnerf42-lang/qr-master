@@ -28,8 +28,9 @@ const { requestAsyncStorage } = require("next/dist/client/components/request-asy
 const { RequestCookies } = require("next/dist/compiled/@edge-runtime/cookies");
 const { NextRequest } = require("next/server");
 const { prisma } = require("../src/lib/db");
-const { hashPassword } = require("../src/lib/auth");
+const { hashPassword, DUMMY_PASSWORD_HASH } = require("../src/lib/auth");
 const { resetRateLimit } = require("../src/lib/rate-limit");
+const bcrypt = require("bcryptjs");
 const { POST } = require("../src/app/api/auth/login/route") as {
   POST: (req: any) => Promise<{ status: number; json: () => Promise<any> }>;
 };
@@ -287,6 +288,122 @@ async function runTestSuite() {
       "8.1. Nenhuma resposta de falha contém termos que revelem cadastro ('Google', 'cadastrada', 'conta existe', etc.)"
     );
 
+    // ========================================================================
+    // TESTE 9: Conta com passwordHash vazio ("")
+    // ========================================================================
+    console.log("\n▶ TESTE 9: Conta com passwordHash vazio (\"\")");
+    const emptyHashEmail = `test_empty_${timestamp}@test.qrmasterdigital.com`;
+    const emptyHashUser = await prisma.user.create({
+      data: {
+        name: "Test Empty Hash User",
+        email: emptyHashEmail,
+        passwordHash: "",
+        role: "USER",
+      },
+    });
+
+    const ipTest9 = `192.168.19.${timestamp % 250}`;
+    await resetRateLimit(ipTest9, "login");
+
+    const req9 = new NextRequest("http://localhost:3000/api/auth/login", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-forwarded-for": ipTest9,
+      },
+      body: JSON.stringify({
+        email: emptyHashEmail,
+        password: testWrongPassword,
+      }),
+    });
+
+    const res9 = await executeInRequestContext(() => POST(req9));
+    const body9 = await res9.json();
+
+    assert(res9.status === 401, "9.1. Conta com passwordHash vazio retorna HTTP 401");
+    assert(
+      body9.error === "Credenciais inválidas. Verifique seu e-mail e senha.",
+      "9.2. Conta com passwordHash vazio retorna mensagem de erro genérica"
+    );
+
+    const emptySessionsCount = await prisma.session.count({
+      where: { userId: emptyHashUser.id },
+    });
+    assert(emptySessionsCount === 0, "9.3. Falha com passwordHash vazio NÃO cria Session no banco");
+
+    // Limpa usuário do teste 9
+    await prisma.user.delete({ where: { id: emptyHashUser.id } });
+
+    // ========================================================================
+    // TESTE 10: Auditoria Criptográfica de Invocação Uniforme (bcrypt.compare)
+    // ========================================================================
+    console.log("\n▶ TESTE 10: Auditoria de Invocação Criptográfica Uniforme (bcrypt.compare)");
+    assert(
+      DUMMY_PASSWORD_HASH.startsWith("$2a$10$") && DUMMY_PASSWORD_HASH.length === 60,
+      "10.1. DUMMY_PASSWORD_HASH possui cost factor 10 ($2a$10$) e comprimento exato de 60 caracteres"
+    );
+
+    const originalBcryptCompare = bcrypt.compare;
+    const interceptedCalls: { password: string; hash: string }[] = [];
+
+    bcrypt.compare = async (password: string, hash: string) => {
+      interceptedCalls.push({ password, hash });
+      return originalBcryptCompare(password, hash);
+    };
+
+    try {
+      // 10.A. Chamada com e-mail inexistente
+      const ipSpyA = `192.168.30.${timestamp % 250}`;
+      await resetRateLimit(ipSpyA, "login");
+      const reqSpyA = new NextRequest("http://localhost:3000/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-forwarded-for": ipSpyA },
+        body: JSON.stringify({ email: nonexistentEmail, password: testWrongPassword }),
+      });
+      await executeInRequestContext(() => POST(reqSpyA));
+
+      // 10.B. Chamada com conta Google-only
+      const ipSpyB = `192.168.31.${timestamp % 250}`;
+      await resetRateLimit(ipSpyB, "login");
+      const reqSpyB = new NextRequest("http://localhost:3000/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-forwarded-for": ipSpyB },
+        body: JSON.stringify({ email: googleEmail, password: testWrongPassword }),
+      });
+      await executeInRequestContext(() => POST(reqSpyB));
+
+      // 10.C. Chamada com conta tradicional e senha errada
+      const ipSpyC = `192.168.32.${timestamp % 250}`;
+      await resetRateLimit(ipSpyC, "login");
+      const reqSpyC = new NextRequest("http://localhost:3000/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-forwarded-for": ipSpyC },
+        body: JSON.stringify({ email: traditionalEmail, password: testWrongPassword }),
+      });
+      await executeInRequestContext(() => POST(reqSpyC));
+
+      assert(
+        interceptedCalls.length === 3,
+        `10.2. bcrypt.compare foi executado exatamente 3 vezes (uma por cenário, obtido: ${interceptedCalls.length})`
+      );
+
+      assert(
+        interceptedCalls[0]?.hash === DUMMY_PASSWORD_HASH,
+        "10.3. Usuário inexistente executa bcrypt.compare contra DUMMY_PASSWORD_HASH (cost 10)"
+      );
+
+      assert(
+        interceptedCalls[1]?.hash === DUMMY_PASSWORD_HASH,
+        "10.4. Usuário Google-only executa bcrypt.compare contra DUMMY_PASSWORD_HASH (cost 10)"
+      );
+
+      assert(
+        interceptedCalls[2]?.hash === hashedPassword,
+        "10.5. Usuário tradicional executa bcrypt.compare contra o hash persistido real"
+      );
+    } finally {
+      bcrypt.compare = originalBcryptCompare;
+    }
   } finally {
     // Limpeza rigorosa e segura dos dados criados
     console.log("\n▶ Limpando dados de teste...");

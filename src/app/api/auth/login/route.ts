@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { verifyPassword, createAuthenticatedSessionToken, setSessionCookie } from "@/lib/auth";
+import {
+  verifyPassword,
+  createAuthenticatedSessionToken,
+  setSessionCookie,
+  DUMMY_PASSWORD_HASH,
+} from "@/lib/auth";
 import { getClientIp, checkRateLimit, resetRateLimit, createRateLimitResponse } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
@@ -24,15 +29,14 @@ export async function POST(req: NextRequest) {
       where: { email: email.toLowerCase().trim() },
     });
 
-    if (!user || !user.passwordHash) {
-      return NextResponse.json(
-        { error: "Credenciais inválidas. Verifique seu e-mail e senha." },
-        { status: 401 }
-      );
-    }
+    // Mitigação contra Timing Attack (SEC-AUDIT-08D):
+    // Se o usuário não existe ou é conta Google-only (sem passwordHash local),
+    // executa bcrypt.compare contra DUMMY_PASSWORD_HASH com o mesmo cost factor (10)
+    // para equalizar a latência e neutralizar a enumeração de contas por canal lateral temporal.
+    const targetHash = user?.passwordHash || DUMMY_PASSWORD_HASH;
+    const isValid = await verifyPassword(password, targetHash);
 
-    const isValid = await verifyPassword(password, user.passwordHash);
-    if (!isValid) {
+    if (!user || !user.passwordHash || !isValid) {
       return NextResponse.json(
         { error: "Credenciais inválidas. Verifique seu e-mail e senha." },
         { status: 401 }
