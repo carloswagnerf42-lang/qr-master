@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { getUserPlanAndUsage, checkPermission } from "@/lib/permissions";
 import { uploadFile, deleteFile, getMimeTypeFromExt } from "@/lib/storage";
+import { checkStorageQuota } from "@/lib/storage-quota";
 
 export async function POST(req: NextRequest) {
   try {
@@ -20,9 +21,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    let userContext = null;
     // Validação de permissões de exportação baseada no plano
     if (fileType === "svg" || fileType === "pdf") {
-      const userContext = await getUserPlanAndUsage(session.id);
+      userContext = await getUserPlanAndUsage(session.id);
       if (!userContext) return NextResponse.json({ error: "Usuário não encontrado" }, { status: 404 });
 
       const action = fileType === "svg" ? "export_svg" : "export_pdf";
@@ -53,6 +55,22 @@ export async function POST(req: NextRequest) {
     }
 
     const normalizedFileName = fileName.endsWith(`.${fileType}`) ? fileName : `${fileName}.${fileType}`;
+
+    // Validação de cota de armazenamento antes do upload físico
+    const quotaCheck = await checkStorageQuota({
+      userId: session.id,
+      incomingSizeBytes: buffer.length,
+      userContext,
+    });
+    if (!quotaCheck.allowed) {
+      return NextResponse.json(
+        {
+          error: quotaCheck.reason || "Limite de armazenamento da conta atingido.",
+          code: quotaCheck.code || "STORAGE_QUOTA_EXCEEDED",
+        },
+        { status: quotaCheck.code === "INVALID_INPUT" ? 400 : 403 }
+      );
+    }
 
     let uploadResult: { storagePath: string; downloadUrl: string; fileSize: number } | null = null;
 
