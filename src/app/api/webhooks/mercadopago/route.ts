@@ -106,9 +106,15 @@ export async function POST(req: NextRequest) {
 
     // Caso 1: Notificação de Merchant Order (Checkout Pro)
     if (topic === "merchant_order" || topic === "order") {
+      const rawEntityId = String(entityId).trim();
+      if (!/^[a-zA-Z0-9_-]+$/.test(rawEntityId)) {
+        console.warn(`[MP Webhook] Identificador de merchant_order inválido rejeitado: ${rawEntityId}`);
+        return NextResponse.json({ error: "Identificador de merchant_order inválido" }, { status: 400 });
+      }
+      const safeEntityId = encodeURIComponent(rawEntityId);
       if (config.isConfigured) {
         try {
-          const orderRes = await fetch(`https://api.mercadopago.com/merchant_orders/${entityId}`, {
+          const orderRes = await fetch(`https://api.mercadopago.com/merchant_orders/${safeEntityId}`, {
             headers: { Authorization: `Bearer ${config.accessToken}` },
           });
           if (orderRes.ok) {

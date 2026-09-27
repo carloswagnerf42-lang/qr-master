@@ -529,7 +529,12 @@ export async function processMercadoPagoNotification(
     throw new Error("Mercado Pago não configurado.");
   }
 
-  const pid = String(paymentId);
+  const rawPid = String(paymentId).trim();
+  if (!/^[a-zA-Z0-9_-]+$/.test(rawPid)) {
+    console.warn(`[MP Payment] Identificador de pagamento inválido rejeitado: ${rawPid}`);
+    return { status: "not_found", error: "Identificador de pagamento inválido", paymentId: rawPid };
+  }
+  const pid = encodeURIComponent(rawPid);
   const eventKey = `mp_payment_${pid}`;
   const claimKey = `mp_claim_${pid}`;
   const refundKey = `mp_refund_${pid}`;
@@ -1052,9 +1057,15 @@ export async function getMercadoPagoPaymentStatus(
     throw new Error("Mercado Pago não configurado.");
   }
 
+  const rawPaymentId = String(paymentId).trim();
+  if (!/^[a-zA-Z0-9_-]+$/.test(rawPaymentId)) {
+    throw new Error("Identificador de pagamento inválido.");
+  }
+  const cleanPaymentId = encodeURIComponent(rawPaymentId);
+
   let payment = mockPaymentData;
   if (!payment) {
-    const response = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+    const response = await fetch(`https://api.mercadopago.com/v1/payments/${cleanPaymentId}`, {
       method: "GET",
       headers: {
         Authorization: `Bearer ${config.accessToken}`,
@@ -1062,7 +1073,7 @@ export async function getMercadoPagoPaymentStatus(
     });
 
     if (!response.ok) {
-      throw new Error(`Não foi possível consultar status do pagamento ${paymentId}`);
+      throw new Error(`Não foi possível consultar status do pagamento ${cleanPaymentId}`);
     }
 
     payment = await response.json();
