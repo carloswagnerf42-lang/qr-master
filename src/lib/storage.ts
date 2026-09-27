@@ -25,6 +25,145 @@ export interface UploadResult {
   mimeType: string;
 }
 
+export type DetectedRasterType = "png" | "jpeg" | "webp" | "gif" | null;
+
+export interface ImageBufferValidationResult {
+  valid: boolean;
+  detectedFormat?: "png" | "jpeg" | "webp" | "gif";
+  serverMime?: string;
+  error?: string;
+}
+
+/**
+ * Inspeciona os Magic Bytes (assinatura binária) do buffer para determinar
+ * deterministicamente se é um arquivo raster suportado e autêntico.
+ */
+export function detectRasterImageFormat(buffer: Buffer): DetectedRasterType {
+  if (!buffer || !Buffer.isBuffer(buffer) || buffer.length < 4) return null;
+
+  // PNG: 89 50 4E 47 0D 0A 1A 0A
+  if (
+    buffer.length >= 8 &&
+    buffer[0] === 0x89 &&
+    buffer[1] === 0x50 &&
+    buffer[2] === 0x4e &&
+    buffer[3] === 0x47 &&
+    buffer[4] === 0x0d &&
+    buffer[5] === 0x0a &&
+    buffer[6] === 0x1a &&
+    buffer[7] === 0x0a
+  ) {
+    return "png";
+  }
+
+  // JPEG: FF D8 FF
+  if (
+    buffer.length >= 3 &&
+    buffer[0] === 0xff &&
+    buffer[1] === 0xd8 &&
+    buffer[2] === 0xff
+  ) {
+    return "jpeg";
+  }
+
+  // GIF: GIF87a ou GIF89a
+  if (
+    buffer.length >= 6 &&
+    buffer[0] === 0x47 && // G
+    buffer[1] === 0x49 && // I
+    buffer[2] === 0x46 && // F
+    buffer[3] === 0x38 && // 8
+    (buffer[4] === 0x37 || buffer[4] === 0x39) && // 7 ou 9
+    buffer[5] === 0x61 // a
+  ) {
+    return "gif";
+  }
+
+  // WEBP: RIFF....WEBP (bytes 0-3 == 'RIFF', bytes 8-11 == 'WEBP')
+  if (
+    buffer.length >= 12 &&
+    buffer[0] === 0x52 && // R
+    buffer[1] === 0x49 && // I
+    buffer[2] === 0x46 && // F
+    buffer[3] === 0x46 && // F
+    buffer[8] === 0x57 && // W
+    buffer[9] === 0x45 && // E
+    buffer[10] === 0x42 && // B
+    buffer[11] === 0x50 // P
+  ) {
+    return "webp";
+  }
+
+  return null;
+}
+
+/**
+ * Validação rigorosa de bytes binários de imagens (anti-MIME spoofing, anti-polyglot,
+ * anti-HTML/SVG disguise).
+ */
+export function validateImageBuffer(buffer: Buffer, fileName: string): ImageBufferValidationResult {
+  if (!buffer || buffer.length === 0) {
+    return { valid: false, error: "Arquivo de imagem vazio (0 bytes)." };
+  }
+
+  if (buffer.length < 12) {
+    return { valid: false, error: "Arquivo muito pequeno para conter cabeçalho de imagem válido." };
+  }
+
+  // Detecta se contém conteúdo XML/SVG ou HTML nos primeiros 512 bytes (anti-polyglot e anti-disguise)
+  const headerText = buffer.subarray(0, Math.min(512, buffer.length)).toString("utf8").toLowerCase();
+  if (
+    headerText.includes("<svg") ||
+    headerText.includes("<?xml") ||
+    headerText.includes("<!doctype") ||
+    headerText.includes("<html") ||
+    headerText.includes("<script")
+  ) {
+    return {
+      valid: false,
+      error: "Conteúdo SVG, XML ou HTML não é permitido como imagem raster.",
+    };
+  }
+
+  const detected = detectRasterImageFormat(buffer);
+  if (!detected) {
+    return {
+      valid: false,
+      error: "Assinatura binária (magic bytes) inválida ou formato de imagem não suportado.",
+    };
+  }
+
+  // Verifica compatibilidade da extensão declarada com o formato detectado
+  const ext = path.extname(fileName).toLowerCase().replace(".", "");
+  const validExtsForFormat: Record<string, string[]> = {
+    png: ["png"],
+    jpeg: ["jpg", "jpeg"],
+    webp: ["webp"],
+    gif: ["gif"],
+  };
+
+  const allowedForDetected = validExtsForFormat[detected] || [];
+  if (ext && !allowedForDetected.includes(ext)) {
+    return {
+      valid: false,
+      error: `Extensão do arquivo (.${ext}) incompatível com o formato real detectado (${detected.toUpperCase()}).`,
+    };
+  }
+
+  const mimeMap: Record<string, string> = {
+    png: "image/png",
+    jpeg: "image/jpeg",
+    webp: "image/webp",
+    gif: "image/gif",
+  };
+
+  return {
+    valid: true,
+    detectedFormat: detected,
+    serverMime: mimeMap[detected],
+  };
+}
+
 const DEFAULT_ALLOWED_EXTENSIONS = ["png", "jpg", "jpeg", "webp", "svg", "pdf"];
 
 const DEFAULT_ALLOWED_MIMES = [
@@ -43,6 +182,7 @@ const MAX_DOCUMENT_SIZE = 10 * 1024 * 1024; // 10 MB
  * especiais e sobrescrita maliciosa.
  */
 export function sanitizeFileName(rawFileName: string): string {
+
   if (!rawFileName || typeof rawFileName !== "string") {
     return `file_${Date.now()}`;
   }
@@ -194,7 +334,7 @@ function getSupabaseStorageConfig(folder?: StorageFolder) {
 export async function uploadFile(options: UploadFileOptions): Promise<UploadResult> {
   const { userId, folder, fileName, buffer, mimeType } = options;
 
-  // 1. Validação do arquivo
+  // 1. Validação declarativa do arquivo
   const validation = validateFile({
     name: fileName,
     size: buffer.length,
@@ -205,13 +345,28 @@ export async function uploadFile(options: UploadFileOptions): Promise<UploadResu
     throw new Error(validation.error || "Arquivo inválido para armazenamento.");
   }
 
-  // 2. Cria o storage path padronizado users/{userId}/{folder}/{safeName}
+  // 2. Validação de conteúdo para uploads de imagem (logos/qrcodes)
+  let effectiveMime = mimeType;
+  if (folder === "logos" || folder === "qrcodes") {
+    if (fileName.toLowerCase().endsWith(".svg") || mimeType.toLowerCase().includes("svg")) {
+      throw new Error("Upload de arquivos SVG não é permitido por motivos de segurança.");
+    }
+    const contentValidation = validateImageBuffer(buffer, fileName);
+    if (!contentValidation.valid) {
+      throw new Error(contentValidation.error || "Conteúdo binário do arquivo não corresponde a uma imagem válida.");
+    }
+    if (contentValidation.serverMime) {
+      effectiveMime = contentValidation.serverMime;
+    }
+  }
+
+  // 3. Cria o storage path padronizado users/{userId}/{folder}/{safeName}
   const storagePath = buildUserStoragePath(userId, folder, fileName);
   const config = getSupabaseStorageConfig(folder);
   const targetBucket = resolveStorageBucket(folder);
   const isPrivate = folder === "exports";
 
-  // 3. Produção: Supabase Storage REST API
+  // 4. Produção: Supabase Storage REST API
   if (config.isConfigured) {
     const uploadEndpoint = `${config.supabaseUrl}/storage/v1/object/${targetBucket}/${storagePath}`;
 
@@ -219,7 +374,7 @@ export async function uploadFile(options: UploadFileOptions): Promise<UploadResu
       method: "POST",
       headers: {
         Authorization: `Bearer ${config.serviceKey}`,
-        "Content-Type": mimeType,
+        "Content-Type": effectiveMime,
         "x-upsert": "true",
       },
       body: new Uint8Array(buffer),
@@ -241,11 +396,11 @@ export async function uploadFile(options: UploadFileOptions): Promise<UploadResu
       storagePath,
       downloadUrl,
       fileSize: buffer.length,
-      mimeType,
+      mimeType: effectiveMime,
     };
   }
 
-  // 4. Modo de Desenvolvimento Local / Fallback Seguro
+  // 5. Modo de Desenvolvimento Local / Fallback Seguro
   // Salva no diretório espelho mantendo rigorosamente a hierarquia users/{userId}/{folder}
   const localDir = path.join(process.cwd(), "public", "uploads", "storage", path.dirname(storagePath));
   if (!fs.existsSync(localDir)) {
@@ -261,7 +416,7 @@ export async function uploadFile(options: UploadFileOptions): Promise<UploadResu
     storagePath,
     downloadUrl,
     fileSize: buffer.length,
-    mimeType,
+    mimeType: effectiveMime,
   };
 }
 

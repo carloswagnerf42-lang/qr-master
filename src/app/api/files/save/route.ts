@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { getUserPlanAndUsage, checkPermission } from "@/lib/permissions";
-import { uploadFile, deleteFile, getMimeTypeFromExt } from "@/lib/storage";
+import { uploadFile, deleteFile, getMimeTypeFromExt, detectRasterImageFormat } from "@/lib/storage";
 import { checkStorageQuota } from "@/lib/storage-quota";
 import { checkRateLimit, createRateLimitResponse } from "@/lib/rate-limit";
 
@@ -61,7 +61,38 @@ export async function POST(req: NextRequest) {
       buffer = Buffer.from(base64Clean, "base64");
     }
 
+    // 1. Defesa em profundidade contra injeção de script em SVG exportado
+    if (fileType === "svg") {
+      const lowerSvg = typeof fileData === "string" ? fileData.toLowerCase() : "";
+      if (
+        lowerSvg.includes("<script") ||
+        lowerSvg.includes("javascript:") ||
+        lowerSvg.includes("data:text/html") ||
+        lowerSvg.includes("<foreignobject") ||
+        lowerSvg.includes("<!doctype") ||
+        lowerSvg.includes("<!entity") ||
+        /\bon[a-z]+\s*=/i.test(typeof fileData === "string" ? fileData : "")
+      ) {
+        return NextResponse.json(
+          { error: "Conteúdo SVG contém elementos ou scripts não permitidos." },
+          { status: 400 }
+        );
+      }
+    }
+
+    // 2. Validação de integridade de Magic Bytes para exportações PNG
+    if (fileType === "png") {
+      const detected = detectRasterImageFormat(buffer);
+      if (detected !== "png") {
+        return NextResponse.json(
+          { error: "Conteúdo binário não corresponde a uma imagem PNG válida." },
+          { status: 400 }
+        );
+      }
+    }
+
     const normalizedFileName = fileName.endsWith(`.${fileType}`) ? fileName : `${fileName}.${fileType}`;
+
 
     // Validação de cota de armazenamento antes do upload físico
     const quotaCheck = await checkStorageQuota({

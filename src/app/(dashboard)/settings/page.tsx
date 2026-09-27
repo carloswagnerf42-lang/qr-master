@@ -530,7 +530,13 @@ function SettingsContent() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (file.type === "image/svg+xml" || file.name.toLowerCase().endsWith(".svg")) {
+      toast.error("Formato não suportado", "Utilize imagens nos formatos PNG, JPEG ou WEBP.");
+      return;
+    }
+
     setUploadingAvatar(true);
+
     try {
       const formData = new FormData();
       formData.append("file", file);
@@ -852,9 +858,10 @@ function SettingsContent() {
                     type="file"
                     ref={fileInputRef}
                     onChange={handleAvatarUpload}
-                    accept="image/*"
+                    accept="image/png, image/jpeg, image/webp"
                     className="hidden"
                   />
+
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}

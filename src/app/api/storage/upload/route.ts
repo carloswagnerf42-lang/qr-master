@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { getUserPlanAndUsage, checkPermission } from "@/lib/permissions";
-import { uploadFile, deleteFile, StorageFolder, getMimeTypeFromExt } from "@/lib/storage";
+import { uploadFile, deleteFile, StorageFolder, getMimeTypeFromExt, validateImageBuffer } from "@/lib/storage";
 import { checkRateLimit, createRateLimitResponse } from "@/lib/rate-limit";
 import { checkStorageQuota } from "@/lib/storage-quota";
 
@@ -61,6 +61,33 @@ export async function POST(req: NextRequest) {
       buffer = Buffer.from(base64Clean, "base64");
     }
 
+    // 1. Bloqueio estrito de arquivos SVG e XML para uploads de usuário
+    const lowerName = fileName.toLowerCase().trim();
+    const lowerMime = mimeType.toLowerCase().trim();
+    if (
+      lowerName.endsWith(".svg") ||
+      lowerName.includes(".svg.") ||
+      lowerMime.includes("svg") ||
+      lowerMime.includes("xml")
+    ) {
+      return NextResponse.json(
+        { error: "Upload de arquivos SVG não é permitido por motivos de segurança. Utilize imagens nos formatos PNG, JPEG ou WEBP." },
+        { status: 400 }
+      );
+    }
+
+    // 2. Validação rigorosa de Magic Bytes (formato binário real)
+    const imageValidation = validateImageBuffer(buffer, fileName);
+    if (!imageValidation.valid) {
+      return NextResponse.json(
+        { error: imageValidation.error || "Arquivo de imagem inválido ou não reconhecido." },
+        { status: 400 }
+      );
+    }
+
+    // 3. MIME derivado de forma autoritativa pelo servidor após confirmação binária
+    const verifiedMime = imageValidation.serverMime || "image/png";
+
     // Obter contexto de plano do usuário (necessário para permissões e/ou cota)
     let userContext = null;
     if (folder === "logos") {
@@ -106,7 +133,7 @@ export async function POST(req: NextRequest) {
         folder,
         fileName,
         buffer,
-        mimeType,
+        mimeType: verifiedMime,
       });
 
       // Criação obrigatória de registro em GeneratedFile para controle de quota
@@ -116,7 +143,7 @@ export async function POST(req: NextRequest) {
           fileName,
           fileType,
           fileSize: uploadResult.fileSize,
-          mimeType: uploadResult.mimeType || mimeType,
+          mimeType: uploadResult.mimeType || verifiedMime,
           storagePath: uploadResult.storagePath,
           downloadUrl: uploadResult.downloadUrl,
         },
@@ -127,9 +154,10 @@ export async function POST(req: NextRequest) {
         url: uploadResult.downloadUrl,
         storagePath: uploadResult.storagePath,
         fileSize: uploadResult.fileSize,
-        mimeType: uploadResult.mimeType,
+        mimeType: uploadResult.mimeType || verifiedMime,
         fileId: fileRecord.id,
       });
+
     } catch (saveError: any) {
       // Compensação em armazenamento: se o upload ocorreu mas o banco de dados falhou,
       // remove imediatamente o objeto órfão criado no storage sob o namespace do usuário.

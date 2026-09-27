@@ -15,8 +15,8 @@ const FORBIDDEN_PROTOCOLS = ["javascript:", "data:", "vbscript:", "file:", "blob
 
 /**
  * Valida se uma URL de imagem (avatar ou logotipo) utiliza protocolo e formato seguros.
- * Utiliza allowlist estrita: https:, http:, caminhos relativos (/...) e data:image/*.
- * Rejeita qualquer outro esquema (javascript:, data:text/html, vbscript:, file:, etc.) e links protocol-relative (//).
+ * Utiliza allowlist estrita: https:, http:, caminhos relativos (/...) e data:image/ raster (png, jpeg, webp, gif).
+ * Rejeita categoricamente data:image/svg+xml, links protocol-relative (//) e esquemas perigosos.
  */
 export function isSafeImageUrl(url: unknown): boolean {
   if (!url || typeof url !== "string") return true;
@@ -27,18 +27,34 @@ export function isSafeImageUrl(url: unknown): boolean {
   // Rejeita explicitamente URLs protocol-relative (//evil.com)
   if (clean.startsWith("//")) return false;
 
-  // Allowlist estrita de formatos de imagem suportados pela plataforma
+  // Rejeita categoricamente data URLs contendo SVG, XML ou HTML
+  if (clean.startsWith("data:") && (clean.includes("svg") || clean.includes("xml") || clean.includes("html"))) {
+    return false;
+  }
+
+  // Allowlist estrita de formatos de URL remota e local
   if (
     clean.startsWith("https://") ||
     clean.startsWith("http://") ||
-    clean.startsWith("/") ||
-    clean.startsWith("data:image/")
+    (clean.startsWith("/") && !clean.startsWith("//"))
+  ) {
+    return true;
+  }
+
+  // Allowlist estrita de data URLs: apenas formatos raster seguros
+  if (
+    clean.startsWith("data:image/png") ||
+    clean.startsWith("data:image/jpeg") ||
+    clean.startsWith("data:image/jpg") ||
+    clean.startsWith("data:image/webp") ||
+    clean.startsWith("data:image/gif")
   ) {
     return true;
   }
 
   return false;
 }
+
 
 
 /**

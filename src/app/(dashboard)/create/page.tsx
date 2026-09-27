@@ -304,10 +304,16 @@ export default function CreateQRCodePage() {
       return;
     }
 
+    if (file.type === "image/svg+xml" || file.name.toLowerCase().endsWith(".svg")) {
+      toast.error("Formato não suportado", "Utilize imagens nos formatos PNG, JPEG ou WEBP.");
+      return;
+    }
+
     if (file.size > 2 * 1024 * 1024) {
       toast.error("Arquivo muito grande", "O logo deve ter no máximo 2MB.");
       return;
     }
+
 
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -1360,10 +1366,11 @@ export default function CreateQRCodePage() {
                       <span>Fazer upload do logotipo</span>
                       <input
                         type="file"
-                        accept="image/png, image/jpeg, image/svg+xml"
+                        accept="image/png, image/jpeg, image/webp"
                         onChange={handleLogoUpload}
                         className="hidden"
                       />
+
                     </label>
 
                     {style.hasLogo && (
