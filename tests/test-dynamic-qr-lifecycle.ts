@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 import { GET as resolveQR } from "../src/app/q/[shortCode]/route";
 import { PUT as updateQR } from "../src/app/api/qr/[id]/route";
 import { generateSecureShortCode } from "../src/lib/short-code";
-import { signToken } from "../src/lib/auth";
+import { createAuthenticatedSessionToken } from "../src/lib/auth";
 
 async function runDynamicQRLifecycleTest() {
   console.log("=== TESTE DE REGRESSÃO: CICLO DE VIDA DO QR CODE DINÂMICO ===");
@@ -46,7 +46,7 @@ async function runDynamicQRLifecycleTest() {
       headers: { "user-agent": "iPhone Camera / Safari" },
     });
 
-    const resInitial = await resolveQR(reqInitial, { params: { shortCode: testShortCode } });
+    const resInitial = await resolveQR(reqInitial, { params: Promise.resolve({ shortCode: testShortCode }) });
     console.log(`   Status: ${resInitial.status} (esperado 307)`);
     console.log(`   Location: ${resInitial.headers.get("location")} (esperado ${initialDestination})`);
 
@@ -58,7 +58,7 @@ async function runDynamicQRLifecycleTest() {
     const newDestination = "https://www.youtube.com/";
     console.log(`\n3. Executando atualização de destino para: ${newDestination}`);
 
-    const sessionToken = signToken({
+    const { token: sessionToken } = await createAuthenticatedSessionToken({
       id: adminUser.id,
       name: adminUser.name,
       email: adminUser.email,
@@ -80,7 +80,7 @@ async function runDynamicQRLifecycleTest() {
       body: JSON.stringify(putPayload),
     });
 
-    const resPut = await updateQR(reqPut, { params: { id: createdQR.id } });
+    const resPut = await updateQR(reqPut, { params: Promise.resolve({ id: createdQR.id }) });
     const putData = await resPut.json();
     console.log(`   Status do PUT: ${resPut.status}`);
     console.log(`   Sucesso: ${putData.success}`);
@@ -115,7 +115,7 @@ async function runDynamicQRLifecycleTest() {
       headers: { "user-agent": "Android Samsung Camera" },
     });
 
-    const resAfter = await resolveQR(reqAfter, { params: { shortCode: testShortCode } });
+    const resAfter = await resolveQR(reqAfter, { params: Promise.resolve({ shortCode: testShortCode }) });
     console.log(`   Status: ${resAfter.status} (esperado 307)`);
     console.log(`   Location: ${resAfter.headers.get("location")} (esperado ${newDestination})`);
 
@@ -136,7 +136,7 @@ async function runDynamicQRLifecycleTest() {
       },
       body: JSON.stringify(loopPayload),
     });
-    const resLoop = await updateQR(reqLoop, { params: { id: createdQR.id } });
+    const resLoop = await updateQR(reqLoop, { params: Promise.resolve({ id: createdQR.id }) });
     console.log(`   Status de tentativa de loop: ${resLoop.status} (esperado 400)`);
     if (resLoop.status !== 400) {
       throw new Error(`Proteção anti-loop permitiu destino circular! Status: ${resLoop.status}`);

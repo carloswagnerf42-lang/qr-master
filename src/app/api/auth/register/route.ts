@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
       { userAgent, ipAddress: ip }
     );
 
-    setSessionCookie(token);
+    await setSessionCookie(token);
 
     // Registra log de atividade
     await prisma.activityLog.create({

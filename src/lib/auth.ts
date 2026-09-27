@@ -332,7 +332,7 @@ export async function revokeAllUserSessions(
 /**
  * Extrai o token bruto da requisição ou do cookieStore do Next.js.
  */
-export function extractTokenFromRequest(req?: Request | NextRequest): string | null {
+export async function extractTokenFromRequest(req?: Request | NextRequest): Promise<string | null> {
   try {
     if (req) {
       if ("cookies" in req && typeof (req as any).cookies?.get === "function") {
@@ -352,7 +352,7 @@ export function extractTokenFromRequest(req?: Request | NextRequest): string | n
       }
     }
 
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const token = cookieStore.get(COOKIE_NAME)?.value;
     return token || null;
   } catch {
@@ -362,7 +362,7 @@ export function extractTokenFromRequest(req?: Request | NextRequest): string | n
 
 export async function getSession(req?: Request | NextRequest): Promise<SessionUser | null> {
   try {
-    const token = extractTokenFromRequest(req);
+    const token = await extractTokenFromRequest(req);
     if (!token) return null;
 
     const decoded = verifyToken(token);
@@ -411,13 +411,13 @@ export function getSessionCookieOptions(nodeEnv: string | undefined = process.en
   };
 }
 
-export function setSessionCookie(token: string) {
-  const cookieStore = cookies();
+export async function setSessionCookie(token: string) {
+  const cookieStore = await cookies();
   cookieStore.set(COOKIE_NAME, token, getSessionCookieOptions());
 }
 
-export function clearSessionCookie() {
-  const cookieStore = cookies();
+export async function clearSessionCookie() {
+  const cookieStore = await cookies();
   cookieStore.set(COOKIE_NAME, "", {
     ...getSessionCookieOptions(),
     maxAge: 0,

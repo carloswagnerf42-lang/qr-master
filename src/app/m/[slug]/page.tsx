@@ -7,10 +7,11 @@ import { sanitizeMultiLinkLinks } from "@/lib/multilink";
 export default async function MultiLinkPage({
   params,
 }: {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 }) {
+  const { slug } = await params;
   const page = await prisma.multiLinkPage.findUnique({
-    where: { slug: params.slug },
+    where: { slug },
   });
 
   if (!page) {

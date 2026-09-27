@@ -7,15 +7,17 @@ import { updateUserQRCode, deleteUserQRCode, QRCodeNotFoundError } from "@/lib/q
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getSession(req);
     if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
+    const { id } = await params;
+
     const qr = await prisma.qRCode.findFirst({
       where: {
-        id: params.id,
+        id,
         userId: session.id,
       },
       include: {
@@ -35,14 +37,16 @@ export async function GET(
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getSession(req);
     if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
+    const { id } = await params;
+
     const existing = await prisma.qRCode.findFirst({
-      where: { id: params.id, userId: session.id },
+      where: { id, userId: session.id },
     });
 
     if (!existing) return NextResponse.json({ error: "QR Code não encontrado" }, { status: 404 });
@@ -189,7 +193,7 @@ export async function PUT(
     }
 
     const updated = await updateUserQRCode({
-      qrId: params.id,
+      qrId: id,
       userId: session.id,
       data: {
         name: name !== undefined ? name.trim() : existing.name,
@@ -231,14 +235,16 @@ export async function PUT(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getSession(req);
     if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
+    const { id } = await params;
+
     const existing = await prisma.qRCode.findFirst({
-      where: { id: params.id, userId: session.id },
+      where: { id, userId: session.id },
     });
 
     if (!existing) return NextResponse.json({ error: "QR Code não encontrado" }, { status: 404 });
@@ -247,7 +253,7 @@ export async function DELETE(
     const permanent = searchParams.get("permanent") === "true";
 
     const result = await deleteUserQRCode({
-      qrId: params.id,
+      qrId: id,
       userId: session.id,
       permanent,
     });

@@ -1,5 +1,5 @@
 import { prisma } from "../src/lib/db";
-import { signToken } from "../src/lib/auth";
+import { signToken, createAuthenticatedSessionToken } from "../src/lib/auth";
 import { NextRequest } from "next/server";
 import { POST as createQR, GET as listQRs } from "../src/app/api/qr/route";
 import { GET as getQR, PUT as updateQR, DELETE as deleteQR } from "../src/app/api/qr/[id]/route";
@@ -16,12 +16,14 @@ import { GET as getAdminGateways } from "../src/app/api/admin/gateway/route";
 import { GET as getAdminUsers } from "../src/app/api/admin/users/route";
 import { processMercadoPagoNotification } from "../src/lib/mercadopago";
 
+const userTokens: Record<string, string> = {};
+
 function createAuthRequest(
   url: string,
   user: { id: string; name: string; email: string; role: string; planId?: string | null },
   options: { method?: string; body?: any; headers?: Record<string, string> } = {}
 ): NextRequest {
-  const token = signToken({
+  const token = userTokens[user.id] || signToken({
     id: user.id,
     name: user.name,
     email: user.email,
@@ -153,6 +155,9 @@ async function runPlansAndLimitsAuditSuite() {
   await prisma.subscription.deleteMany({
     where: { userId: { in: auditUserIds } },
   });
+  await prisma.session.deleteMany({
+    where: { userId: { in: auditUserIds } },
+  });
 
   // Garante assinaturas ativas para contas PRO e BUSINESS de auditoria
   const futureEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
@@ -196,6 +201,17 @@ async function runPlansAndLimitsAuditSuite() {
       currentPeriodEnd: futureEnd,
     },
   });
+
+  for (const u of Object.values(auditUsers)) {
+    const { token } = await createAuthenticatedSessionToken({
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      role: u.role,
+      planId: u.planId,
+    });
+    userTokens[u.id] = token;
+  }
 
   console.log("--- FASE 3: TESTES DE LIMITES E BYPASS NO PLANO FREE ---");
   {
@@ -284,7 +300,7 @@ async function runPlansAndLimitsAuditSuite() {
         body: { destination: "https://example.com/hacked" },
       }
     );
-    const resEditDyn = await updateQR(reqEditDyn, { params: { id: freeFakeDynQR.id } });
+    const resEditDyn = await updateQR(reqEditDyn, { params: Promise.resolve({ id: freeFakeDynQR.id }) });
     assert(resEditDyn.status === 403, "FREE: edição de destino de QR dinâmico deve retornar 403");
 
     // 3. Analytics
@@ -439,7 +455,7 @@ async function runPlansAndLimitsAuditSuite() {
 
     // USER_B tenta acessar GET /api/qr/[qrAId]
     const reqGetB = createAuthRequest(`http://localhost:3000/api/qr/${qrAId}`, auditUsers.userB);
-    const resGetB = await getQR(reqGetB, { params: { id: qrAId } });
+    const resGetB = await getQR(reqGetB, { params: Promise.resolve({ id: qrAId }) });
     assert(resGetB.status === 404, "IDOR: USER_B não pode consultar QR de USER_A (404 Not Found)");
 
     // USER_B tenta alterar destino PUT /api/qr/[qrAId]
@@ -447,7 +463,7 @@ async function runPlansAndLimitsAuditSuite() {
       method: "PUT",
       body: { destination: "https://hacked-by-b.com" },
     });
-    const resPutB = await updateQR(reqPutB, { params: { id: qrAId } });
+    const resPutB = await updateQR(reqPutB, { params: Promise.resolve({ id: qrAId }) });
     assert(resPutB.status === 404, "IDOR: USER_B não pode editar destino do QR de USER_A (404)");
 
     // Confirma que destino no banco permanece inalterado
@@ -464,14 +480,14 @@ async function runPlansAndLimitsAuditSuite() {
       auditUsers.userB,
       { method: "POST" }
     );
-    const resDupB = await duplicateQR(reqDupB, { params: { id: qrAId } });
+    const resDupB = await duplicateQR(reqDupB, { params: Promise.resolve({ id: qrAId }) });
     assert(resDupB.status === 404, "IDOR: USER_B não pode duplicar QR de USER_A (404)");
 
     // USER_B tenta excluir QR de USER_A
     const reqDelB = createAuthRequest(`http://localhost:3000/api/qr/${qrAId}`, auditUsers.userB, {
       method: "DELETE",
     });
-    const resDelB = await deleteQR(reqDelB, { params: { id: qrAId } });
+    const resDelB = await deleteQR(reqDelB, { params: Promise.resolve({ id: qrAId }) });
     assert(resDelB.status === 404, "IDOR: USER_B não pode excluir QR de USER_A (404)");
 
     // USER_B tenta consultar analytics do QR de USER_A
@@ -500,7 +516,7 @@ async function runPlansAndLimitsAuditSuite() {
       `http://localhost:3000/api/files/${fileA.id}/download`,
       auditUsers.userB
     );
-    const resDownloadB = await downloadFile(reqDownloadB, { params: { id: fileA.id } });
+    const resDownloadB = await downloadFile(reqDownloadB, { params: Promise.resolve({ id: fileA.id }) });
     assert(resDownloadB.status === 404, "IDOR: USER_B não pode baixar arquivo privado de USER_A (404)");
 
     // Redirecionamento público não é IDOR: o shortCode é público
@@ -586,6 +602,15 @@ async function runPlansAndLimitsAuditSuite() {
     const countBefore = await prisma.qRCode.count({ where: { userId: raceUser.id } });
     assert(countBefore === 4, "CONCORRÊNCIA: usuário preparado com exatamente 4 QRs (limite 5)");
 
+    const { token: raceToken } = await createAuthenticatedSessionToken({
+      id: raceUser.id,
+      name: raceUser.name,
+      email: raceUser.email,
+      role: raceUser.role,
+      planId: raceUser.planId,
+    });
+    userTokens[raceUser.id] = raceToken;
+
     // Dispara 2 requisições rigorosamente simultâneas via Promise.all
     const req1 = createAuthRequest("http://localhost:3000/api/qr", raceUser, {
       method: "POST",
@@ -610,6 +635,7 @@ async function runPlansAndLimitsAuditSuite() {
     // Limpeza do usuário de corrida
     await prisma.qRCode.deleteMany({ where: { userId: raceUser.id } });
     await prisma.activityLog.deleteMany({ where: { userId: raceUser.id } });
+    await prisma.session.deleteMany({ where: { userId: raceUser.id } });
     await prisma.user.delete({ where: { id: raceUser.id } });
   }
 
@@ -662,6 +688,9 @@ async function runPlansAndLimitsAuditSuite() {
     where: { userId: { in: auditUserIds } },
   });
   await prisma.activityLog.deleteMany({
+    where: { userId: { in: auditUserIds } },
+  });
+  await prisma.session.deleteMany({
     where: { userId: { in: auditUserIds } },
   });
   await prisma.user.deleteMany({

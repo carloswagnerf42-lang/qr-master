@@ -6,14 +6,16 @@ import { generateUniqueShortCode } from "@/lib/short-code";
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getSession(req);
     if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
+    const { id } = await params;
+
     const original = await prisma.qRCode.findFirst({
-      where: { id: params.id, userId: session.id },
+      where: { id, userId: session.id },
     });
 
     if (!original) return NextResponse.json({ error: "QR Code não encontrado" }, { status: 404 });

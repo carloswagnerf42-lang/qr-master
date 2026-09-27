@@ -8,7 +8,7 @@ import {
 
 export async function POST(req: NextRequest) {
   try {
-    const token = extractTokenFromRequest(req);
+    const token = await extractTokenFromRequest(req);
     if (token) {
       const decoded = verifyToken(token);
       if (decoded?.sid) {
@@ -19,6 +19,6 @@ export async function POST(req: NextRequest) {
     console.error("Erro ao revogar sessão no logout:", error);
   }
 
-  clearSessionCookie();
+  await clearSessionCookie();
   return NextResponse.json({ success: true, message: "Sessão encerrada com sucesso." });
 }

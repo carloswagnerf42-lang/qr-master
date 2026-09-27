@@ -309,7 +309,7 @@ async function main() {
           headers: { "user-agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)" },
         });
         const res = await handleDynamicRedirect(req, {
-          params: { shortCode: tempShortCode },
+          params: Promise.resolve({ shortCode: tempShortCode }),
         });
 
         dynamicVCardResStatus = res.status;

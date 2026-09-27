@@ -181,7 +181,7 @@ async function processGoogleUserAndRedirect(
       planId: user.planId,
     });
 
-    setSessionCookie(token);
+    await setSessionCookie(token);
 
     await prisma.activityLog.create({
       data: {
@@ -229,7 +229,7 @@ async function processGoogleUserAndRedirect(
       planId: existingUser.planId,
     });
 
-    setSessionCookie(token);
+    await setSessionCookie(token);
 
     await prisma.activityLog.create({
       data: {
@@ -294,7 +294,7 @@ async function processGoogleUserAndRedirect(
     planId: newUser.planId,
   });
 
-  setSessionCookie(token);
+  await setSessionCookie(token);
 
   await prisma.activityLog.create({
     data: {

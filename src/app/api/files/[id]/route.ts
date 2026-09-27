@@ -5,14 +5,16 @@ import { deleteUserGeneratedFile, FileNotFoundError } from "@/lib/file-service";
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getSession(req);
     if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
+    const { id } = await params;
+
     const file = await prisma.generatedFile.findFirst({
-      where: { id: params.id, userId: session.id },
+      where: { id, userId: session.id },
     });
 
     if (!file) {
@@ -20,7 +22,7 @@ export async function DELETE(
     }
 
     await deleteUserGeneratedFile({
-      fileId: params.id,
+      fileId: id,
       userId: session.id,
     });
 

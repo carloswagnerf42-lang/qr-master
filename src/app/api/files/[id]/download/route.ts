@@ -5,7 +5,7 @@ import { downloadFileBuffer } from "@/lib/storage";
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getSession(req);
@@ -13,9 +13,11 @@ export async function GET(
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
 
+    const { id } = await params;
+
     // 1. Controle de Acesso Estrito: Somente o proprietário do arquivo pode baixar
     const file = await prisma.generatedFile.findFirst({
-      where: { id: params.id, userId: session.id },
+      where: { id, userId: session.id },
     });
 
     if (!file) {

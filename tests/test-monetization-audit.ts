@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import { NextRequest } from "next/server";
 import { prisma } from "../src/lib/db";
-import { signToken } from "../src/lib/auth";
+import { signToken, createAuthenticatedSessionToken } from "../src/lib/auth";
 import { processStripeWebhookEvent } from "../src/lib/stripe";
 import { isSubscriptionActive, checkPermission, getUserPlanAndUsage } from "../src/lib/permissions";
 import { POST as createQR } from "../src/app/api/qr/route";
@@ -158,10 +158,10 @@ async function runMonetizationAuditSuite() {
   });
 
   // Tokens de Sessão JWT
-  const tokenFree = signToken({ id: userFree.id, name: userFree.name, email: userFree.email, role: "USER" });
-  const tokenPro = signToken({ id: userPro.id, name: userPro.name, email: userPro.email, role: "USER" });
-  const tokenBiz = signToken({ id: userBiz.id, name: userBiz.name, email: userBiz.email, role: "USER" });
-  const tokenAttacker = signToken({ id: userAttacker.id, name: userAttacker.name, email: userAttacker.email, role: "USER" });
+  const { token: tokenFree } = await createAuthenticatedSessionToken({ id: userFree.id, name: userFree.name, email: userFree.email, role: "USER", planId: userFree.planId });
+  const { token: tokenPro } = await createAuthenticatedSessionToken({ id: userPro.id, name: userPro.name, email: userPro.email, role: "USER", planId: userPro.planId });
+  const { token: tokenBiz } = await createAuthenticatedSessionToken({ id: userBiz.id, name: userBiz.name, email: userBiz.email, role: "USER", planId: userBiz.planId });
+  const { token: tokenAttacker } = await createAuthenticatedSessionToken({ id: userAttacker.id, name: userAttacker.name, email: userAttacker.email, role: "USER", planId: userAttacker.planId });
 
   const helperReq = (url: string, method: string, body?: any, token?: string, headers?: Record<string, string>) => {
     const init: RequestInit = {
@@ -263,7 +263,7 @@ async function runMonetizationAuditSuite() {
     const reqAttackerEdit = helperReq(`https://qrmasterpro.vercel.app/api/qr/${fakeDynamic.id}`, "PUT", {
       destination: "https://malicious-destination.com",
     }, tokenAttacker);
-    const resAttackerEdit = await updateQR(reqAttackerEdit, { params: { id: fakeDynamic.id } });
+    const resAttackerEdit = await updateQR(reqAttackerEdit, { params: Promise.resolve({ id: fakeDynamic.id }) });
     assert(resAttackerEdit.status === 403, "Tentativa de editar destino dinâmico por usuário sem plano PRO retorna HTTP 403");
 
     // =========================================================================
@@ -285,7 +285,7 @@ async function runMonetizationAuditSuite() {
     const reqProEdit = helperReq(`https://qrmasterpro.vercel.app/api/qr/${jsonProDynamic.qrCode.id}`, "PUT", {
       destination: "https://example.com/pro-dest-edited",
     }, tokenPro);
-    const resProEdit = await updateQR(reqProEdit, { params: { id: jsonProDynamic.qrCode.id } });
+    const resProEdit = await updateQR(reqProEdit, { params: Promise.resolve({ id: jsonProDynamic.qrCode.id }) });
     assert(resProEdit.status === 200, "Usuário PRO edita destino de QR Dinâmico com sucesso (HTTP 200)");
 
     // =========================================================================
@@ -567,6 +567,12 @@ async function runMonetizationAuditSuite() {
     });
     await prisma.webhookEvent.deleteMany({
       where: { eventId: { contains: "evt_inv_" } },
+    });
+    await prisma.activityLog.deleteMany({
+      where: { userId: { in: [userFree.id, userPro.id, userBiz.id, userAttacker.id] } },
+    });
+    await prisma.session.deleteMany({
+      where: { userId: { in: [userFree.id, userPro.id, userBiz.id, userAttacker.id] } },
     });
     await prisma.user.deleteMany({
       where: { id: { in: [userFree.id, userPro.id, userBiz.id, userAttacker.id] } },

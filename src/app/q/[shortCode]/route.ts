@@ -135,10 +135,10 @@ function renderStatusPage(
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { shortCode: string } }
+  { params }: { params: Promise<{ shortCode: string }> }
 ) {
   try {
-    const { shortCode } = params;
+    const { shortCode } = await params;
 
     // 1. Validação estrutural do shortCode
     if (!isValidShortCode(shortCode)) {

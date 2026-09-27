@@ -5,20 +5,22 @@ import { toggleUserQRCodeStatus, QRCodeNotFoundError } from "@/lib/qr-service";
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getSession(req);
     if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
+    const { id } = await params;
+
     const qr = await prisma.qRCode.findFirst({
-      where: { id: params.id, userId: session.id },
+      where: { id, userId: session.id },
     });
 
     if (!qr) return NextResponse.json({ error: "QR Code não encontrado" }, { status: 404 });
 
     const updated = await toggleUserQRCodeStatus({
-      qrId: params.id,
+      qrId: id,
       userId: session.id,
     });
 

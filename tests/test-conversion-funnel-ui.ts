@@ -1,5 +1,5 @@
 import { prisma } from "../src/lib/db";
-import { signToken } from "../src/lib/auth";
+import { signToken, createAuthenticatedSessionToken } from "../src/lib/auth";
 import { NextRequest } from "next/server";
 import { POST as createQR, GET as listQRs } from "../src/app/api/qr/route";
 import { GET as getQR, PUT as updateQR, DELETE as deleteQR } from "../src/app/api/qr/[id]/route";
@@ -8,12 +8,14 @@ import { GET as getCampaigns, POST as createCampaign } from "../src/app/api/camp
 import { GET as getAdminPlans } from "../src/app/api/admin/plan/route";
 import { REASON_CONFIG, UpgradeReason } from "../src/components/UpgradeModal";
 
+const userTokens: Record<string, string> = {};
+
 function createAuthRequest(
   url: string,
   user: { id: string; name: string; email: string; role: string; planId?: string | null },
   options: { method?: string; body?: any; headers?: Record<string, string> } = {}
 ): NextRequest {
-  const token = signToken({
+  const token = userTokens[user.id] || signToken({
     id: user.id,
     name: user.name,
     email: user.email,
@@ -157,6 +159,17 @@ async function runConversionFunnelTestSuite() {
       currentPeriodEnd: futureEnd,
     },
   });
+
+  for (const u of Object.values(users)) {
+    const { token } = await createAuthenticatedSessionToken({
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      role: u.role,
+      planId: u.planId,
+    });
+    userTokens[u.id] = token;
+  }
 
   console.log("--- 1. FREE tentando criar QR dinâmico ---");
   {
@@ -347,7 +360,7 @@ async function runConversionFunnelTestSuite() {
       users.pro,
       { method: "GET" }
     );
-    const idorRes = await getQR(idorReq, { params: { id: victimQR.qrCode.id } });
+    const idorRes = await getQR(idorReq, { params: Promise.resolve({ id: victimQR.qrCode.id }) });
     const idorBody = await idorRes.json();
 
     assert(

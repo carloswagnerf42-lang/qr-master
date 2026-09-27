@@ -4,14 +4,14 @@ import { requireAdmin, logAdminAction } from "@/lib/admin";
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const auth = await requireAdmin(req);
     if (!auth.success) return auth.errorResponse;
     const admin = auth.admin;
 
-    const targetUserId = params.id;
+    const { id: targetUserId } = await params;
     if (!targetUserId) {
       return NextResponse.json({ error: "ID do usuário não especificado." }, { status: 400 });
     }

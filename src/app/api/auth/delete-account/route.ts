@@ -116,7 +116,7 @@ export async function POST(req: NextRequest) {
     });
 
     // 3. Invalidação do cookie de sessão
-    clearSessionCookie();
+    await clearSessionCookie();
 
     return NextResponse.json({
       success: true,

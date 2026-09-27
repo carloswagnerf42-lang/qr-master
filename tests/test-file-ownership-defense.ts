@@ -293,7 +293,7 @@ async function runTests() {
     const unauthReq = new NextRequest("http://localhost:3000/api/files/" + fileAlice.id, {
       method: "DELETE",
     });
-    const unauthRes = await deleteFileRoute(unauthReq, { params: { id: fileAlice.id } });
+    const unauthRes = await deleteFileRoute(unauthReq, { params: Promise.resolve({ id: fileAlice.id }) });
     assert(
       unauthRes.status === 401,
       "5.1. Requisição anônima à rota DELETE /api/files/[id] retorna 401 Unauthorized"
@@ -314,7 +314,7 @@ async function runTests() {
         authorization: `Bearer ${bobToken}`,
       },
     });
-    const bobAttackRes = await deleteFileRoute(bobAttackReq, { params: { id: fileAlice.id } });
+    const bobAttackRes = await deleteFileRoute(bobAttackReq, { params: Promise.resolve({ id: fileAlice.id }) });
     assert(
       bobAttackRes.status === 404,
       "5.2. Usuário Bob autenticado tentando excluir arquivo de Alice via rota HTTP retorna 404 Arquivo não encontrado"
@@ -402,7 +402,7 @@ async function runTests() {
         authorization: `Bearer ${aliceToken}`,
       },
     });
-    const aliceLegitRes = await deleteFileRoute(aliceLegitReq, { params: { id: fileAlice2.id } });
+    const aliceLegitRes = await deleteFileRoute(aliceLegitReq, { params: Promise.resolve({ id: fileAlice2.id }) });
     assert(
       aliceLegitRes.status === 200,
       "6.6. Alice autenticada exclui seu próprio arquivo via rota HTTP com status 200"

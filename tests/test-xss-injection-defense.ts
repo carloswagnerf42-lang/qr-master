@@ -230,7 +230,7 @@ async function runTestSuite() {
 
   // D1: Consulta a shortCode com caracteres maliciosos deve retornar status sanitizado
   const xssShortCodeReq = new NextRequest("http://localhost:3000/q/%3Cscript%3Ealert(1)%3C%2Fscript%3E");
-  const xssRes = await resolveQrRoute(xssShortCodeReq, { params: { shortCode: "<script>alert(1)</script>" } });
+  const xssRes = await resolveQrRoute(xssShortCodeReq, { params: Promise.resolve({ shortCode: "<script>alert(1)</script>" }) });
   const htmlBody = await xssRes.text();
 
   check(xssRes.status === 404, "D1.1. Resposta 404 para shortCode inválido");
@@ -392,7 +392,7 @@ async function runTestSuite() {
     }),
   });
 
-  const maliciousEditRes = await updateQrRoute(maliciousEditReq, { params: { id: createdId } });
+  const maliciousEditRes = await updateQrRoute(maliciousEditReq, { params: Promise.resolve({ id: createdId }) });
   check(maliciousEditRes.status === 400, "G4.1. PUT /api/qr/[id] rejeita logoUrl com data:text/html");
 
   // G6: Rejeição de avatarUrl malicioso em /api/auth/me

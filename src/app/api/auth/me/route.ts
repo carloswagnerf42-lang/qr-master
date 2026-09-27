@@ -222,7 +222,7 @@ export async function PATCH(req: NextRequest) {
         planId: updatedUser.planId,
         sid: session.sid,
       });
-      setSessionCookie(newToken);
+      await setSessionCookie(newToken);
     }
 
     return NextResponse.json({ success: true, user: updatedUser });

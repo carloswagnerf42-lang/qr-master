@@ -113,7 +113,7 @@ export async function POST(req: NextRequest) {
         { userAgent, ipAddress: ip }
       );
 
-      setSessionCookie(token);
+      await setSessionCookie(token);
       resetRateLimit(ip, "login");
 
       await prisma.activityLog.create({
@@ -171,7 +171,7 @@ export async function POST(req: NextRequest) {
         { userAgent, ipAddress: ip }
       );
 
-      setSessionCookie(token);
+      await setSessionCookie(token);
       await resetRateLimit(ip, "google");
       await resetRateLimit(ip, "login");
 
@@ -247,7 +247,7 @@ export async function POST(req: NextRequest) {
       { userAgent, ipAddress: ip }
     );
 
-    setSessionCookie(token);
+    await setSessionCookie(token);
     await resetRateLimit(ip, "google");
     await resetRateLimit(ip, "login");
 

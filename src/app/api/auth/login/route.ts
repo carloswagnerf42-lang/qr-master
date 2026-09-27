@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
       { userAgent, ipAddress: ip }
     );
 
-    setSessionCookie(token);
+    await setSessionCookie(token);
     await resetRateLimit(ip, "login");
 
     // Registra log de atividade

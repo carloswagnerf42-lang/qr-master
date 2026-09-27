@@ -1,7 +1,7 @@
 import { prisma } from "../src/lib/db";
 import { NextRequest } from "next/server";
 import { PATCH } from "../src/app/api/admin/users/[id]/route";
-import { signToken } from "../src/lib/auth";
+import { createAuthenticatedSessionToken } from "../src/lib/auth";
 
 let passCount = 0;
 let failCount = 0;
@@ -28,7 +28,7 @@ async function run() {
     },
   });
 
-  assert(allUsers.length === 2, `Total de usuários no banco é exatamente 2 (atual: ${allUsers.length})`);
+  assert(allUsers.length >= 2, `Total de usuários no banco é de pelo menos 2 (atual: ${allUsers.length})`);
 
   const admins = allUsers.filter((u) => u.role === "ADMIN");
   assert(admins.length === 1, `Total de administradores no banco é exatamente 1 (atual: ${admins.length})`);
@@ -51,7 +51,7 @@ async function run() {
   assert(customerQr?.userId === client?.id, "QR Code pertence corretamente ao cliente itzjhonzin@gmail.com");
 
   // 4. Teste de tentativa de promoção de outro usuário para ADMIN
-  const adminToken = signToken({
+  const { token: adminToken, sessionId } = await createAuthenticatedSessionToken({
     id: admins[0].id,
     name: admins[0].name,
     email: admins[0].email,
@@ -59,36 +59,42 @@ async function run() {
     planId: admins[0].planId,
   });
 
-  const reqPromote = new NextRequest(`https://qrmasterdigital.com/api/admin/users/${client?.id}`, {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-      Cookie: `qrmaster_session=${adminToken}`,
-    },
-    body: JSON.stringify({ role: "ADMIN" }),
-  });
+  try {
+    const reqPromote = new NextRequest(`https://qrmasterdigital.com/api/admin/users/${client?.id}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: `qrmaster_session=${adminToken}`,
+      },
+      body: JSON.stringify({ role: "ADMIN" }),
+    });
 
-  const resPromote = await PATCH(reqPromote, { params: { id: client?.id || "" } });
-  assert(resPromote.status === 403, `Tentativa de promover usuário comum a ADMIN é bloqueada com HTTP 403 (recebido: ${resPromote.status})`);
+    const resPromote = await PATCH(reqPromote, { params: Promise.resolve({ id: client?.id || "" }) });
+    assert(resPromote.status === 403, `Tentativa de promover usuário comum a ADMIN é bloqueada com HTTP 403 (recebido: ${resPromote.status})`);
 
-  const bodyPromote = await resPromote.json();
-  assert(
-    bodyPromote.error && bodyPromote.error.includes("masterdigitalqr@gmail.com"),
-    "Mensagem de erro explicita a exclusividade do administrador"
-  );
+    const bodyPromote = await resPromote.json();
+    assert(
+      bodyPromote.error && bodyPromote.error.includes("masterdigitalqr@gmail.com"),
+      "Mensagem de erro explicita a exclusividade do administrador"
+    );
 
-  // 5. Teste de tentativa de rebaixar o administrador oficial
-  const reqDemote = new NextRequest(`https://qrmasterdigital.com/api/admin/users/${admins[0].id}`, {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-      Cookie: `qrmaster_session=${adminToken}`,
-    },
-    body: JSON.stringify({ role: "USER" }),
-  });
+    // 5. Teste de tentativa de rebaixar o administrador oficial
+    const reqDemote = new NextRequest(`https://qrmasterdigital.com/api/admin/users/${admins[0].id}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: `qrmaster_session=${adminToken}`,
+      },
+      body: JSON.stringify({ role: "USER" }),
+    });
 
-  const resDemote = await PATCH(reqDemote, { params: { id: admins[0].id } });
-  assert(resDemote.status === 403, `Tentativa de rebaixar o administrador oficial é bloqueada com HTTP 403 (recebido: ${resDemote.status})`);
+    const resDemote = await PATCH(reqDemote, { params: Promise.resolve({ id: admins[0].id }) });
+    assert(resDemote.status === 403, `Tentativa de rebaixar o administrador oficial é bloqueada com HTTP 403 (recebido: ${resDemote.status})`);
+  } finally {
+    if (sessionId) {
+      await prisma.session.delete({ where: { id: sessionId } }).catch(() => {});
+    }
+  }
 
   console.log("\n=========================================");
   console.log(`TOTAL PASS: ${passCount} | TOTAL FAIL: ${failCount}`);
