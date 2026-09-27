@@ -239,16 +239,16 @@ export function UpgradeModal({
     customTitle ||
     (reason === "LIMIT_REACHED"
       ? isPro
-        ? `Você atingiu o limite de ${limit || 15} QR Codes do plano Pro.`
-        : `Você atingiu o limite de ${limit || 5} QR Codes do plano Free.`
+        ? `Você atingiu o limite de ${limit || 15} criações do plano Pro neste ciclo.`
+        : `Você atingiu o limite de ${limit || 5} criações do plano Free neste ciclo.`
       : config.title);
 
   const description =
     customDescription ||
     (reason === "LIMIT_REACHED"
       ? isPro
-        ? "O plano PRO permite criar até 15 QR Codes por ciclo. Para criar QR Codes ilimitados e expandir seus recursos comerciais, faça upgrade para o plano BUSINESS."
-        : config.description
+        ? "O plano PRO permite criar até 15 QR Codes por ciclo. Todos os QR Codes criados anteriormente continuam salvos e ativos no seu acervo. Para criar novos códigos sem restrições de cota, faça upgrade para o plano BUSINESS."
+        : "O plano FREE permite criar até 5 QR Codes neste ciclo. Seus QR Codes anteriores continuam salvos e ativos no seu acervo. Para continuar criando e desbloquear códigos dinâmicos com métricas, faça upgrade para o plano PRO ou BUSINESS."
       : config.description);
 
   const badgeText =
@@ -362,8 +362,8 @@ export function UpgradeModal({
               </span>
               <span className="text-[11px] text-slate-500 dark:text-slate-400">
                 {isPro
-                  ? "QR Codes Ilimitados • Campanhas • Multi-usuário"
-                  : "15 QR Codes/mês • Dinâmicos • Analytics"}
+                  ? "Criações Ilimitadas • Campanhas • Multi-usuário"
+                  : "15 criações por ciclo • Dinâmicos • Analytics"}
               </span>
             </div>
             <div className="text-right">

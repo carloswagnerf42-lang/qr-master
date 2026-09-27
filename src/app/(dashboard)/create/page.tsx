@@ -512,17 +512,17 @@ export default function CreateQRCodePage() {
             </div>
             <div className="space-y-2">
               <span className="inline-block px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wide bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
-                Limite de Criações Atingido
+                Limite de Criações do Ciclo Atingido
               </span>
               <h2 className="text-2xl font-black text-slate-900 dark:text-white">
                 {planName === "PRO"
-                  ? `Você atingiu o limite de ${maxQRCodes} QR Codes do plano Pro.`
-                  : `Você atingiu o limite de ${maxQRCodes} QR Codes do plano Free.`}
+                  ? `Você atingiu o limite de ${maxQRCodes} criações do plano Pro neste ciclo.`
+                  : `Você atingiu o limite de ${maxQRCodes} criações do plano Free neste ciclo.`}
               </h2>
               <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto">
                 {planName === "PRO"
-                  ? "Faça upgrade para o plano BUSINESS para criar QR Codes ilimitados e desbloquear todos os recursos corporativos."
-                  : "Faça upgrade para o plano PRO para criar até 15 QR Codes e desbloquear códigos dinâmicos com rastreamento."}
+                  ? "Faça upgrade para o plano BUSINESS para criar novos QR Codes sem restrições. Todos os QR Codes criados anteriormente continuam salvos e ativos no seu acervo."
+                  : "Faça upgrade para o plano PRO para criar até 15 QR Codes por ciclo e desbloquear códigos dinâmicos com rastreamento. Seus códigos anteriores continuam salvos."}
               </p>
             </div>
 

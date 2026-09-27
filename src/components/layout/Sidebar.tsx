@@ -181,13 +181,15 @@ export function Sidebar({ user }: SidebarProps) {
                 Uso ilimitado
               </p>
               <p className="text-[11px] text-slate-400">
-                {quota.used} QRs criados no ciclo
+                {quota.used === 1
+                  ? "1 QR Code criado no ciclo"
+                  : `${quota.used} QR Codes criados no ciclo`}
               </p>
             </div>
           ) : (
             <div className="space-y-1.5">
               <div className="flex items-center justify-between text-xs font-medium text-slate-600 dark:text-slate-300">
-                <span>QRs criados</span>
+                <span>Criações no ciclo</span>
                 <span className="font-semibold text-slate-900 dark:text-white">
                   {quota?.used ?? 0} / {quota?.max ?? 5}
                 </span>

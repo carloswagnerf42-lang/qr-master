@@ -110,8 +110,8 @@ export function evalQuotaCanCreate(
   // Cota esgotada (ou estado legado inconsistente >= limite): FAIL-CLOSED
   const requiredPlan = isPro ? "BUSINESS" : "PRO";
   const message = isPro
-    ? `Você atingiu o limite de ${limit} QR Codes do plano Pro.`
-    : `Você atingiu o limite de ${limit} QR Codes do plano Free.`;
+    ? `Você atingiu o limite de ${limit} criações do plano Pro neste ciclo.`
+    : `Você atingiu o limite de ${limit} criações do plano Free neste ciclo.`;
 
   return {
     allowed: false,
@@ -130,4 +130,15 @@ export function evalQuotaCanCreate(
     limitIfBlocked: limit,
     message,
   };
+}
+
+/**
+ * Helper de pluralização para contagem de QR Codes:
+ * - 0 -> "0 QR Codes"
+ * - 1 -> "1 QR Code"
+ * - 2+ -> "X QR Codes"
+ */
+export function formatQRCount(count: number): string {
+  const n = Number.isFinite(count) ? Math.max(0, count) : 0;
+  return `${n} ${n === 1 ? "QR Code" : "QR Codes"}`;
 }

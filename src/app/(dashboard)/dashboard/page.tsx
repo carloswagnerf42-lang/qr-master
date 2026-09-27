@@ -32,6 +32,7 @@ import {
 import { Header } from "@/components/layout/Header";
 import { UpgradeModal, UpgradeReason } from "@/components/UpgradeModal";
 import { useQuota } from "@/contexts/QuotaContext";
+import { formatQRCount } from "@/lib/quota-gate";
 
 interface DashboardData {
   userName: string;
@@ -194,7 +195,7 @@ export default function DashboardPage() {
                   data.plan.maxQRCodes > 9999 || data.plan.name === "BUSINESS" ? (
                     <div>
                       <div className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white">
-                        {data.cards.totalQRs.value} QR Codes
+                        {formatQRCount(data.cards.totalQRs.value)}
                       </div>
                       <div className="text-xs font-medium text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-1.5">
                         <Sparkles className="w-3.5 h-3.5" />
@@ -208,8 +209,12 @@ export default function DashboardPage() {
                       </div>
                       <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                         {data.plan.usedQRCodes >= data.plan.maxQRCodes
-                          ? "Limite do ciclo atingido"
-                          : `${data.plan.remainingQRCodes} restante(s) no ciclo`}
+                          ? "Limite de criações deste ciclo atingido"
+                          : `${data.plan.remainingQRCodes} ${
+                              data.plan.remainingQRCodes === 1
+                                ? "criação restante neste ciclo"
+                                : "criações restantes neste ciclo"
+                            }`}
                       </div>
                     </div>
                   )
@@ -239,8 +244,12 @@ export default function DashboardPage() {
                   />
                 </div>
                 <div className="flex items-center justify-between text-[10px] text-slate-400">
-                  <span>{data.plan.remainingQRCodes} restante(s)</span>
-                  <span>{data.cards.totalQRs.value} total no acervo</span>
+                  <span>
+                    {data.plan.remainingQRCodes === 1
+                      ? "1 criação restante"
+                      : `${data.plan.remainingQRCodes} restantes`}
+                  </span>
+                  <span>{formatQRCount(data.cards.totalQRs.value)} no acervo</span>
                 </div>
               </div>
             ) : (

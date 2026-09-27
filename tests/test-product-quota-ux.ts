@@ -1,4 +1,4 @@
-import { evalQuotaCanCreate } from "../src/lib/quota-gate";
+import { evalQuotaCanCreate, formatQRCount } from "../src/lib/quota-gate";
 import { checkPermission, UserPlanContext, PlanDetails } from "../src/lib/permissions";
 
 const RESET = "\x1b[0m";
@@ -422,6 +422,70 @@ console.log(`\n${YELLOW}--- TESTE O: Consistência universal entre todos os CTAs
     proOpen_Templates.allowed === true,
     "Todos os 4 CTAs permitem criação sincronizadamente quando PRO 10/15"
   );
+}
+
+// ---------------------------------------------------------------------
+// TESTE P: Pluralização rigorosa de QR Code (0, 1, 2, 20)
+// ---------------------------------------------------------------------
+console.log(`\n${YELLOW}--- TESTE P: Pluralização de QR Code ---${RESET}`);
+{
+  assert(formatQRCount(0) === "0 QR Codes", "0 formata como '0 QR Codes'");
+  assert(formatQRCount(1) === "1 QR Code", "1 formata no singular como '1 QR Code'");
+  assert(formatQRCount(2) === "2 QR Codes", "2 formata no plural como '2 QR Codes'");
+  assert(formatQRCount(15) === "15 QR Codes", "15 formata no plural como '15 QR Codes'");
+  assert(formatQRCount(20) === "20 QR Codes", "20 formata no plural como '20 QR Codes'");
+}
+
+// ---------------------------------------------------------------------
+// TESTE Q: Independência entre cota do ciclo e tamanho total do acervo
+// ---------------------------------------------------------------------
+console.log(`\n${YELLOW}--- TESTE Q: Independência entre cota de ciclo e acervo total ---${RESET}`);
+{
+  // Exemplo homologado: Usuário criou 5 QRs no FREE.
+  // Fez upgrade para PRO e criou mais 15 no ciclo atual.
+  // Resultado:
+  // - Cota do ciclo = 15/15 (bloqueada)
+  // - Acervo total = 20 QRs
+  const historicalFreeQRs = [
+    { id: "free_1", userId: "usr_pro_upgraded", createdAt: new Date("2026-01-01"), deletedAt: null },
+    { id: "free_2", userId: "usr_pro_upgraded", createdAt: new Date("2026-01-02"), deletedAt: null },
+    { id: "free_3", userId: "usr_pro_upgraded", createdAt: new Date("2026-01-03"), deletedAt: null },
+    { id: "free_4", userId: "usr_pro_upgraded", createdAt: new Date("2026-01-04"), deletedAt: null },
+    { id: "free_5", userId: "usr_pro_upgraded", createdAt: new Date("2026-01-05"), deletedAt: null },
+  ];
+
+  const currentCycleProQRs = Array.from({ length: 15 }, (_, i) => ({
+    id: `pro_${i + 1}`,
+    userId: "usr_pro_upgraded",
+    createdAt: new Date(), // ciclo atual
+    deletedAt: null,
+  }));
+
+  const totalAcervo = [...historicalFreeQRs, ...currentCycleProQRs];
+  assert(totalAcervo.length === 20, "Total de QR Codes no acervo é exatamente 20");
+
+  const cycleCreationsCount = currentCycleProQRs.length;
+  assert(cycleCreationsCount === 15, "Criações no ciclo atual são exatamente 15");
+
+  // Avaliação da cota do ciclo (15/15)
+  const quotaEval = evalQuotaCanCreate("PRO", cycleCreationsCount);
+  assert(quotaEval.canCreate === false, "Cota do ciclo PRO (15/15) está esgotada para novas criações");
+  assert(quotaEval.remainingQRCodes === 0, "0 criações restantes neste ciclo");
+  assert(quotaEval.reason === "LIMIT_REACHED", "Motivo de bloqueio é LIMIT_REACHED");
+
+  // O acervo continua com 20 QR Codes e formatado corretamente
+  const acervoLabel = `${formatQRCount(totalAcervo.length)} no acervo`;
+  assert(acervoLabel === "20 QR Codes no acervo", "Área inferior do card exibe '20 QR Codes no acervo'");
+
+  // Contexto no backend: qrCodeCount avalia as criações do ciclo (15), totalQrCodeCount avalia o acervo (20)
+  const ctx = makeContext({ id: "usr_pro_upgraded" }, proPlan, cycleCreationsCount);
+  ctx.totalQrCodeCount = totalAcervo.length;
+
+  const backendCheck = checkPermission(ctx, "create_qr");
+  assert(backendCheck.allowed === false, "Backend bloqueia nova criação com 15/15 no ciclo");
+  assert(backendCheck.code === "LIMIT_REACHED", "Backend retorna código LIMIT_REACHED");
+  assert(backendCheck.requiredPlan === "BUSINESS", "Backend orienta upgrade para BUSINESS");
+  assert(ctx.totalQrCodeCount === 20, "Acervo total de 20 permanece intacto sem exclusão ou desconto");
 }
 
 // ---------------------------------------------------------------------
