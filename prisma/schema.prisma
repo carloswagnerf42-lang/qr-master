@@ -33,6 +33,7 @@ model User {
   accounts      AuthAccount[]
   passwordResetTokens PasswordResetToken[]
   sessions      Session[]
+  qrCreationUsages QRCodeCreationUsage[]
 
   @@index([email])
 }
@@ -175,6 +176,7 @@ model QRCode {
   campaign    Campaign?     @relation(fields: [campaignId], references: [id], onDelete: SetNull)
   scans       QRCodeScan[]
   generatedFiles GeneratedFile[]
+  creationUsages QRCodeCreationUsage[]
 
   @@index([userId])
   @@index([shortCode])
@@ -334,5 +336,19 @@ model Session {
   @@index([userId])
   @@index([expiresAt])
   @@index([revokedAt])
+}
+
+model QRCodeCreationUsage {
+  id        String   @id @default(cuid())
+  userId    String
+  qrCodeId  String?
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  qrCode    QRCode?  @relation(fields: [qrCodeId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([userId, createdAt])
+  @@index([createdAt])
 }
 

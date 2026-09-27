@@ -268,16 +268,28 @@ export async function getUserPlanAndUsage(userId: string): Promise<UserPlanConte
     user.subscription
   );
 
-  // Consulta quantidade de QR codes criados no ciclo mensal atual
-  const monthQrCodeCount = await prisma.qRCode.count({
-    where: {
-      userId,
-      deletedAt: null,
-      createdAt: {
-        gte: currentMonthStart,
+  // Consulta quantidade de criações consumidas no ciclo atual pelo ledger imutável
+  let monthQrCodeCount = 0;
+  try {
+    monthQrCodeCount = await prisma.qRCodeCreationUsage.count({
+      where: {
+        userId,
+        createdAt: {
+          gte: currentMonthStart,
+        },
       },
-    },
-  });
+    });
+  } catch {
+    // Fallback gracioso para compatibilidade antes da migration
+    monthQrCodeCount = await prisma.qRCode.count({
+      where: {
+        userId,
+        createdAt: {
+          gte: currentMonthStart,
+        },
+      },
+    });
+  }
 
   // Se o usuário é ADMIN, mantém plano configurado ou PRO/BUSINESS
   if (user.role === "ADMIN") {

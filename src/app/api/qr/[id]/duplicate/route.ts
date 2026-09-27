@@ -61,10 +61,9 @@ export async function POST(
 
       if (userContext.role !== "ADMIN") {
         const currentMonthStart = userContext.currentMonthStart || new Date();
-        const currentCount = await tx.qRCode.count({
+        const currentCount = await tx.qRCodeCreationUsage.count({
           where: {
             userId: session.id,
-            deletedAt: null,
             createdAt: {
               gte: currentMonthStart,
             },
@@ -77,7 +76,7 @@ export async function POST(
             ? new Date(userContext.currentMonthEnd).toLocaleDateString("pt-BR")
             : "o próximo ciclo";
 
-          const reason = `Você atingiu o limite mensal de ${effectiveLimit} QR Codes do plano ${userContext.plan?.name || "FREE"}. Sua cota renova em ${resetDateStr}.`;
+          const reason = `Você atingiu o limite de ${effectiveLimit} criações do plano ${userContext.plan?.name || "FREE"} neste ciclo. Sua cota renova em ${resetDateStr}.`;
           const limitErr: any = new Error(reason);
           limitErr.code = "LIMIT_REACHED";
           limitErr.status = 403;
@@ -111,6 +110,16 @@ export async function POST(
           favorite: false,
         },
       });
+
+      // Registra consumo imutável no ledger apenas para planos com cota finita (FREE e PRO)
+      if (userContext.role !== "ADMIN" && userContext.plan?.name !== "BUSINESS") {
+        await tx.qRCodeCreationUsage.create({
+          data: {
+            userId: session.id,
+            qrCodeId: copy.id,
+          },
+        });
+      }
 
       await tx.activityLog.create({
         data: {

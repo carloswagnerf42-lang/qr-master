@@ -278,13 +278,12 @@ export async function POST(req: NextRequest) {
         // Fallback gracioso para ambientes que não utilizem PostgreSQL direto
       }
 
-      // 2. Re-avaliação da cota mensal dentro da transação protegida
+      // 2. Re-avaliação da cota do ciclo pelo ledger imutável dentro da transação protegida
       if (userContext.role !== "ADMIN") {
         const currentMonthStart = userContext.currentMonthStart || new Date();
-        const currentCount = await tx.qRCode.count({
+        const currentCount = await tx.qRCodeCreationUsage.count({
           where: {
             userId: session.id,
-            deletedAt: null,
             createdAt: {
               gte: currentMonthStart,
             },
@@ -297,7 +296,7 @@ export async function POST(req: NextRequest) {
             ? new Date(userContext.currentMonthEnd).toLocaleDateString("pt-BR")
             : "o próximo ciclo";
 
-          const reason = `Você atingiu o limite mensal de ${effectiveLimit} QR Codes do plano ${userContext.plan?.name || "FREE"}. Sua cota renova em ${resetDateStr}.`;
+          const reason = `Você atingiu o limite de ${effectiveLimit} criações do plano ${userContext.plan?.name || "FREE"} neste ciclo. Sua cota renova em ${resetDateStr}.`;
           const limitErr: any = new Error(reason);
           limitErr.code = "LIMIT_REACHED";
           limitErr.status = 403;
@@ -334,6 +333,18 @@ export async function POST(req: NextRequest) {
           campaign: true,
         },
       });
+
+      // Registra consumo imutável no ledger apenas para planos com cota finita (FREE e PRO)
+      // BUSINESS (ilimitado) e ADMIN não consomem cota finita, evitando inflar o ledger
+      // e garantindo que criações durante o BUSINESS não sejam interpretadas como consumo após downgrade.
+      if (userContext.role !== "ADMIN" && userContext.plan?.name !== "BUSINESS") {
+        await tx.qRCodeCreationUsage.create({
+          data: {
+            userId: session.id,
+            qrCodeId: qrCode.id,
+          },
+        });
+      }
 
       // Registra log
       await tx.activityLog.create({
