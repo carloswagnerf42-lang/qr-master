@@ -50,13 +50,58 @@ function makeRequest(
 }
 
 /**
- * Auxiliar para esgotar exatamente os 20 tokens de um usuário em menos de 100ms,
- * garantindo que os testes de rate limiting operem dentro da janela de 60 segundos.
+ * Auxiliar para esgotar deterministicamente os tokens de rate limit de um usuário.
+ * Reseta o bucket para limpar tokens residuais em decaimento do bucket anterior e consome
+ * rapidamente os tokens da janela atual via Promise.all concorrente (~150ms), seguido de
+ * verificação sequencial com safety cap para confirmar que o limitador está bloqueado.
  */
 async function exhaustTokens(userId: string, action: "category" | "campaign") {
+  // Se restarem menos de 10 segundos na janela de 60s do Unix epoch,
+  // aguarda a virada da janela para que exhaustTokens e as asserções subsequentes
+  // operem com folga (>50s) no mesmo bloco temporal, garantindo requestsInCurrentWindow >= 20.
+  const windowMs = 60000;
+  const elapsed = Date.now() % windowMs;
+  const remainingInWindow = windowMs - elapsed;
+  if (remainingInWindow < 10000) {
+    await new Promise((resolve) => setTimeout(resolve, remainingInWindow + 200));
+  }
+
   await resetRateLimit(userId, action);
-  for (let i = 1; i <= 20; i++) {
-    await checkRateLimit(userId, action);
+
+  const maxAttempts = RATE_LIMIT_CONFIGS[action].maxAttempts;
+  await Promise.all(
+    Array.from({ length: maxAttempts }, () => checkRateLimit(userId, action))
+  );
+
+  let blocked = false;
+  for (let i = 1; i <= 5; i++) {
+    const result = await checkRateLimit(userId, action);
+    if (!result.allowed) {
+      blocked = true;
+      break;
+    }
+  }
+
+  if (!blocked) {
+    throw new Error(
+      `Não foi possível esgotar deterministicamente o rate limit para action='${action}'`
+    );
+  }
+}
+
+/**
+ * Garante tempo suficiente (runway) dentro da janela deslizante do Upstash (60s).
+ * Se restarem menos de `minRunwayMs` na janela atual de 60 segundos do Unix epoch,
+ * aguarda o início do próximo ciclo para garantir que todas as 20 asserções de contagem
+ * ocorram dentro do mesmo bloco temporal, eliminando distorções por decaimento fracionário
+ * (math.floor de token único na janela anterior).
+ */
+async function ensureWindowRunway(minRunwayMs = 15000) {
+  const windowMs = 60000;
+  const elapsedInWindow = Date.now() % windowMs;
+  const remainingInWindow = windowMs - elapsedInWindow;
+  if (remainingInWindow < minRunwayMs) {
+    await new Promise((resolve) => setTimeout(resolve, remainingInWindow + 200));
   }
 }
 
@@ -252,6 +297,7 @@ async function runTestSuite() {
     // TESTE D: Esgotamento do Limite de Frequência em Categorias (maxAttempts=20)
     // ========================================================================
     console.log("\n--- TESTE D: Esgotamento do Limite de Frequência em Categorias (20 req/min) ---");
+    await ensureWindowRunway(15000);
     await resetRateLimit(aliceUser.id, "category");
     assert(RATE_LIMIT_CONFIGS.category.maxAttempts === 20, "D0. Limite configurado para category é 20");
     assert(RATE_LIMIT_CONFIGS.category.windowSeconds === 60, "D0. Janela configurada para category é 60s");
@@ -286,6 +332,7 @@ async function runTestSuite() {
     // TESTE E: Esgotamento do Limite de Frequência em Campanhas (maxAttempts=20)
     // ========================================================================
     console.log("\n--- TESTE E: Esgotamento do Limite de Frequência em Campanhas (20 req/min) ---");
+    await ensureWindowRunway(15000);
     await resetRateLimit(aliceUser.id, "campaign");
     assert(RATE_LIMIT_CONFIGS.campaign.maxAttempts === 20, "E0. Limite configurado para campaign é 20");
     assert(RATE_LIMIT_CONFIGS.campaign.windowSeconds === 60, "E0. Janela configurada para campaign é 60s");
@@ -325,10 +372,6 @@ async function runTestSuite() {
     // TESTE F: Isolamento Multi-Tenant entre Usuários
     // ========================================================================
     console.log("\n--- TESTE F: Isolamento Multi-Tenant (Alice Bloqueada vs Bob Livre) ---");
-    // Garante Alice bloqueada em ambas
-    await exhaustTokens(aliceUser.id, "category");
-    await exhaustTokens(aliceUser.id, "campaign");
-
     // Bob não deve ser afetado pelo bloqueio de Alice
     const reqBobCat = makeRequest("http://localhost:3000/api/categories", bobToken, { name: "Categoria do Bob" });
     const resBobCat = await createCategoryRoute(reqBobCat);
@@ -339,10 +382,12 @@ async function runTestSuite() {
     assert(resBobCamp.status === 200, "F2. Bob cria campanha normalmente (HTTP 200) enquanto Alice está bloqueada");
 
     // Alice continua bloqueada imediatamente em seguida
+    await exhaustTokens(aliceUser.id, "category");
     const reqAliceStillBlocked = makeRequest("http://localhost:3000/api/categories", aliceToken, { name: "Alice Still Blocked" });
     const resAliceStillBlocked = await createCategoryRoute(reqAliceStillBlocked);
     assert(resAliceStillBlocked.status === 429, "F3. Alice permanece estritamente bloqueada em categorias (429)");
 
+    await exhaustTokens(aliceUser.id, "campaign");
     const reqAliceCampStillBlocked = makeRequest("http://localhost:3000/api/campaigns", aliceToken, { name: "Alice Camp Still Blocked" });
     const resAliceCampStillBlocked = await createCampaignRoute(reqAliceCampStillBlocked);
     assert(resAliceCampStillBlocked.status === 429, "F4. Alice permanece estritamente bloqueada em campanhas (429)");
@@ -352,16 +397,19 @@ async function runTestSuite() {
     // ========================================================================
     console.log("\n--- TESTE G: Isolamento entre Buckets (Category vs Campaign) ---");
     // Libera Alice em category, e bloqueia em campaign
-    await resetRateLimit(aliceUser.id, "category");
     await exhaustTokens(aliceUser.id, "campaign");
-
+    await resetRateLimit(aliceUser.id, "category");
     const reqAliceCatUnblocked = makeRequest("http://localhost:3000/api/categories", aliceToken, { name: "Alice Cat Unblocked" });
     const resAliceCatUnblocked = await createCategoryRoute(reqAliceCatUnblocked);
     assert(resAliceCatUnblocked.status === 200, "G1. Alice liberada em categorias após reset do bucket 'category' (200)");
 
     const reqAliceCampCheck = makeRequest("http://localhost:3000/api/campaigns", aliceToken, { name: "Alice Camp Check" });
     const resAliceCampCheck = await createCampaignRoute(reqAliceCampCheck);
-    assert(resAliceCampCheck.status === 429, "G2. Alice CONTINUA bloqueada em 'campaign' (429) demonstrando independência de buckets");
+    assert(
+      resAliceCampCheck.status === 429,
+      "G2. Alice CONTINUA bloqueada em 'campaign' (429) demonstrando independência de buckets",
+      `status=${resAliceCampCheck.status}`
+    );
 
     // Inverso: Bloqueia category e libera campaign
     await exhaustTokens(aliceUser.id, "category");
@@ -378,7 +426,6 @@ async function runTestSuite() {
     // ========================================================================
     console.log("\n--- TESTE H: Zero Efeitos Colaterais em Banco durante Bloqueio (429) ---");
     await exhaustTokens(aliceUser.id, "category");
-    await exhaustTokens(aliceUser.id, "campaign");
 
     const countCatBefore = await prisma.category.count({ where: { userId: aliceUser.id } });
     const resCatBlockedSideEffect = await createCategoryRoute(
@@ -387,6 +434,8 @@ async function runTestSuite() {
     assert(resCatBlockedSideEffect.status === 429, "H1. Requisição de categoria rejeitada com 429");
     const countCatAfter = await prisma.category.count({ where: { userId: aliceUser.id } });
     assert(countCatBefore === countCatAfter, "H2. Zero registros criados em Category durante o bloqueio 429");
+
+    await exhaustTokens(aliceUser.id, "campaign");
 
     const countCampBefore = await prisma.campaign.count({ where: { userId: aliceUser.id } });
     const resCampBlockedSideEffect = await createCampaignRoute(
@@ -401,7 +450,6 @@ async function runTestSuite() {
     // ========================================================================
     console.log("\n--- TESTE I: Identificador Derivado Server-Side Anti-Spoofing ---");
     await exhaustTokens(aliceUser.id, "category");
-    await exhaustTokens(aliceUser.id, "campaign");
 
     // Alice bloqueada tenta forjar userId e sessionUserId de Bob no body
     const reqSpoofedCat = makeRequest("http://localhost:3000/api/categories", aliceToken, {
@@ -411,6 +459,8 @@ async function runTestSuite() {
     });
     const resSpoofedCat = await createCategoryRoute(reqSpoofedCat);
     assert(resSpoofedCat.status === 429, "I1. Forjar userId no payload de categoria não burla o rate limit de Alice");
+
+    await exhaustTokens(aliceUser.id, "campaign");
 
     const reqSpoofedCamp = makeRequest("http://localhost:3000/api/campaigns", aliceToken, {
       userId: bobUser.id,
@@ -424,18 +474,20 @@ async function runTestSuite() {
     // TESTE J: Anti-Evasão por Manipulação de Payload
     // ========================================================================
     console.log("\n--- TESTE J: Anti-Evasão por Manipulação de Payload ---");
-    await exhaustTokens(aliceUser.id, "category");
-    await exhaustTokens(aliceUser.id, "campaign");
-
     const catPayloads = [
       { name: "Different Cat 1", color: "#ff0000" },
       { name: "Different Cat 2", icon: "Folder" },
       { name: "Different Cat 3", color: "#00ff00", icon: "Star", extraParam: 123 },
     ];
     for (let idx = 0; idx < catPayloads.length; idx++) {
+      await exhaustTokens(aliceUser.id, "category");
       const p = catPayloads[idx];
       const resEvasion = await createCategoryRoute(makeRequest("http://localhost:3000/api/categories", aliceToken, p));
-      assert(resEvasion.status === 429, `J1.${idx + 1}. Evasão em categoria com ${Object.keys(p).join("+")} rejeitada com 429`);
+      assert(
+        resEvasion.status === 429,
+        `J1.${idx + 1}. Evasão em categoria com ${Object.keys(p).join("+")} rejeitada com 429`,
+        `status=${resEvasion.status} body=${await resEvasion.clone().text()}`
+      );
     }
 
     const campPayloads = [
@@ -445,9 +497,14 @@ async function runTestSuite() {
       { name: "Different Camp 4", arbitraryField: "injected_value", status: "PENDING" },
     ];
     for (let idx = 0; idx < campPayloads.length; idx++) {
+      await exhaustTokens(aliceUser.id, "campaign");
       const p = campPayloads[idx];
       const resEvasion = await createCampaignRoute(makeRequest("http://localhost:3000/api/campaigns", aliceToken, p));
-      assert(resEvasion.status === 429, `J2.${idx + 1}. Evasão em campanha com ${Object.keys(p).join("+")} rejeitada com 429`);
+      assert(
+        resEvasion.status === 429,
+        `J2.${idx + 1}. Evasão em campanha com ${Object.keys(p).join("+")} rejeitada com 429`,
+        `status=${resEvasion.status} body=${await resEvasion.clone().text()}`
+      );
     }
 
     // ========================================================================

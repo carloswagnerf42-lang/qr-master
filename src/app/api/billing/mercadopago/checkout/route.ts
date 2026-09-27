@@ -6,6 +6,7 @@ import {
   getMercadoPagoConfigAsync,
 } from "@/lib/mercadopago";
 import { getAppUrl } from "@/lib/app-url";
+import { checkRateLimit, createRateLimitResponse } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -15,6 +16,12 @@ export async function POST(req: NextRequest) {
     const session = await getSession(req);
     if (!session) {
       return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
+    }
+
+    // Rate Limiting financeiro por usuário
+    const rateLimit = await checkRateLimit(session.id, "checkout");
+    if (!rateLimit.allowed) {
+      return createRateLimitResponse("checkout", rateLimit.retryAfter, rateLimit.resetAt);
     }
 
     const config = await getMercadoPagoConfigAsync();
