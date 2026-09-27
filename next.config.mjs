@@ -1,3 +1,41 @@
+const rawSupabaseUrl =
+  process.env.SUPABASE_URL ||
+  process.env.NEXT_PUBLIC_SUPABASE_URL;
+
+let supabaseOrigin = '';
+if (rawSupabaseUrl) {
+  try {
+    supabaseOrigin = new URL(rawSupabaseUrl).origin;
+  } catch {
+    // URL inválida ignorada de forma segura (fail-closed)
+  }
+}
+
+const imageSources = ["'self'", 'data:', 'blob:', 'https://lh3.googleusercontent.com'];
+if (supabaseOrigin) {
+  imageSources.push(supabaseOrigin);
+}
+
+const cspDirectives = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline'",
+  `img-src ${imageSources.join(' ')}`,
+  "font-src 'self' data:",
+  "connect-src 'self'",
+  "frame-src 'none'",
+  "frame-ancestors 'none'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "media-src 'self'",
+  "worker-src 'self' blob:",
+  "manifest-src 'self'",
+  "upgrade-insecure-requests",
+];
+
+const contentSecurityPolicy = cspDirectives.join('; ');
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -13,9 +51,13 @@ const nextConfig = {
   async headers() {
     return [
       {
-        // Headers de segurança estritos para todas as rotas exceto redirecionamento de QR
-        source: '/((?!q/).*)',
+        // Headers de segurança estritos aplicados uniformemente a todas as rotas da aplicação
+        source: '/:path*',
         headers: [
+          {
+            key: 'Content-Security-Policy',
+            value: contentSecurityPolicy,
+          },
           {
             key: 'X-Content-Type-Options',
             value: 'nosniff',
@@ -39,20 +81,6 @@ const nextConfig = {
           {
             key: 'Permissions-Policy',
             value: 'camera=(), microphone=(), geolocation=()',
-          },
-        ],
-      },
-      {
-        // Headers permissivos para rota de resolução /q/:path* (compatibilidade com in-app scanners e câmeras mobile)
-        source: '/q/:path*',
-        headers: [
-          {
-            key: 'X-Content-Type-Options',
-            value: 'nosniff',
-          },
-          {
-            key: 'Referrer-Policy',
-            value: 'strict-origin-when-cross-origin',
           },
         ],
       },
