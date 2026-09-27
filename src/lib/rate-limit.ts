@@ -29,7 +29,11 @@ export type RateLimitAction =
   | "scan"
   | "upload"
   | "category"
-  | "campaign";
+  | "campaign"
+  | "password-change"
+  | "account-delete"
+  | "passwordChange"
+  | "deleteAccount";
 
 // Namespaces dedicados e isolados para cada limitador
 export const RATE_LIMIT_NAMESPACES: Record<RateLimitAction, string> = {
@@ -45,6 +49,10 @@ export const RATE_LIMIT_NAMESPACES: Record<RateLimitAction, string> = {
   upload: "qr-master:rl:upload",
   category: "qr-master:rl:category",
   campaign: "qr-master:rl:campaign",
+  "password-change": "qr-master:rl:password-change",
+  "account-delete": "qr-master:rl:delete-account",
+  passwordChange: "qr-master:rl:password-change",
+  deleteAccount: "qr-master:rl:delete-account",
 };
 
 // Configurações por endpoint preservando os limites auditados
@@ -108,6 +116,26 @@ export const RATE_LIMIT_CONFIGS: Record<RateLimitAction, RateLimitConfig> = {
     maxAttempts: 20,
     windowSeconds: 60, // 60 segundos
     errorMessage: "Muitas tentativas de criação de campanha em curto intervalo. Por favor, aguarde alguns instantes.",
+  },
+  "password-change": {
+    maxAttempts: 5,
+    windowSeconds: 5 * 60, // 5 minutos
+    errorMessage: "Muitas tentativas de alteração de senha em curto intervalo. Por favor, aguarde alguns minutos.",
+  },
+  "account-delete": {
+    maxAttempts: 5,
+    windowSeconds: 15 * 60, // 15 minutos
+    errorMessage: "Muitas tentativas de exclusão de conta em curto intervalo. Por favor, aguarde alguns minutos.",
+  },
+  passwordChange: {
+    maxAttempts: 5,
+    windowSeconds: 5 * 60, // 5 minutos
+    errorMessage: "Muitas tentativas de alteração de senha em curto intervalo. Por favor, aguarde alguns minutos.",
+  },
+  deleteAccount: {
+    maxAttempts: 5,
+    windowSeconds: 15 * 60, // 15 minutos
+    errorMessage: "Muitas tentativas de exclusão de conta em curto intervalo. Por favor, aguarde alguns minutos.",
   },
 };
 
@@ -223,10 +251,16 @@ export function checkRateLimitLocal(
   action: RateLimitAction,
   nowMs?: number
 ): RateLimitResult {
+  const canonicalAction: RateLimitAction =
+    action === "passwordChange"
+      ? "password-change"
+      : action === "deleteAccount"
+      ? "account-delete"
+      : action;
   const now = typeof nowMs === "number" ? nowMs : Date.now();
-  const config = RATE_LIMIT_CONFIGS[action];
+  const config = RATE_LIMIT_CONFIGS[canonicalAction];
   const safeIdentifier = getSafeRateLimitIdentifier(identifier);
-  const key = `${action}:${safeIdentifier}`;
+  const key = `${canonicalAction}:${safeIdentifier}`;
 
   cleanupLocalStore(now);
 
@@ -267,10 +301,24 @@ export function checkRateLimitLocal(
  * Limpa o estado in-memory do identificador
  */
 export function resetLocalRateLimit(identifier: string, action?: RateLimitAction): void {
+  const canonicalAction: RateLimitAction | undefined = action
+    ? action === "passwordChange"
+      ? "password-change"
+      : action === "deleteAccount"
+      ? "account-delete"
+      : action
+    : undefined;
   const safeIdentifier = getSafeRateLimitIdentifier(identifier);
-  if (action) {
-    rateLimitStore.delete(`${action}:${safeIdentifier}`);
-    rateLimitStore.delete(`${action}:${identifier}`);
+  if (canonicalAction) {
+    rateLimitStore.delete(`${canonicalAction}:${safeIdentifier}`);
+    rateLimitStore.delete(`${canonicalAction}:${identifier}`);
+    if (canonicalAction === "password-change") {
+      rateLimitStore.delete(`passwordChange:${safeIdentifier}`);
+      rateLimitStore.delete(`passwordChange:${identifier}`);
+    } else if (canonicalAction === "account-delete") {
+      rateLimitStore.delete(`deleteAccount:${safeIdentifier}`);
+      rateLimitStore.delete(`deleteAccount:${identifier}`);
+    }
   } else {
     for (const key of Array.from(rateLimitStore.keys())) {
       if (key.endsWith(`:${safeIdentifier}`) || key.endsWith(`:${identifier}`)) {
@@ -420,6 +468,38 @@ function getRatelimitInstances(): Record<RateLimitAction, Ratelimit> {
         ),
         prefix: RATE_LIMIT_NAMESPACES.campaign,
       }),
+      "password-change": new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(
+          RATE_LIMIT_CONFIGS["password-change"].maxAttempts,
+          `${RATE_LIMIT_CONFIGS["password-change"].windowSeconds} s`
+        ),
+        prefix: RATE_LIMIT_NAMESPACES["password-change"],
+      }),
+      "account-delete": new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(
+          RATE_LIMIT_CONFIGS["account-delete"].maxAttempts,
+          `${RATE_LIMIT_CONFIGS["account-delete"].windowSeconds} s`
+        ),
+        prefix: RATE_LIMIT_NAMESPACES["account-delete"],
+      }),
+      passwordChange: new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(
+          RATE_LIMIT_CONFIGS.passwordChange.maxAttempts,
+          `${RATE_LIMIT_CONFIGS.passwordChange.windowSeconds} s`
+        ),
+        prefix: RATE_LIMIT_NAMESPACES.passwordChange,
+      }),
+      deleteAccount: new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(
+          RATE_LIMIT_CONFIGS.deleteAccount.maxAttempts,
+          `${RATE_LIMIT_CONFIGS.deleteAccount.windowSeconds} s`
+        ),
+        prefix: RATE_LIMIT_NAMESPACES.deleteAccount,
+      }),
     };
   }
 
@@ -505,10 +585,17 @@ export async function checkRateLimit(
   action: RateLimitAction,
   nowMs?: number
 ): Promise<RateLimitResult> {
+  const canonicalAction: RateLimitAction =
+    action === "passwordChange"
+      ? "password-change"
+      : action === "deleteAccount"
+      ? "account-delete"
+      : action;
+
   // Se nowMs fornecido explicitamente para simulação determinística de tempo em testes,
   // utiliza diretamente o rate limiter in-memory.
   if (typeof nowMs === "number") {
-    return checkRateLimitLocal(identifier, action, nowMs);
+    return checkRateLimitLocal(identifier, canonicalAction, nowMs);
   }
 
   const isIp = isIpAddress(identifier);
@@ -525,30 +612,30 @@ export async function checkRateLimit(
       // - NÃO usa identificador sentinela
       // - Utiliza exclusivamente o rate limiter local em memória
       logMissingHashSecretWarning();
-      return checkRateLimitLocal(identifier, action);
+      return checkRateLimitLocal(identifier, canonicalAction);
     }
   }
 
   const redis = getRedisClient();
   if (!redis) {
-    return checkRateLimitLocal(identifier, action);
+    return checkRateLimitLocal(identifier, canonicalAction);
   }
 
   const safeIdentifier = getSafeRateLimitIdentifier(identifier);
 
   try {
     const instances = getRatelimitInstances();
-    const limiter = instances[action];
+    const limiter = instances[canonicalAction];
     if (!limiter) {
-      return checkRateLimitLocal(identifier, action);
+      return checkRateLimitLocal(identifier, canonicalAction);
     }
 
     const res = await executeWithTimeout(limiter.limit(safeIdentifier), REDIS_TIMEOUT_MS);
 
     // Se o SDK internamente indicou timeout, ativamos o fallback local para não gerar fail-open
     if ((res as any).reason === "timeout") {
-      logRedisFallback(new Error("SDK_TIMEOUT"), action);
-      return checkRateLimitLocal(identifier, action);
+      logRedisFallback(new Error("SDK_TIMEOUT"), canonicalAction);
+      return checkRateLimitLocal(identifier, canonicalAction);
     }
 
     const now = Date.now();
@@ -561,9 +648,9 @@ export async function checkRateLimit(
       resetAt: res.reset,
     };
   } catch (error) {
-    logRedisFallback(error, action);
+    logRedisFallback(error, canonicalAction);
     // Em caso de falha ou timeout do Redis, executa rate limiting local (SEM fail-open)
-    return checkRateLimitLocal(identifier, action);
+    return checkRateLimitLocal(identifier, canonicalAction);
   }
 }
 
@@ -579,10 +666,17 @@ export async function resetRateLimit(
   identifier: string,
   action?: RateLimitAction
 ): Promise<void> {
+  const canonicalAction: RateLimitAction | undefined = action
+    ? action === "passwordChange"
+      ? "password-change"
+      : action === "deleteAccount"
+      ? "account-delete"
+      : action
+    : undefined;
   const isIp = isIpAddress(identifier);
 
   // 1. Sempre limpa o cache local de fallback
-  resetLocalRateLimit(identifier, action);
+  resetLocalRateLimit(identifier, canonicalAction);
 
   // Se for IP em produção sem segredo, foi processado exclusivamente no fallback local;
   // portanto o Redis não possui dados a resetar para este IP.
@@ -598,8 +692,8 @@ export async function resetRateLimit(
 
   try {
     const instances = getRatelimitInstances();
-    if (action) {
-      const limiter = instances[action];
+    if (canonicalAction) {
+      const limiter = instances[canonicalAction];
       if (limiter) {
         await executeWithTimeout(limiter.resetUsedTokens(safeIdentifier), REDIS_TIMEOUT_MS);
       }
@@ -615,7 +709,7 @@ export async function resetRateLimit(
       );
     }
   } catch (error) {
-    logRedisFallback(error, action || "all");
+    logRedisFallback(error, canonicalAction || "all");
   }
 }
 
@@ -631,7 +725,13 @@ export function createRateLimitResponse(
   retryAfter: number,
   resetAt?: number
 ): NextResponse {
-  const config = RATE_LIMIT_CONFIGS[action];
+  const canonicalAction: RateLimitAction =
+    action === "passwordChange"
+      ? "password-change"
+      : action === "deleteAccount"
+      ? "account-delete"
+      : action;
+  const config = RATE_LIMIT_CONFIGS[canonicalAction];
   const safeRetryAfter = Math.max(1, retryAfter);
   const headers: Record<string, string> = {
     "Retry-After": safeRetryAfter.toString(),

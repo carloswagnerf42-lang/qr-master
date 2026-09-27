@@ -1,12 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession, verifyPassword, hashPassword, revokeAllUserSessions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { checkRateLimit, createRateLimitResponse } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
   try {
     const session = await getSession(req);
     if (!session) {
       return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+    }
+
+    // Rate Limiting de alteração de senha por usuário autenticado (Fail-Closed, antes de bcrypt.compare)
+    const rateLimit = await checkRateLimit(session.id, "password-change");
+    if (!rateLimit.allowed) {
+      return createRateLimitResponse(
+        "password-change",
+        rateLimit.retryAfter,
+        rateLimit.resetAt
+      );
     }
 
     const body = await req.json();

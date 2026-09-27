@@ -2,12 +2,23 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession, verifyPassword, clearSessionCookie } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { deleteUserStorageFolder } from "@/lib/storage";
+import { checkRateLimit, createRateLimitResponse } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
   try {
     const session = await getSession(req);
     if (!session) {
       return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+    }
+
+    // Rate Limiting de exclusão de conta por usuário autenticado (Fail-Closed, antes de bcrypt.compare)
+    const rateLimit = await checkRateLimit(session.id, "account-delete");
+    if (!rateLimit.allowed) {
+      return createRateLimitResponse(
+        "account-delete",
+        rateLimit.retryAfter,
+        rateLimit.resetAt
+      );
     }
 
     const body = await req.json();
