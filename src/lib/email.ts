@@ -65,11 +65,24 @@ export async function sendEmail({ to, subject, html }: SendEmailParams): Promise
   }
 }
 
+function escapeHtml(str: string): string {
+  if (!str || typeof str !== "string") return "";
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+
 /**
  * Envia o e-mail oficial com o link de recuperação de senha.
  */
 export async function sendPasswordResetEmail(to: string, resetUrl: string, userName?: string): Promise<{ success: boolean; error?: string; mode: "resend" | "fallback" }> {
-  const greeting = userName ? `Olá, ${userName}!` : "Olá!";
+  const safeName = userName ? escapeHtml(userName.trim()) : "";
+  const greeting = safeName ? `Olá, ${safeName}!` : "Olá!";
+  const safeResetUrl = escapeHtml(resetUrl.trim());
   const subject = "Recuperação de Senha — QR MASTER";
 
   const html = `
@@ -105,7 +118,7 @@ export async function sendPasswordResetEmail(to: string, resetUrl: string, userN
     <p>Para criar uma nova senha com segurança, clique no botão abaixo:</p>
 
     <div class="btn-container">
-      <a href="${resetUrl}" class="btn" target="_blank" rel="noopener noreferrer">Redefinir Minha Senha</a>
+      <a href="${safeResetUrl}" class="btn" target="_blank" rel="noopener noreferrer">Redefinir Minha Senha</a>
     </div>
 
     <div class="alert">
@@ -113,7 +126,7 @@ export async function sendPasswordResetEmail(to: string, resetUrl: string, userN
     </div>
 
     <p style="font-size: 13px; color: #94A3B8;">Se o botão não funcionar, copie e cole o endereço abaixo no seu navegador:</p>
-    <p class="link-alt">${resetUrl}</p>
+    <p class="link-alt">${safeResetUrl}</p>
 
     <div class="footer">
       © 2026 QR MASTER. Plataforma profissional de gestão de QR Codes.<br>

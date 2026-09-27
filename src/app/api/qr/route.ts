@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { getUserPlanAndUsage, checkPermission } from "@/lib/permissions";
 import { generateUniqueShortCode } from "@/lib/short-code";
-import { validateAndNormalizeDestination } from "@/lib/dynamic-redirect";
+import { validateAndNormalizeDestination, isSafeImageUrl } from "@/lib/dynamic-redirect";
 import { checkRateLimit, createRateLimitResponse } from "@/lib/rate-limit";
 import { validateQRContent, formatQRDestination } from "@/lib/qr-generator";
 
@@ -150,6 +150,14 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         );
       }
+    }
+
+    // Validação de segurança de logotipo contra protocolos maliciosos
+    if (!isSafeImageUrl(logoUrl) || (styleConfig && typeof styleConfig === "object" && !isSafeImageUrl(styleConfig.logoUrl))) {
+      return NextResponse.json(
+        { error: "URL de logotipo inválida ou não permitida por motivos de segurança." },
+        { status: 400 }
+      );
     }
 
     // Validação central de limites e plano do usuário

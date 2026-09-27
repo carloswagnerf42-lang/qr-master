@@ -8,6 +8,16 @@ import { isSubscriptionActive } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
+function escapeHtml(str: string): string {
+  if (!str || typeof str !== "string") return "";
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 /**
  * Renderiza uma página de aviso profissional com design limpo e responsivo
  */
@@ -18,12 +28,20 @@ function renderStatusPage(
   badge: string = "QR MASTER",
   badgeColor: string = "#6366f1"
 ): NextResponse {
+  const safeTitle = escapeHtml(title);
+  const safeMessage = escapeHtml(message);
+  const safeBadge = escapeHtml(badge);
+  const safeBadgeColor = /^#[0-9a-fA-F]{3,8}$/.test(badgeColor ? badgeColor.trim() : "")
+    ? badgeColor.trim()
+    : "#6366f1";
+
+
   const html = `<!DOCTYPE html>
 <html lang="pt-BR">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>${title} — QR MASTER</title>
+    <title>${safeTitle} — QR MASTER</title>
     <style>
       * { box-sizing: border-box; margin: 0; padding: 0; }
       body {
@@ -52,7 +70,7 @@ function renderStatusPage(
         font-weight: 800;
         letter-spacing: 0.05em;
         text-transform: uppercase;
-        color: ${badgeColor};
+        color: ${safeBadgeColor};
         background: rgba(99, 102, 241, 0.1);
         padding: 4px 12px;
         border-radius: 9999px;
@@ -90,16 +108,16 @@ function renderStatusPage(
   </head>
   <body>
     <div class="card">
-      <span class="badge">${badge}</span>
+      <span class="badge">${safeBadge}</span>
       <div class="icon-box">
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="${badgeColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="${safeBadgeColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="10"></circle>
           <line x1="12" y1="8" x2="12" y2="12"></line>
           <line x1="12" y1="16" x2="12.01" y2="16"></line>
         </svg>
       </div>
-      <h1>${title}</h1>
-      <p>${message}</p>
+      <h1>${safeTitle}</h1>
+      <p>${safeMessage}</p>
       <div class="footer">QR MASTER • Plataforma Profissional de QR Codes</div>
     </div>
   </body>

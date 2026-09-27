@@ -14,6 +14,34 @@ export interface DestinationValidationResult {
 const FORBIDDEN_PROTOCOLS = ["javascript:", "data:", "vbscript:", "file:", "blob:"];
 
 /**
+ * Valida se uma URL de imagem (avatar ou logotipo) utiliza protocolo e formato seguros.
+ * Utiliza allowlist estrita: https:, http:, caminhos relativos (/...) e data:image/*.
+ * Rejeita qualquer outro esquema (javascript:, data:text/html, vbscript:, file:, etc.) e links protocol-relative (//).
+ */
+export function isSafeImageUrl(url: unknown): boolean {
+  if (!url || typeof url !== "string") return true;
+  // Remove caracteres de controle e espaços em branco
+  const clean = url.trim().toLowerCase().replace(/[\x00-\x1f\x7f\s]+/g, "");
+  if (!clean) return true;
+
+  // Rejeita explicitamente URLs protocol-relative (//evil.com)
+  if (clean.startsWith("//")) return false;
+
+  // Allowlist estrita de formatos de imagem suportados pela plataforma
+  if (
+    clean.startsWith("https://") ||
+    clean.startsWith("http://") ||
+    clean.startsWith("/") ||
+    clean.startsWith("data:image/")
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+
+/**
  * Valida e higieniza a URL de destino de um QR Code dinâmico,
  * prevenindo esquemas perigosos, loops de redirecionamento e URLs malformadas.
  */

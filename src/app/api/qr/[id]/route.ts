@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { getUserPlanAndUsage, checkPermission } from "@/lib/permissions";
-import { validateAndNormalizeDestination } from "@/lib/dynamic-redirect";
+import { validateAndNormalizeDestination, isSafeImageUrl } from "@/lib/dynamic-redirect";
 import { updateUserQRCode, deleteUserQRCode, QRCodeNotFoundError } from "@/lib/qr-service";
 
 export async function GET(
@@ -116,6 +116,20 @@ export async function PUT(
           );
         }
       }
+    }
+
+    // Validação de segurança de logotipo contra protocolos maliciosos
+    if (logoUrl !== undefined && !isSafeImageUrl(logoUrl)) {
+      return NextResponse.json(
+        { error: "URL de logotipo inválida ou não permitida por motivos de segurança." },
+        { status: 400 }
+      );
+    }
+    if (styleConfig && typeof styleConfig === "object" && "logoUrl" in styleConfig && !isSafeImageUrl((styleConfig as any).logoUrl)) {
+      return NextResponse.json(
+        { error: "URL de logotipo inválida ou não permitida por motivos de segurança." },
+        { status: 400 }
+      );
     }
 
     // Validação de destino contra URLs perigosas e detecção de loops

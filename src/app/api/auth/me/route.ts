@@ -3,6 +3,7 @@ import { getCurrentUser, getSession, signToken, setSessionCookie } from "@/lib/a
 import { prisma } from "@/lib/db";
 import { getUserPlanAndUsage, can } from "@/lib/permissions";
 import { cleanupReplacedManagedFile } from "@/lib/storage-lifecycle";
+import { isSafeImageUrl } from "@/lib/dynamic-redirect";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -126,6 +127,12 @@ export async function PATCH(req: NextRequest) {
     }
     let previousAvatarUrl: string | null = null;
     if (avatarUrl !== undefined) {
+      if (!isSafeImageUrl(avatarUrl)) {
+        return NextResponse.json(
+          { error: "URL de avatar inválida ou não permitida por motivos de segurança." },
+          { status: 400 }
+        );
+      }
       dataToUpdate.avatarUrl = avatarUrl ? String(avatarUrl).trim() : null;
       const currentRec = await prisma.user.findUnique({
         where: { id: session.id },
