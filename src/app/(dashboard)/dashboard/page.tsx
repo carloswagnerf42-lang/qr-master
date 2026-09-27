@@ -31,6 +31,7 @@ import {
 } from "recharts";
 import { Header } from "@/components/layout/Header";
 import { UpgradeModal, UpgradeReason } from "@/components/UpgradeModal";
+import { useQuota } from "@/contexts/QuotaContext";
 
 interface DashboardData {
   userName: string;
@@ -83,6 +84,7 @@ interface AnalyticsData {
 }
 
 export default function DashboardPage() {
+  const { requireCreationQuota } = useQuota();
   const [data, setData] = useState<DashboardData | null>(null);
   const [chartData, setChartData] = useState<AnalyticsData | null>(null);
   const [period, setPeriod] = useState<"today" | "7d" | "30d" | "90d" | "12m">("30d");
@@ -158,8 +160,8 @@ export default function DashboardPage() {
       />
 
       <div className="p-4 sm:p-8 max-w-7xl mx-auto space-y-8">
-        {/* Top Greeting & Action */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-r from-indigo-900/10 via-purple-900/5 to-transparent p-6 rounded-2xl border border-indigo-100 dark:border-slate-800/80">
+        {/* Top Greeting */}
+        <div className="bg-gradient-to-r from-indigo-900/10 via-purple-900/5 to-transparent p-6 rounded-2xl border border-indigo-100 dark:border-slate-800/80">
           <div>
             <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 text-xs font-semibold mb-2">
               <Sparkles className="w-3.5 h-3.5" />
@@ -172,14 +174,6 @@ export default function DashboardPage() {
               Aqui está o resumo atualizado dos seus QR Codes e escaneamentos.
             </p>
           </div>
-
-          <Link
-            href="/create"
-            className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm shadow-lg shadow-indigo-600/25 transition-all hover:scale-[1.02] active:scale-[0.98] shrink-0"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Criar QR Code</span>
-          </Link>
         </div>
 
         {/* 6 KPI Cards (Section 6) */}
@@ -195,29 +189,47 @@ export default function DashboardPage() {
                   {data?.plan?.displayName || data?.plan?.name || "FREE"}
                 </span>
               </div>
-              <div className="mt-3 flex items-baseline gap-2">
-                <span className="text-3xl font-extrabold text-slate-900 dark:text-white">
-                  {data?.plan
-                    ? data.plan.maxQRCodes > 9999
-                      ? `${data.cards.totalQRs.value}`
-                      : `${data.plan.usedQRCodes} / ${data.plan.maxQRCodes}`
-                    : loading
-                    ? "..."
-                    : 0}
-                </span>
-                <span className="text-xs text-slate-500 dark:text-slate-400">
-                  {data?.plan?.maxQRCodes && data.plan.maxQRCodes > 9999
-                    ? "QRs (ilimitado)"
-                    : "QRs no ciclo"}
-                </span>
+              <div className="mt-3">
+                {data?.plan ? (
+                  data.plan.maxQRCodes > 9999 || data.plan.name === "BUSINESS" ? (
+                    <div>
+                      <div className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white">
+                        {data.cards.totalQRs.value} QR Codes
+                      </div>
+                      <div className="text-xs font-medium text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Uso ilimitado</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white">
+                        {data.plan.usedQRCodes} de {data.plan.maxQRCodes} QR Codes
+                      </div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                        {data.plan.usedQRCodes >= data.plan.maxQRCodes
+                          ? "Limite do ciclo atingido"
+                          : `${data.plan.remainingQRCodes} restante(s) no ciclo`}
+                      </div>
+                    </div>
+                  )
+                ) : (
+                  <span className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white">
+                    {loading ? "..." : "0 de 5 QR Codes"}
+                  </span>
+                )}
               </div>
             </div>
 
-            {data?.plan && data.plan.maxQRCodes <= 9999 ? (
+            {data?.plan && data.plan.maxQRCodes <= 9999 && data.plan.name !== "BUSINESS" ? (
               <div className="mt-3 space-y-1.5 pt-2 border-t border-slate-100 dark:border-slate-800/60">
                 <div className="w-full h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
                   <div
-                    className="h-full bg-indigo-600 rounded-full transition-all"
+                    className={`h-full rounded-full transition-all ${
+                      data.plan.usedQRCodes >= data.plan.maxQRCodes
+                        ? "bg-amber-500"
+                        : "bg-indigo-600 dark:bg-indigo-500"
+                    }`}
                     style={{
                       width: `${Math.min(
                         100,
@@ -677,6 +689,35 @@ export default function DashboardPage() {
               )}
             </div>
           </div>
+        </div>
+
+        {/* Banner CTA Final de Criação de QR Code */}
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-900/20 via-slate-900/30 to-purple-900/20 border border-indigo-200/50 dark:border-slate-800 p-6 sm:p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-6 shadow-sm">
+          <div className="space-y-1.5">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-xs font-semibold">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Novo QR Code</span>
+            </div>
+            <h3 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white tracking-tight">
+              Pronto para criar seu próximo QR Code?
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-xl">
+              Crie códigos dinâmicos ou estáticos personalizados com logotipos, molduras estilizadas e rastreamento em tempo real.
+            </p>
+          </div>
+
+          <Link
+            href="/create"
+            onClick={(e) => {
+              if (!requireCreationQuota(e)) {
+                return;
+              }
+            }}
+            className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm shadow-lg shadow-indigo-600/25 transition-all hover:scale-[1.02] active:scale-[0.98] shrink-0"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Criar QR Code</span>
+          </Link>
         </div>
       </div>
 

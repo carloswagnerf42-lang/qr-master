@@ -5,6 +5,7 @@ import { FolderDown, Download, Trash2, FileText, Image as ImageIcon, Sparkles, P
 import { Header } from "@/components/layout/Header";
 import { useToast } from "@/components/ui/Toast";
 import Link from "next/link";
+import { useQuota } from "@/contexts/QuotaContext";
 
 interface GeneratedFileItem {
   id: string;
@@ -23,6 +24,7 @@ interface GeneratedFileItem {
 
 export default function FilesPage() {
   const toast = useToast();
+  const { requireCreationQuota } = useQuota();
   const [files, setFiles] = useState<GeneratedFileItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [typeFilter, setTypeFilter] = useState("all");
@@ -108,6 +110,9 @@ export default function FilesPage() {
 
             <Link
               href="/create"
+              onClick={(e) => {
+                if (!requireCreationQuota(e)) return;
+              }}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs transition-colors"
             >
               <Plus className="w-4 h-4" />
@@ -135,6 +140,9 @@ export default function FilesPage() {
               <div className="pt-2">
                 <Link
                   href="/create"
+                  onClick={(e) => {
+                    if (!requireCreationQuota(e)) return;
+                  }}
                   className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold inline-block"
                 >
                   Criar e Exportar QR Code

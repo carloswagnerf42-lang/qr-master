@@ -29,6 +29,7 @@ import { downloadPng, downloadSvg, downloadPdf } from "@/lib/export";
 import { getAppUrl } from "@/lib/app-url";
 import { useToast } from "@/components/ui/Toast";
 import { UpgradeModal, UpgradeReason } from "@/components/UpgradeModal";
+import { useQuota } from "@/contexts/QuotaContext";
 
 interface QRItem {
   id: string;
@@ -51,6 +52,7 @@ interface QRItem {
 export default function MyQRsPage() {
   const router = useRouter();
   const toast = useToast();
+  const { requireCreationQuota, refreshQuota, openUpgradeModal } = useQuota();
 
   const [qrs, setQrs] = useState<QRItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -231,11 +233,20 @@ export default function MyQRsPage() {
   };
 
   const handleDuplicate = async (id: string) => {
+    if (!requireCreationQuota()) return;
     try {
       const res = await fetch(`/api/qr/${id}/duplicate`, { method: "POST" });
       if (res.ok) {
         toast.success("Duplicado com sucesso", "Uma cópia foi adicionada à lista.");
         loadQRs();
+        refreshQuota();
+      } else if (res.status === 403) {
+        const err = await res.json();
+        if (err.code === "LIMIT_REACHED") {
+          openUpgradeModal("LIMIT_REACHED", err.limit);
+        } else {
+          toast.error("Limite atingido", err.error || "Não foi possível duplicar.");
+        }
       }
     } catch {
       toast.error("Erro", "Não foi possível duplicar o QR Code.");
@@ -250,6 +261,7 @@ export default function MyQRsPage() {
       if (res.ok) {
         toast.success("Movido para a lixeira", "Você pode restaurá-lo na aba Lixeira a qualquer momento.");
         loadQRs();
+        refreshQuota();
       }
     } catch {
       toast.error("Erro", "Não foi possível excluir.");
@@ -293,6 +305,9 @@ export default function MyQRsPage() {
 
             <Link
               href="/create"
+              onClick={(e) => {
+                if (!requireCreationQuota(e)) return;
+              }}
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs shadow-sm transition-colors shrink-0 w-full sm:w-auto justify-center"
             >
               <Plus className="w-4 h-4" />
@@ -388,6 +403,9 @@ export default function MyQRsPage() {
               <div className="pt-2">
                 <Link
                   href="/create"
+                  onClick={(e) => {
+                    if (!requireCreationQuota(e)) return;
+                  }}
                   className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs transition-colors"
                 >
                   <Plus className="w-4 h-4" />

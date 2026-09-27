@@ -43,6 +43,8 @@ import { UpgradeModal, UpgradeReason } from "@/components/UpgradeModal";
 import { getAppUrl } from "@/lib/app-url";
 import { useToast } from "@/components/ui/Toast";
 import { NEW_QR_EVENT } from "@/lib/qr-events";
+import Link from "next/link";
+import { useQuota } from "@/contexts/QuotaContext";
 
 const INITIAL_CONTENT: QRCodeContentPayload = {
   url: "",
@@ -121,6 +123,23 @@ export default function CreateQRCodePage() {
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const [upgradeReason, setUpgradeReason] = useState<UpgradeReason>("DYNAMIC_QR");
   const [upgradeLimit, setUpgradeLimit] = useState<number>(5);
+
+  const {
+    canCreate,
+    planName,
+    maxQRCodes,
+    loading: quotaLoading,
+    openUpgradeModal,
+    refreshQuota,
+  } = useQuota();
+  const [hasPromptedQuotaUpgrade, setHasPromptedQuotaUpgrade] = useState(false);
+
+  useEffect(() => {
+    if (!quotaLoading && !canCreate && !hasPromptedQuotaUpgrade) {
+      setHasPromptedQuotaUpgrade(true);
+      openUpgradeModal("LIMIT_REACHED", maxQRCodes);
+    }
+  }, [quotaLoading, canCreate, hasPromptedQuotaUpgrade, openUpgradeModal, maxQRCodes]);
 
   // Ref for the wizard container to reliably reposition viewport across steps
   const wizardTopRef = useRef<HTMLDivElement>(null);
@@ -402,6 +421,7 @@ export default function CreateQRCodePage() {
       }
 
       setCreatedQr({ id: data.qrCode.id, shortCode: data.qrCode.shortCode });
+      refreshQuota();
       toast.success("✓ QR Code criado com sucesso!", "Você já pode baixar e compartilhar.");
       setSaving(false);
     } catch {
@@ -476,6 +496,64 @@ export default function CreateQRCodePage() {
     { id: "sms", name: "SMS", icon: MessageSquare, desc: "Mensagem de texto celular" },
     { id: "multilink", name: "Multi-Link", icon: ListPlus, desc: "Página de biografia com links" },
   ];
+
+  if (!quotaLoading && !canCreate) {
+    return (
+      <div>
+        <Header
+          title="Criar QR Code"
+          subtitle="Limite de cota de criação atingido"
+        />
+
+        <div className="p-4 sm:p-8 max-w-2xl mx-auto my-12">
+          <div className="p-8 rounded-3xl bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-900/40 shadow-xl text-center space-y-6">
+            <div className="w-16 h-16 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 mx-auto flex items-center justify-center">
+              <AlertTriangle className="w-8 h-8" />
+            </div>
+            <div className="space-y-2">
+              <span className="inline-block px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wide bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+                Limite de Criações Atingido
+              </span>
+              <h2 className="text-2xl font-black text-slate-900 dark:text-white">
+                {planName === "PRO"
+                  ? `Você atingiu o limite de ${maxQRCodes} QR Codes do plano Pro.`
+                  : `Você atingiu o limite de ${maxQRCodes} QR Codes do plano Free.`}
+              </h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto">
+                {planName === "PRO"
+                  ? "Faça upgrade para o plano BUSINESS para criar QR Codes ilimitados e desbloquear todos os recursos corporativos."
+                  : "Faça upgrade para o plano PRO para criar até 15 QR Codes e desbloquear códigos dinâmicos com rastreamento."}
+              </p>
+            </div>
+
+            <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+              <button
+                onClick={() => openUpgradeModal("LIMIT_REACHED", maxQRCodes)}
+                className="w-full sm:w-auto px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-lg shadow-indigo-600/25 flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-[0.98]"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>{planName === "PRO" ? "Fazer Upgrade para BUSINESS" : "Fazer Upgrade para PRO"}</span>
+              </button>
+              <Link
+                href="/dashboard"
+                className="w-full sm:w-auto px-6 py-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-sm transition-colors text-center"
+              >
+                Voltar para o Painel
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        <UpgradeModal
+          isOpen={upgradeModalOpen}
+          onClose={() => setUpgradeModalOpen(false)}
+          reason={upgradeReason}
+          limit={upgradeLimit}
+          currentPlan={planName}
+        />
+      </div>
+    );
+  }
 
   return (
     <div>

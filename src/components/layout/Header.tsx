@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { Plus, Bell } from "lucide-react";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { triggerNewQRCreation } from "@/lib/qr-events";
+import { useQuota } from "@/contexts/QuotaContext";
 
 interface HeaderProps {
   title?: string;
@@ -24,6 +25,7 @@ interface HeaderProps {
 
 export function Header({ title, subtitle, user: propUser, onCreateNew }: HeaderProps) {
   const pathname = usePathname();
+  const { requireCreationQuota } = useQuota();
   const [userData, setUserData] = useState<{
     name?: string;
     email?: string;
@@ -125,6 +127,9 @@ export function Header({ title, subtitle, user: propUser, onCreateNew }: HeaderP
         <Link
           href="/create"
           onClick={(e) => {
+            if (!requireCreationQuota(e)) {
+              return;
+            }
             if (onCreateNew) {
               e.preventDefault();
               onCreateNew();

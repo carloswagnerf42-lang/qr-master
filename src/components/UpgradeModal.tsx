@@ -156,6 +156,8 @@ export function UpgradeModal({
   onClose,
   reason,
   limit = 5,
+  currentPlan,
+  requiredPlan,
   customTitle,
   customDescription,
 }: UpgradeModalProps) {
@@ -231,8 +233,46 @@ export function UpgradeModal({
   const config = REASON_CONFIG[reason] || REASON_CONFIG.LIMIT_REACHED;
   const Icon = config.icon;
 
-  const title = customTitle || (reason === "LIMIT_REACHED" && limit ? `Você atingiu o limite de ${limit} QR Codes do plano FREE` : config.title);
-  const description = customDescription || config.description;
+  const isPro = currentPlan === "PRO" || limit === 15;
+
+  const title =
+    customTitle ||
+    (reason === "LIMIT_REACHED"
+      ? isPro
+        ? `Você atingiu o limite de ${limit || 15} QR Codes do plano Pro.`
+        : `Você atingiu o limite de ${limit || 5} QR Codes do plano Free.`
+      : config.title);
+
+  const description =
+    customDescription ||
+    (reason === "LIMIT_REACHED"
+      ? isPro
+        ? "O plano PRO permite criar até 15 QR Codes por ciclo. Para criar QR Codes ilimitados e expandir seus recursos comerciais, faça upgrade para o plano BUSINESS."
+        : config.description
+      : config.description);
+
+  const badgeText =
+    reason === "LIMIT_REACHED"
+      ? isPro
+        ? "Limite da Cota PRO Atingido"
+        : "Limite da Cota FREE Atingido"
+      : config.badge;
+
+  const ctaText =
+    reason === "LIMIT_REACHED"
+      ? isPro
+        ? "Fazer Upgrade para BUSINESS"
+        : "Fazer Upgrade para PRO"
+      : config.ctaText;
+
+  const highlights =
+    reason === "LIMIT_REACHED" && isPro
+      ? [
+          "Crie QR Codes ilimitados sem restrições de cota",
+          "Gestão de campanhas e agrupamento avançado",
+          "Alta disponibilidade e suporte prioritário corporativo",
+        ]
+      : config.highlights;
 
   const handleGoToPlans = () => {
     if (navigating) return;
@@ -269,7 +309,7 @@ export function UpgradeModal({
               <span
                 className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide border mb-1.5 ${config.badgeColor}`}
               >
-                {config.badge}
+                {badgeText}
               </span>
               <h3
                 id="upgrade-modal-title"
@@ -302,10 +342,10 @@ export function UpgradeModal({
           {/* Destaques do benefício */}
           <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/70 dark:border-slate-800 space-y-2.5">
             <h4 className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
-              O que está incluído no Plano PRO:
+              {isPro ? "O que está incluído no Plano BUSINESS:" : "O que está incluído no Plano PRO:"}
             </h4>
             <ul className="space-y-2 text-xs text-slate-700 dark:text-slate-200">
-              {config.highlights.map((highlight, index) => (
+              {highlights.map((highlight, index) => (
                 <li key={index} className="flex items-start gap-2">
                   <Check className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
                   <span>{highlight}</span>
@@ -318,17 +358,21 @@ export function UpgradeModal({
           <div className="p-3.5 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/40 flex items-center justify-between text-xs">
             <div>
               <span className="font-bold text-slate-900 dark:text-white block">
-                Plano PRO
+                {isPro ? "Plano BUSINESS" : "Plano PRO"}
               </span>
               <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                15 QR Codes/mês • Dinâmicos • Analytics
+                {isPro
+                  ? "QR Codes Ilimitados • Campanhas • Multi-usuário"
+                  : "15 QR Codes/mês • Dinâmicos • Analytics"}
               </span>
             </div>
             <div className="text-right">
               <span className="font-black text-indigo-600 dark:text-indigo-400 text-sm">
-                R$ 19,90/mês
+                {isPro ? "R$ 49,90/mês" : "R$ 19,90/mês"}
               </span>
-              <span className="text-[10px] text-slate-500 block">ou R$ 99/ano</span>
+              <span className="text-[10px] text-slate-500 block">
+                {isPro ? "ou R$ 349/ano" : "ou R$ 99/ano"}
+              </span>
             </div>
           </div>
 
@@ -358,7 +402,7 @@ export function UpgradeModal({
             onClick={onClose}
             className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors order-2 sm:order-1"
           >
-            Continuar no FREE
+            {isPro ? "Continuar no PRO" : "Continuar no FREE"}
           </button>
 
           <button
@@ -372,7 +416,7 @@ export function UpgradeModal({
             ) : (
               <Sparkles className="w-4 h-4" />
             )}
-            <span>{config.ctaText}</span>
+            <span>{ctaText}</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>

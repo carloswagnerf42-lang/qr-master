@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Layers, Sparkles, ArrowRight, MessageCircle, Utensils, DollarSign, Wifi, Share2 } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { QRCodeRenderer } from "@/components/qr/QRCodeRenderer";
+import { useQuota } from "@/contexts/QuotaContext";
 
 interface TemplateItem {
   id: string;
@@ -19,6 +20,7 @@ interface TemplateItem {
 
 export default function TemplatesPage() {
   const router = useRouter();
+  const { requireCreationQuota } = useQuota();
   const [templates, setTemplates] = useState<TemplateItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -40,6 +42,7 @@ export default function TemplatesPage() {
   }, []);
 
   const handleUseTemplate = (t: TemplateItem) => {
+    if (!requireCreationQuota()) return;
     // Stores selected template in sessionStorage for the /create page
     sessionStorage.setItem("qrmaster_selected_template", JSON.stringify(t));
     router.push("/create");

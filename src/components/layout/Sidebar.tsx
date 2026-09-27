@@ -26,6 +26,7 @@ import {
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { triggerNewQRCreation } from "@/lib/qr-events";
 import { BrandLogo } from "@/components/brand/BrandLogo";
+import { useQuota } from "@/contexts/QuotaContext";
 
 interface SidebarProps {
   user?: {
@@ -45,41 +46,14 @@ export function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [quota, setQuota] = useState<{
-    planName: string;
-    used: number;
-    max: number;
-    isUnlimited: boolean;
-  } | null>(null);
+  const { requireCreationQuota, planName, usedQRCodes, maxQRCodes, isUnlimited } = useQuota();
 
-  useEffect(() => {
-    let isMounted = true;
-    async function fetchQuota() {
-      try {
-        const res = await fetch("/api/auth/me");
-        if (res.ok) {
-          const data = await res.json();
-          if (isMounted && data.plan) {
-            const planName = data.plan.name || "FREE";
-            const max = data.usage?.maxQRCodes ?? 5;
-            const isUnlimited = planName === "BUSINESS" || max >= 999999;
-            setQuota({
-              planName,
-              used: data.usage?.qrCodes ?? 0,
-              max,
-              isUnlimited,
-            });
-          }
-        }
-      } catch {
-        // Silently fallback to prop data
-      }
-    }
-    fetchQuota();
-    return () => {
-      isMounted = false;
-    };
-  }, [pathname]);
+  const quota = {
+    planName,
+    used: usedQRCodes,
+    max: maxQRCodes,
+    isUnlimited,
+  };
 
   const mainNav = [
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -143,10 +117,15 @@ export function Sidebar({ user }: SidebarProps) {
                 href={item.href}
                 onClick={(e) => {
                   setMobileOpen(false);
-                  if (item.href === "/create" && pathname === "/create") {
-                    e.preventDefault();
-                    triggerNewQRCreation();
-                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  if (item.href === "/create") {
+                    if (!requireCreationQuota(e)) {
+                      return;
+                    }
+                    if (pathname === "/create") {
+                      e.preventDefault();
+                      triggerNewQRCreation();
+                      window.scrollTo({ top: 0, behavior: "smooth" });
+                    }
                   }
                 }}
                 className="flex items-center gap-3 px-3.5 py-2.5 my-2 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-700 text-white font-semibold text-sm shadow-md shadow-indigo-600/25 hover:from-indigo-500 hover:to-indigo-600 transition-all hover:scale-[1.02] active:scale-[0.98]"
