@@ -14,23 +14,31 @@ const poppins = Poppins({
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://qrmasterdigital.com"),
   title: {
-    default: "QR MASTER — QR Codes Inteligentes",
+    default: "QR MASTER — Gerador de QR Code Personalizado e Dinâmico",
     template: "%s | QR MASTER",
   },
-  description: "Crie QR Codes personalizados e dinâmicos, gerencie seus links e acompanhe métricas de escaneamento.",
+  description:
+    "Crie, personalize e gerencie QR Codes em um só lugar. Use QR Codes dinâmicos, acompanhe acessos e resultados, e organize seus códigos com o QR MASTER.",
   alternates: {
-    canonical: process.env.NEXT_PUBLIC_APP_URL || "https://qrmasterdigital.com",
+    canonical: "/",
+  },
+  verification: {
+    google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION || process.env.GOOGLE_SITE_VERIFICATION || undefined,
   },
   applicationName: "QR MASTER",
   authors: [{ name: "Master Digital" }],
   generator: "Master Digital SaaS Engine",
   keywords: [
-    "QR Code",
-    "QR Code Inteligente",
-    "QR Code Dinâmico",
-    "Gerador Pix",
-    "Analytics QR Code",
-    "SaaS QR Code",
+    "gerador de qr code",
+    "criar qr code",
+    "qr code personalizado",
+    "qr code dinâmico",
+    "qr code estático",
+    "gerenciamento de qr codes",
+    "analytics de qr code",
+    "qr code para empresas",
+    "qr code pix",
+    "qr code whatsapp",
     "QR MASTER",
     "Master Digital",
   ],
@@ -56,8 +64,9 @@ export const metadata: Metadata = {
     type: "website",
     locale: "pt_BR",
     url: process.env.NEXT_PUBLIC_APP_URL || "https://qrmasterdigital.com",
-    title: "QR MASTER — QR Codes Inteligentes",
-    description: "Crie QR Codes personalizados e dinâmicos, gerencie seus links e acompanhe métricas de escaneamento.",
+    title: "QR MASTER — Gerador de QR Code Personalizado e Dinâmico",
+    description:
+      "Crie, personalize e gerencie QR Codes em um só lugar. Use QR Codes dinâmicos, acompanhe acessos e resultados, e organize seus códigos com o QR MASTER.",
     siteName: "QR MASTER",
     images: [
       {
@@ -70,10 +79,10 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "QR MASTER — QR Codes Inteligentes",
-    description: "Crie QR Codes personalizados e dinâmicos, gerencie seus links e acompanhe métricas de escaneamento.",
+    title: "QR MASTER — Gerador de QR Code Personalizado e Dinâmico",
+    description:
+      "Crie, personalize e gerencie QR Codes em um só lugar. Use QR Codes dinâmicos, acompanhe acessos e resultados, e organize seus códigos com o QR MASTER.",
     images: ["/brand/logo-horizontal-dark.png"],
-    creator: "@masterdigital",
   },
 };
 

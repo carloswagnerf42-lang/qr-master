@@ -3,9 +3,14 @@ import Link from "next/link";
 import { ArrowLeft, Lock } from "lucide-react";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 
-export const metadata = {
-  title: "Política de Privacidade — QR MASTER",
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Política de Privacidade",
   description: "Política de Privacidade e conformidade com a LGPD da plataforma QR MASTER (Master Digital).",
+  alternates: {
+    canonical: "/privacy",
+  },
 };
 
 export default function PrivacyPage() {

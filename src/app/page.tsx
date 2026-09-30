@@ -38,12 +38,72 @@ export const revalidate = 0;
 export default async function HomePage() {
   const user = await getCurrentUser();
 
-  if (user) {
-    redirect("/dashboard");
-  }
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": "https://qrmasterdigital.com/#website",
+        "url": "https://qrmasterdigital.com",
+        "name": "QR MASTER",
+        "description": "Plataforma profissional de geração, personalização e gestão de QR Codes estáticos e dinâmicos.",
+        "inLanguage": "pt-BR",
+        "publisher": {
+          "@id": "https://qrmasterdigital.com/#organization",
+        },
+      },
+      {
+        "@type": "Organization",
+        "@id": "https://qrmasterdigital.com/#organization",
+        "name": "Master Digital",
+        "url": "https://qrmasterdigital.com",
+        "logo": "https://qrmasterdigital.com/brand/logo-horizontal-dark.png",
+      },
+      {
+        "@type": "SoftwareApplication",
+        "@id": "https://qrmasterdigital.com/#software",
+        "name": "QR MASTER",
+        "applicationCategory": "BusinessApplication",
+        "operatingSystem": "All",
+        "url": "https://qrmasterdigital.com",
+        "description":
+          "Crie, personalize e gerencie QR Codes estáticos e dinâmicos em alta resolução, acompanhe acessos e resultados, e altere o destino do link sem necessidade de reimpressão.",
+        "offers": [
+          {
+            "@type": "Offer",
+            "name": "Plano FREE",
+            "price": "0",
+            "priceCurrency": "BRL",
+            "description": "Até 5 QR Codes estáticos por ciclo com exportação em PNG.",
+          },
+          {
+            "@type": "Offer",
+            "name": "Plano PRO Mensal",
+            "price": "19.90",
+            "priceCurrency": "BRL",
+            "description":
+              "15 QR Codes por ciclo (dinâmicos ou estáticos), edição de destino, analytics, alta resolução (SVG e PNG) e logotipo central.",
+          },
+          {
+            "@type": "Offer",
+            "name": "Plano BUSINESS Mensal",
+            "price": "29.90",
+            "priceCurrency": "BRL",
+            "description":
+              "QR Codes ilimitados por ciclo, todas as funcionalidades do plano PRO, edição de destino e exportação em alta resolução.",
+          },
+        ],
+      },
+    ],
+  };
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 selection:bg-blue-600 selection:text-white">
+      {/* Schema.org Structured Data */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       {/* Top Header / Navigation */}
       <LandingHeader />
 

@@ -3,9 +3,14 @@ import Link from "next/link";
 import { ArrowLeft, ShieldCheck } from "lucide-react";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 
-export const metadata = {
-  title: "Termos de Uso — QR MASTER",
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Termos de Uso",
   description: "Termos e condições de uso da plataforma SaaS QR MASTER (Master Digital).",
+  alternates: {
+    canonical: "/terms",
+  },
 };
 
 export default function TermsPage() {
