@@ -1,7 +1,56 @@
 import crypto from "crypto";
 import { NextRequest } from "next/server";
 import { prisma } from "../src/lib/db";
-import { signToken } from "../src/lib/auth";
+import {
+  signToken,
+  createAuthenticatedSessionToken,
+  setSessionStoreForTesting,
+  SessionStoreAdapter,
+  ServerSessionRecord,
+} from "../src/lib/auth";
+
+function createInMemorySessionStore(): {
+  store: SessionStoreAdapter;
+  records: Map<string, ServerSessionRecord>;
+} {
+  const records = new Map<string, ServerSessionRecord>();
+  const store: SessionStoreAdapter = {
+    async create(data) {
+      const record: ServerSessionRecord = {
+        ...data,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        userExists: true,
+      };
+      records.set(record.id, record);
+      return record;
+    },
+    async findUnique(id) {
+      return records.get(id) ?? null;
+    },
+    async revokeById(id, revokedAt) {
+      const existing = records.get(id);
+      if (!existing || existing.revokedAt !== null) return false;
+      existing.revokedAt = revokedAt;
+      existing.updatedAt = new Date();
+      records.set(id, existing);
+      return true;
+    },
+    async revokeAllForUser(userId, revokedAt, exceptSessionId) {
+      let count = 0;
+      for (const [key, rec] of records.entries()) {
+        if (rec.userId === userId && rec.revokedAt === null && key !== exceptSessionId) {
+          rec.revokedAt = revokedAt;
+          rec.updatedAt = new Date();
+          records.set(key, rec);
+          count++;
+        }
+      }
+      return count;
+    },
+  };
+  return { store, records };
+}
 import {
   getMercadoPagoConfigAsync,
   createMercadoPagoPreference,
@@ -102,7 +151,10 @@ async function runCommercialCheckoutCycleAudit() {
     },
   });
 
-  const tokenUserA = signToken({
+  const inMemorySessions = createInMemorySessionStore();
+  setSessionStoreForTesting(inMemorySessions.store);
+
+  const { token: tokenUserA } = await createAuthenticatedSessionToken({
     id: userA.id,
     name: userA.name || "",
     email: userA.email,
@@ -110,7 +162,7 @@ async function runCommercialCheckoutCycleAudit() {
     planId: userA.planId,
   });
 
-  const tokenUserB = signToken({
+  const { token: tokenUserB } = await createAuthenticatedSessionToken({
     id: userB.id,
     name: userB.name || "",
     email: userB.email,
@@ -878,12 +930,18 @@ async function runCommercialCheckoutCycleAudit() {
   console.log(`  ${failedTests === 0 ? GREEN : RED}Falhas          : ${failedTests}${RESET}`);
   console.log(`${CYAN}========================================================================${RESET}\n`);
 
+  setSessionStoreForTesting(null);
+
   if (failedTests > 0) {
     process.exit(1);
   }
 }
 
-runCommercialCheckoutCycleAudit().catch((err) => {
-  console.error("Erro fatal na suíte de auditoria do checkout:", err);
-  process.exit(1);
-});
+runCommercialCheckoutCycleAudit()
+  .catch((err) => {
+    console.error("Erro fatal na suíte de auditoria do checkout:", err);
+    process.exit(1);
+  })
+  .finally(() => {
+    setSessionStoreForTesting(null);
+  });

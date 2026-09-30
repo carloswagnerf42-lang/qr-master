@@ -24,6 +24,16 @@ export async function POST(req: NextRequest) {
       return createRateLimitResponse("checkout", rateLimit.retryAfter, rateLimit.resetAt);
     }
 
+    const body = await req.json();
+    const { planName, paymentMethod = "checkout", billingCycle = "month", cpf } = body;
+
+    if (!planName || !["PRO", "BUSINESS"].includes(planName)) {
+      return NextResponse.json(
+        { error: "Plano inválido para assinatura. Escolha PRO ou BUSINESS." },
+        { status: 400 }
+      );
+    }
+
     const config = await getMercadoPagoConfigAsync();
     if (!config.isConfigured) {
       return NextResponse.json(
@@ -33,16 +43,6 @@ export async function POST(req: NextRequest) {
           configured: false,
         },
         { status: 503 }
-      );
-    }
-
-    const body = await req.json();
-    const { planName, paymentMethod = "checkout", billingCycle = "month", cpf } = body;
-
-    if (!planName || !["PRO", "BUSINESS"].includes(planName)) {
-      return NextResponse.json(
-        { error: "Plano inválido para assinatura. Escolha PRO ou BUSINESS." },
-        { status: 400 }
       );
     }
 
