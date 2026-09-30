@@ -2,6 +2,7 @@ import React from "react";
 import Link from "next/link";
 import { ArrowLeft, ShieldCheck } from "lucide-react";
 import { BrandLogo } from "@/components/brand/BrandLogo";
+import { CookiePreferencesButton } from "@/components/privacy/CookieConsent";
 
 import type { Metadata } from "next";
 
@@ -106,8 +107,11 @@ export default function TermsPage() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-slate-800 py-6 px-6 text-center text-xs text-slate-500">
+      <footer className="border-t border-slate-800 py-6 px-6 text-center text-xs text-slate-500 space-y-2">
         <p>© 2026 QR MASTER • Master Digital. Todos os direitos reservados.</p>
+        <p>
+          <CookiePreferencesButton className="text-slate-400 hover:text-cyan-400 underline transition-colors cursor-pointer" />
+        </p>
       </footer>
     </div>
   );

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
+import { CookiePreferencesButton } from "@/components/privacy/CookieConsent";
 import {
   Sparkles,
   ArrowRight,
@@ -847,6 +848,9 @@ export default async function HomePage() {
                 <Link href="/privacy" className="hover:text-cyan-400 transition-colors">
                   Política de Privacidade
                 </Link>
+              </li>
+              <li>
+                <CookiePreferencesButton className="hover:text-cyan-400 transition-colors text-left" />
               </li>
             </ul>
           </div>

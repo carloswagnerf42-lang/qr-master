@@ -2,6 +2,7 @@ import React from "react";
 import Link from "next/link";
 import { ArrowLeft, Lock } from "lucide-react";
 import { BrandLogo } from "@/components/brand/BrandLogo";
+import { CookiePreferencesButton } from "@/components/privacy/CookieConsent";
 
 import type { Metadata } from "next";
 
@@ -80,14 +81,50 @@ export default function PrivacyPage() {
           </section>
 
           <section className="space-y-3">
-            <h2 className="text-lg font-bold text-white">4. Segurança de Pagamentos</h2>
+            <h2 className="text-lg font-bold text-white">4. Medição de Audiência e Cookies Analíticos (Google Analytics 4)</h2>
+            <p>
+              Utilizamos o <strong>Google Analytics 4 (GA4)</strong> para compreender a audiência, o desempenho e a navegação em nosso website institucional e painel de controle. Essa medição estatística nos auxilia a aprimorar a estabilidade, a usabilidade e os recursos da plataforma.
+            </p>
+            <ul className="list-disc pl-5 space-y-1.5 text-slate-400">
+              <li>
+                <strong>Consentimento Prévio (Google Consent Mode v2):</strong> Por padrão, nenhuma permissão de medição analítica (<code>analytics_storage</code>) ou publicitária (<code>ad_storage</code>, <code>ad_user_data</code>, <code>ad_personalization</code>) é concedida antes da decisão do usuário. O script externo de medição do GA4 só é ativado se o visitante optar voluntariamente por <em>&ldquo;Aceitar analytics&rdquo;</em>. Caso o visitante recuse ou ainda não tenha escolhido, o rastreamento permanece bloqueado em estado <code>denied</code>.
+              </li>
+              <li>
+                <strong>Cookies analíticos opcionais:</strong> Quando autorizado pelo usuário, o serviço armazena cookies primários no navegador (notadamente <code>_ga</code> e <code>_ga_&lt;container-id&gt;</code>) exclusivamente para distinguir sessões anônimas de navegação e agregar métricas de tráfego. Não realizamos rastreamento para fins de remarketing ou publicidade direcionada.
+              </li>
+              <li>
+                <strong>Gestão e alteração de preferências:</strong> A escolha do visitante é salva localmente no navegador (<code>qr_master_analytics_consent</code>). Você pode alterar ou revogar sua decisão a qualquer momento clicando em{" "}
+                <CookiePreferencesButton className="text-cyan-400 hover:underline font-semibold cursor-pointer inline">
+                  Preferências de cookies
+                </CookiePreferencesButton>
+                {" "}ou no rodapé das páginas. Ao revogar o consentimento, o Consent Mode v2 é imediatamente atualizado para <code>denied</code> e os cookies analíticos de medição são limpos do navegador.
+              </li>
+              <li>
+                <strong>Separação de escopos:</strong> A medição do Google Analytics 4 restringe-se à navegação nas interfaces web do QR MASTER e <em>não se confunde</em> com a telemetria dos QR Codes dinâmicos descrita na Seção 3. Os acessos aos links de redirecionamento (<code>/q/[shortCode]</code>) operam de forma isolada, não executam scripts analíticos de terceiros e mantêm a anonimização criptográfica de IP por SHA-256.
+              </li>
+              <li>
+                <strong>Tratamento pelo Google:</strong> Os dados analíticos agregados são processados conforme os termos e salvaguardas da política global da Google. Para saber mais sobre como o Google gerencia dados, consulte a{" "}
+                <a
+                  href="https://policies.google.com/privacy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-cyan-400 hover:underline font-semibold"
+                >
+                  Política de Privacidade do Google
+                </a>.
+              </li>
+            </ul>
+          </section>
+
+          <section className="space-y-3">
+            <h2 className="text-lg font-bold text-white">5. Segurança de Pagamentos</h2>
             <p>
               O QR MASTER não processa nem armazena números de cartões de crédito ou dados bancários sensíveis em seus servidores. Toda a captura e liquidação financeira é realizada em ambiente certificado PCI-DSS pelo gateway <strong>Mercado Pago</strong>.
             </p>
           </section>
 
           <section className="space-y-3">
-            <h2 className="text-lg font-bold text-white">5. Seus Direitos (LGPD)</h2>
+            <h2 className="text-lg font-bold text-white">6. Seus Direitos (LGPD)</h2>
             <p>
               Em cumprimento ao Artigo 18 da LGPD, você possui o direito de confirmar a existência de tratamento, acessar seus dados, solicitar a correção de dados incompletos ou a exclusão definitiva da sua conta e de todos os seus QR Codes gerados diretamente pelas configurações do painel ou mediante solicitação ao nosso canal oficial:{" "}
               <a
@@ -104,8 +141,11 @@ export default function PrivacyPage() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-slate-800 py-6 px-6 text-center text-xs text-slate-500">
+      <footer className="border-t border-slate-800 py-6 px-6 text-center text-xs text-slate-500 space-y-2">
         <p>© 2026 QR MASTER • Master Digital. Todos os direitos reservados.</p>
+        <p>
+          <CookiePreferencesButton className="text-slate-400 hover:text-cyan-400 underline transition-colors cursor-pointer" />
+        </p>
       </footer>
     </div>
   );

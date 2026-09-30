@@ -11,18 +11,25 @@ if (rawSupabaseUrl) {
   }
 }
 
-const imageSources = ["'self'", 'data:', 'blob:', 'https://lh3.googleusercontent.com'];
+const imageSources = [
+  "'self'",
+  'data:',
+  'blob:',
+  'https://lh3.googleusercontent.com',
+  'https://*.google-analytics.com',
+  'https://*.googletagmanager.com',
+];
 if (supabaseOrigin) {
   imageSources.push(supabaseOrigin);
 }
 
 const cspDirectives = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline'",
+  "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com",
   "style-src 'self' 'unsafe-inline'",
   `img-src ${imageSources.join(' ')}`,
   "font-src 'self' data:",
-  "connect-src 'self'",
+  "connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com",
   "frame-src 'none'",
   "frame-ancestors 'none'",
   "object-src 'none'",

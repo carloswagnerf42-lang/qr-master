@@ -135,9 +135,26 @@ async function runTestSuite() {
 
   const connectSrc = directives.get("connect-src") || [];
 
-  // D1. connect-src deve ser ESTRITAMENTE 'self' (browser nunca se comunica diretamente com APIs externas)
+  // D1. connect-src deve permitir 'self' e estritamente os endpoints autorizados do GA4
   assert(connectSrc.includes("'self'"), "D1.1. connect-src permite 'self'");
-  assert(connectSrc.length === 1, "D1.2. connect-src contém UNICAMENTE 'self' (zero vazamento de conexões externas)");
+  const authorizedConnectHosts = [
+    "'self'",
+    "https://*.google-analytics.com",
+    "https://*.analytics.google.com",
+    "https://*.googletagmanager.com",
+  ];
+  const unauthorizedConnect = connectSrc.filter((h) => !authorizedConnectHosts.includes(h));
+  assert(
+    unauthorizedConnect.length === 0,
+    "D1.2. connect-src contém estritamente 'self' e os endpoints autorizados do GA4",
+    `Hosts não autorizados: ${unauthorizedConnect.join(", ")}`
+  );
+  assert(
+    connectSrc.includes("https://*.google-analytics.com") &&
+    connectSrc.includes("https://*.analytics.google.com") &&
+    connectSrc.includes("https://*.googletagmanager.com"),
+    "D1.3. connect-src autoriza endpoints necessários de telemetria regional do GA4"
+  );
 
   // D2. Supabase NÃO pode estar em connect-src
   const hasSupabaseConnect = connectSrc.some((v) => v.includes("supabase"));
@@ -151,9 +168,11 @@ async function runTestSuite() {
   const hasStripeConnect = connectSrc.some((v) => v.includes("stripe"));
   assert(!hasStripeConnect, "D4. Stripe categoricamente AUSENTE de connect-src (opera 100% server-side)");
 
-  // D5. Google APIs NÃO podem estar em connect-src
-  const hasGoogleConnect = connectSrc.some((v) => v.includes("google"));
-  assert(!hasGoogleConnect, "D5. Google APIs categoricamente AUSENTES de connect-src");
+  // D5. Google APIs não analíticas categoricamente AUSENTES de connect-src
+  const hasOtherGoogleApis = connectSrc.some(
+    (v) => v.includes("googleapis.com") || v.includes("drive.google") || v.includes("maps.google")
+  );
+  assert(!hasOtherGoogleApis, "D5. Google APIs não analíticas (Drive, Maps, etc.) categoricamente AUSENTES de connect-src");
 
   // ========================================================================
   // GRUPO E: Auditoria de img-src e Fontes de Imagem
@@ -169,6 +188,10 @@ async function runTestSuite() {
   assert(
     imgSrc.includes("https://lh3.googleusercontent.com"),
     "E1.4. img-src permite especificamente 'https://lh3.googleusercontent.com' (avatares do Google OAuth)"
+  );
+  assert(
+    imgSrc.includes("https://*.google-analytics.com") && imgSrc.includes("https://*.googletagmanager.com"),
+    "E1.5. img-src permite endpoints de pixel/fallback do GA4"
   );
 
   // E2. Bloqueio de domínios genéricos e desnecessários em img-src
@@ -220,6 +243,17 @@ async function runTestSuite() {
   const scriptSrc = directives.get("script-src") || [];
   assert(!scriptSrc.includes("data:"), "F3.1. script-src NÃO contém data: (anti-XSS)");
   assert(!scriptSrc.includes("blob:"), "F3.2. script-src NÃO contém blob: (anti-XSS)");
+  assert(
+    scriptSrc.includes("https://www.googletagmanager.com"),
+    "F3.3. script-src autoriza especificamente 'https://www.googletagmanager.com' para o gtag.js do GA4"
+  );
+  const authorizedScripts = ["'self'", "'unsafe-inline'", "https://www.googletagmanager.com"];
+  const unauthorizedScripts = scriptSrc.filter((s) => !authorizedScripts.includes(s));
+  assert(
+    unauthorizedScripts.length === 0,
+    "F3.4. script-src contém estritamente origens autorizadas (zero scripts de terceiros arbitrários)",
+    `Scripts não autorizados: ${unauthorizedScripts.join(", ")}`
+  );
 
   // ========================================================================
   // GRUPO G: Headers Complementares de Segurança

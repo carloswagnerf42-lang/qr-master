@@ -3,6 +3,8 @@ import { Poppins } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { ToastProvider } from "@/components/ui/Toast";
+import { GoogleAnalytics } from "@/components/analytics/GoogleAnalytics";
+import { CookieConsent } from "@/components/privacy/CookieConsent";
 
 const poppins = Poppins({
   subsets: ["latin"],
@@ -91,14 +93,43 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const gaId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || "G-CJSQ0KFJC7";
+
   return (
     <html lang="pt-BR" className={poppins.variable} suppressHydrationWarning>
       <body className={`${poppins.className} min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 antialiased transition-colors duration-200`}>
+        {/* Google Consent Mode v2 — Inicialização síncrona obrigatória com estado padrão DENIED */}
+        <script
+          id="google-consent-mode-default"
+          dangerouslySetInnerHTML={{
+            __html: `
+              window.dataLayer = window.dataLayer || [];
+              function gtag(){dataLayer.push(arguments);}
+              gtag('consent', 'default', {
+                'analytics_storage': 'denied',
+                'ad_storage': 'denied',
+                'ad_user_data': 'denied',
+                'ad_personalization': 'denied'
+              });
+              try {
+                var c = localStorage.getItem('qr_master_analytics_consent');
+                if (c === 'granted') {
+                  gtag('consent', 'update', {
+                    'analytics_storage': 'granted'
+                  });
+                }
+              } catch(e) {}
+            `,
+          }}
+        />
         <ThemeProvider>
           <ToastProvider>
             {children}
+            <CookieConsent />
           </ToastProvider>
         </ThemeProvider>
+        {/* Google Analytics 4 (Carregamento condicional ativado exclusivamente mediante consentimento) */}
+        <GoogleAnalytics gaId={gaId} />
       </body>
     </html>
   );
