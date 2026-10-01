@@ -78,22 +78,49 @@ const ALLOWED_ITEM_KEYS: ReadonlySet<string> = new Set(["item_id", "item_name"])
  * Função privada e interna (NÃO exportada) para impedir que código externo
  * dispare eventos arbitrários ou injete propriedades contendo PII.
  */
-function dispatchGaEvent(eventName: CommercialEventName, eventPayload: Record<string, any>): boolean {
-  if (typeof window === "undefined") return false;
+function dispatchGaEvent(
+  eventName: CommercialEventName,
+  eventPayload: Record<string, any>,
+  onComplete?: () => void
+): boolean {
+  let executed = false;
+  let fallbackTimer: ReturnType<typeof setTimeout> | undefined;
+
+  const safeComplete = () => {
+    if (!executed) {
+      executed = true;
+      if (fallbackTimer) {
+        clearTimeout(fallbackTimer);
+      }
+      try {
+        onComplete?.();
+      } catch {
+        // Fail-safe silencioso
+      }
+    }
+  };
+
+  if (typeof window === "undefined") {
+    safeComplete();
+    return false;
+  }
 
   try {
     const consent = getStoredAnalyticsConsent();
     if (consent !== "granted") {
       // Bloqueio fail-closed: consentimento não concedido
+      safeComplete();
       return false;
     }
 
     if (typeof window.gtag !== "function") {
+      safeComplete();
       return false;
     }
 
     const allowedKeys = ALLOWED_EVENT_KEYS[eventName];
     if (!allowedKeys) {
+      safeComplete();
       return false;
     }
 
@@ -119,10 +146,25 @@ function dispatchGaEvent(eventName: CommercialEventName, eventPayload: Record<st
       }
     }
 
-    window.gtag("event", eventName, finalPayload);
+    if (onComplete) {
+      // Fallback curto de 400ms para resiliência contra lentidão ou extensões
+      fallbackTimer = setTimeout(safeComplete, 400);
+
+      const gtagPayload: Record<string, any> = {
+        ...finalPayload,
+        event_callback: safeComplete,
+        event_timeout: 400,
+      };
+
+      window.gtag("event", eventName, gtagPayload);
+    } else {
+      window.gtag("event", eventName, finalPayload);
+    }
+
     return true;
   } catch {
     // Fail-safe silencioso: nunca impacta a execução do produto
+    safeComplete();
     return false;
   }
 }
@@ -139,10 +181,14 @@ export function trackSignUp(params: SignUpParams = { method: "email" }): void {
 /**
  * 2. login — Disparado exclusivamente após autenticação confirmada pelo backend.
  * Allowlist: { method: "email" }
+ * Suporta callback de coordenação com a navegação pós-login.
  */
-export function trackLogin(params: LoginParams = { method: "email" }): void {
+export function trackLogin(
+  params: LoginParams = { method: "email" },
+  onComplete?: () => void
+): void {
   const method: LoginMethod = params?.method === "email" ? "email" : "email";
-  dispatchGaEvent("login", { method });
+  dispatchGaEvent("login", { method }, onComplete);
 }
 
 /**

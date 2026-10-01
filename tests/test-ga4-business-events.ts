@@ -32,7 +32,7 @@ function readFile(relPath: string): string {
 
 async function runTestSuite() {
   console.log("==========================================================================");
-  console.log("  SUÍTE DE TESTES: GA4-05B — FINAL EVENT PAYLOAD HARDENING & ALLOWLIST");
+  console.log("  SUÍTE DE TESTES: GA4-07 — CIRÚRGICO LOGIN & BUSINESS FUNNEL RESILIENCE");
   console.log("==========================================================================\n");
 
   const analyticsModuleContent = readFile("src/lib/analytics.ts");
@@ -260,6 +260,114 @@ async function runTestSuite() {
     gtagCalls.length === 1 &&
       gtagCalls[0].params.items[0].item_name === "QR MASTER PRO Mensal",
     "15. item_name comercial legítimo permanece funcional ('QR MASTER PRO Mensal')"
+  );
+
+  // ========================================================================
+  // GRUPO 2B: COORDENAÇÃO DE LOGIN E NAVEGAÇÃO RESILIENTE (GA4-07)
+  // ========================================================================
+  console.log("\n--- GA4-07: Coordenação Cirúrgica do Evento Login ---");
+
+  // 15.1. trackLogin aciona event_callback e callback de navegação quando consentido
+  let navigateCalled: boolean = false;
+  gtagCalls = [];
+  mockLocalStorageData = { qr_master_analytics_consent: "granted" };
+
+  trackLogin({ method: "email" }, () => {
+    navigateCalled = true;
+  });
+
+  assert(
+    gtagCalls.length === 1 &&
+      gtagCalls[0].action === "login" &&
+      gtagCalls[0].params.method === "email" &&
+      typeof gtagCalls[0].params.event_callback === "function" &&
+      gtagCalls[0].params.event_timeout === 400,
+    "15.1. trackLogin registra event_callback e event_timeout de 400ms no gtag"
+  );
+
+  // Simula execução do callback pelo gtag
+  gtagCalls[0].params.event_callback();
+  assert(Boolean(navigateCalled), "15.2. callback de navegação é executado com sucesso após despacho do gtag");
+
+  // 15.3. Callback fallback de 400ms executa se gtag demorar ou travar
+  let fallbackExecuted: boolean = false;
+  gtagCalls = [];
+  trackLogin({ method: "email" }, () => {
+    fallbackExecuted = true;
+  });
+  // Não chamamos event_callback do gtag — aguardamos timer de 400ms
+  await new Promise((r) => setTimeout(r, 450));
+  assert(Boolean(fallbackExecuted), "15.3. fallback seguro de 400ms garante navegação mesmo se gtag não responder");
+
+  // 15.4. Navegação NUNCA executa duas vezes (idempotência de navegação)
+  let countNav = 0;
+  gtagCalls = [];
+  trackLogin({ method: "email" }, () => {
+    countNav++;
+  });
+  // Dispara callback do gtag E aguarda timeout do fallback
+  gtagCalls[0].params.event_callback();
+  await new Promise((r) => setTimeout(r, 450));
+  assert(countNav === 1, "15.4. callback/fallback executa estritamente uma única vez (sem dupla navegação)");
+
+  // 15.5. Consent denied executa navegação imediatamente sem chamar gtag
+  navigateCalled = false;
+  gtagCalls = [];
+  mockLocalStorageData = { qr_master_analytics_consent: "denied" };
+  trackLogin({ method: "email" }, () => {
+    navigateCalled = true;
+  });
+  assert(
+    gtagCalls.length === 0 && Boolean(navigateCalled),
+    "15.5. consent denied executa navegação imediatamente sem enviar dados ao gtag"
+  );
+
+  // 15.6. Consent ausente executa navegação imediatamente sem chamar gtag
+  navigateCalled = false;
+  gtagCalls = [];
+  mockLocalStorageData = {};
+  trackLogin({ method: "email" }, () => {
+    navigateCalled = true;
+  });
+  assert(
+    gtagCalls.length === 0 && Boolean(navigateCalled),
+    "15.6. consent ausente executa navegação imediatamente sem enviar dados ao gtag (fail-closed)"
+  );
+
+  // 15.7. Falha/exceção no gtag não impede navegação
+  navigateCalled = false;
+  mockLocalStorageData = { qr_master_analytics_consent: "granted" };
+  (globalThis as any).window.gtag = () => {
+    throw new Error("Simulated network/gtag crash");
+  };
+  trackLogin({ method: "email" }, () => {
+    navigateCalled = true;
+  });
+  assert(Boolean(navigateCalled), "15.7. falha ou exceção no gtag não impede o login nem bloqueia o usuário");
+
+  // Restaura mock gtag padrão
+  (globalThis as any).window.gtag = mockGtag;
+
+  // 15.8. Login na página src/app/(auth)/login/page.tsx só dispara após HTTP 200 confirmado
+  const loginHandleSubmit = loginContent.slice(
+    loginContent.indexOf("const handleSubmit"),
+    loginContent.indexOf("return (")
+  );
+  assert(
+    loginHandleSubmit.includes("if (!res.ok)") &&
+      loginHandleSubmit.indexOf("if (!res.ok)") < loginHandleSubmit.indexOf("trackLogin") &&
+      loginHandleSubmit.includes("trackLogin({ method: \"email\" }, navigateToDashboard)") &&
+      loginHandleSubmit.includes("navigateToDashboard = () => {") &&
+      loginHandleSubmit.includes("router.push(\"/dashboard\")"),
+    "15.8. login só dispara após HTTP 200 e antes da navegação coordenada"
+  );
+
+  // 15.9. Sem timeouts arbitrários longos (1000ms / 2000ms)
+  assert(
+    !analyticsModuleContent.includes("1000") &&
+      !analyticsModuleContent.includes("2000") &&
+      analyticsModuleContent.includes("400"),
+    "15.9. ausência de timeouts arbitrários longos (timeout estrito de 400ms)"
   );
 
   // ========================================================================

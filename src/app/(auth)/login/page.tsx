@@ -121,9 +121,11 @@ function LoginForm() {
       }
 
       toast.success("Bem-vindo ao QR MASTER!", "Redirecionando para o painel...");
-      trackLogin({ method: "email" });
-      router.push("/dashboard");
-      router.refresh();
+      const navigateToDashboard = () => {
+        router.push("/dashboard");
+        router.refresh();
+      };
+      trackLogin({ method: "email" }, navigateToDashboard);
     } catch {
       toast.error("Erro de conexão", "Não foi possível conectar ao servidor.");
       setLoading(false);
