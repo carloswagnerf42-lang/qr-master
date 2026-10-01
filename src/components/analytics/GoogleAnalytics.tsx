@@ -158,6 +158,8 @@ export function GoogleAnalytics({ gaId }: GoogleAnalyticsProps) {
             gtag('config', '${gaId}', {
               send_page_view: true
             });
+            window.__qr_master_ga4_ready = true;
+            window.dispatchEvent(new CustomEvent('qr_master_ga4_ready'));
           `,
         }}
       />

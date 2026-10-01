@@ -1,5 +1,26 @@
 import { getStoredAnalyticsConsent } from "@/components/analytics/GoogleAnalytics";
 
+export const GA_MEASUREMENT_ID =
+  process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || "G-CJSQ0KFJC7";
+
+/**
+ * Verifica deterministicamente se o GA4 foi configurado e está pronto para receber eventos.
+ * Distingue o stub síncrono inicial (function) da prontidão real (comando config registrado/executado).
+ */
+export function isGa4Configured(): boolean {
+  if (typeof window === "undefined") return false;
+  if ((window as any).__qr_master_ga4_ready === true) return true;
+  if (Array.isArray(window.dataLayer)) {
+    return window.dataLayer.some((entry) => {
+      if (entry && (Array.isArray(entry) || typeof entry === "object")) {
+        return entry[0] === "config" && (entry[1] === GA_MEASUREMENT_ID || typeof entry[1] === "string");
+      }
+      return false;
+    });
+  }
+  return false;
+}
+
 /**
  * QR MASTER — GA4 Analytics Module
  * Camada de eventos comerciais determinística com tipagem estrita e allowlists por evento.
@@ -146,19 +167,24 @@ function dispatchGaEvent(
       }
     }
 
+    const baseGtagPayload: Record<string, any> = {
+      ...finalPayload,
+      send_to: GA_MEASUREMENT_ID,
+    };
+
     if (onComplete) {
       // Fallback curto de 400ms para resiliência contra lentidão ou extensões
       fallbackTimer = setTimeout(safeComplete, 400);
 
       const gtagPayload: Record<string, any> = {
-        ...finalPayload,
+        ...baseGtagPayload,
         event_callback: safeComplete,
         event_timeout: 400,
       };
 
       window.gtag("event", eventName, gtagPayload);
     } else {
-      window.gtag("event", eventName, finalPayload);
+      window.gtag("event", eventName, baseGtagPayload);
     }
 
     return true;

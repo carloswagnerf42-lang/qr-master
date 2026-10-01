@@ -76,37 +76,40 @@ async function runTestSuite() {
   // ========================================================================
   console.log("--- 1 a 6: Allowlist Estrita por Evento ---");
 
-  // 1. sign_up possui somente method
+  // 1. sign_up possui somente method (+ send_to oficial)
   gtagCalls = [];
   trackSignUp({ method: "email" });
   assert(
     gtagCalls.length === 1 &&
       gtagCalls[0].action === "sign_up" &&
-      JSON.stringify(Object.keys(gtagCalls[0].params).sort()) === JSON.stringify(["method"]) &&
-      gtagCalls[0].params.method === "email",
-    "1. sign_up possui somente method"
+      JSON.stringify(Object.keys(gtagCalls[0].params).sort()) === JSON.stringify(["method", "send_to"]) &&
+      gtagCalls[0].params.method === "email" &&
+      gtagCalls[0].params.send_to === "G-CJSQ0KFJC7",
+    "1. sign_up possui somente method (+ destino oficial send_to)"
   );
 
-  // 2. login possui somente method (email)
+  // 2. login possui somente method (email) (+ send_to oficial)
   gtagCalls = [];
   trackLogin({ method: "email" });
   assert(
     gtagCalls.length === 1 &&
       gtagCalls[0].action === "login" &&
-      JSON.stringify(Object.keys(gtagCalls[0].params).sort()) === JSON.stringify(["method"]) &&
-      gtagCalls[0].params.method === "email",
-    "2. login possui somente method (email)"
+      JSON.stringify(Object.keys(gtagCalls[0].params).sort()) === JSON.stringify(["method", "send_to"]) &&
+      gtagCalls[0].params.method === "email" &&
+      gtagCalls[0].params.send_to === "G-CJSQ0KFJC7",
+    "2. login possui somente method (email) (+ destino oficial send_to)"
   );
 
-  // 2b. login suporta method: "google"
+  // 2b. login suporta method: "google" (+ send_to oficial)
   gtagCalls = [];
   trackLogin({ method: "google" });
   assert(
     gtagCalls.length === 1 &&
       gtagCalls[0].action === "login" &&
-      JSON.stringify(Object.keys(gtagCalls[0].params).sort()) === JSON.stringify(["method"]) &&
-      gtagCalls[0].params.method === "google",
-    "2b. login suporta method: 'google'"
+      JSON.stringify(Object.keys(gtagCalls[0].params).sort()) === JSON.stringify(["method", "send_to"]) &&
+      gtagCalls[0].params.method === "google" &&
+      gtagCalls[0].params.send_to === "G-CJSQ0KFJC7",
+    "2b. login suporta method: 'google' (+ destino oficial send_to)"
   );
 
   // 2c. login com method arbitrário/inválido sanitiza defensivamente para 'email'
@@ -115,35 +118,38 @@ async function runTestSuite() {
   assert(
     gtagCalls.length === 1 &&
       gtagCalls[0].action === "login" &&
-      gtagCalls[0].params.method === "email",
+      gtagCalls[0].params.method === "email" &&
+      gtagCalls[0].params.send_to === "G-CJSQ0KFJC7",
     "2c. login com method arbitrário/inválido sanitiza defensivamente para 'email'"
   );
 
-  // 3. qr_created possui somente qr_type e plan_tier
+  // 3. qr_created possui somente qr_type e plan_tier (+ send_to oficial)
   gtagCalls = [];
   trackQrCreated({ qr_type: "dynamic", plan_tier: "pro" });
   assert(
     gtagCalls.length === 1 &&
       gtagCalls[0].action === "qr_created" &&
-      JSON.stringify(Object.keys(gtagCalls[0].params).sort()) === JSON.stringify(["plan_tier", "qr_type"]) &&
+      JSON.stringify(Object.keys(gtagCalls[0].params).sort()) === JSON.stringify(["plan_tier", "qr_type", "send_to"]) &&
       gtagCalls[0].params.qr_type === "dynamic" &&
-      gtagCalls[0].params.plan_tier === "pro",
-    "3. qr_created possui somente: qr_type e plan_tier"
+      gtagCalls[0].params.plan_tier === "pro" &&
+      gtagCalls[0].params.send_to === "G-CJSQ0KFJC7",
+    "3. qr_created possui somente: qr_type e plan_tier (+ destino oficial send_to)"
   );
 
-  // 4. upgrade_intent possui somente plan_tier e billing_cycle
+  // 4. upgrade_intent possui somente plan_tier e billing_cycle (+ send_to oficial)
   gtagCalls = [];
   trackUpgradeIntent({ plan_tier: "pro", billing_cycle: "monthly" });
   assert(
     gtagCalls.length === 1 &&
       gtagCalls[0].action === "upgrade_intent" &&
-      JSON.stringify(Object.keys(gtagCalls[0].params).sort()) === JSON.stringify(["billing_cycle", "plan_tier"]) &&
+      JSON.stringify(Object.keys(gtagCalls[0].params).sort()) === JSON.stringify(["billing_cycle", "plan_tier", "send_to"]) &&
       gtagCalls[0].params.plan_tier === "pro" &&
-      gtagCalls[0].params.billing_cycle === "monthly",
-    "4. upgrade_intent possui somente: plan_tier e billing_cycle"
+      gtagCalls[0].params.billing_cycle === "monthly" &&
+      gtagCalls[0].params.send_to === "G-CJSQ0KFJC7",
+    "4. upgrade_intent possui somente: plan_tier e billing_cycle (+ destino oficial send_to)"
   );
 
-  // 5. begin_checkout possui somente currency, value, items
+  // 5. begin_checkout possui somente currency, value, items (+ send_to oficial)
   gtagCalls = [];
   trackBeginCheckout({
     currency: "BRL",
@@ -153,10 +159,11 @@ async function runTestSuite() {
   assert(
     gtagCalls.length === 1 &&
       gtagCalls[0].action === "begin_checkout" &&
-      JSON.stringify(Object.keys(gtagCalls[0].params).sort()) === JSON.stringify(["currency", "items", "value"]) &&
+      JSON.stringify(Object.keys(gtagCalls[0].params).sort()) === JSON.stringify(["currency", "items", "send_to", "value"]) &&
       gtagCalls[0].params.currency === "BRL" &&
-      gtagCalls[0].params.value === 29.9,
-    "5. begin_checkout possui somente: currency, value, items"
+      gtagCalls[0].params.value === 29.9 &&
+      gtagCalls[0].params.send_to === "G-CJSQ0KFJC7",
+    "5. begin_checkout possui somente: currency, value, items (+ destino oficial send_to)"
   );
 
   // 6. items possui somente item_id e item_name
