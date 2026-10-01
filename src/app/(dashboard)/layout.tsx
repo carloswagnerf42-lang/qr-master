@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { QuotaProvider } from "@/contexts/QuotaContext";
 import { getUserPlanAndUsage } from "@/lib/permissions";
+import { GoogleAuthTracker } from "@/components/analytics/GoogleAuthTracker";
 
 export const metadata: Metadata = {
   robots: {
@@ -42,6 +43,7 @@ export default async function DashboardLayout({
 
   return (
     <QuotaProvider initialQuota={initialQuota}>
+      <GoogleAuthTracker />
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col md:flex-row">
         {/* Sidebar (Desktop Fixed + Mobile Retrátil) */}
         <Sidebar user={user} />

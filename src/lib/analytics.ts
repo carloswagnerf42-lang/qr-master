@@ -14,7 +14,7 @@ import { getStoredAnalyticsConsent } from "@/components/analytics/GoogleAnalytic
 
 // Tipos permitidos por evento
 export type SignUpMethod = "email";
-export type LoginMethod = "email";
+export type LoginMethod = "email" | "google";
 export type QrType = "static" | "dynamic";
 export type PlanTier = "free" | "pro" | "business";
 export type UpgradePlanTier = "pro" | "business";
@@ -180,14 +180,14 @@ export function trackSignUp(params: SignUpParams = { method: "email" }): void {
 
 /**
  * 2. login — Disparado exclusivamente após autenticação confirmada pelo backend.
- * Allowlist: { method: "email" }
+ * Allowlist: { method: "email" | "google" }
  * Suporta callback de coordenação com a navegação pós-login.
  */
 export function trackLogin(
   params: LoginParams = { method: "email" },
   onComplete?: () => void
 ): void {
-  const method: LoginMethod = params?.method === "email" ? "email" : "email";
+  const method: LoginMethod = params?.method === "google" ? "google" : "email";
   dispatchGaEvent("login", { method }, onComplete);
 }
 

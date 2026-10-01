@@ -93,8 +93,11 @@ function LoginForm() {
       }
 
       toast.success("Bem-vindo ao QR MASTER!", "Redirecionando para o painel...");
-      router.push("/dashboard");
-      router.refresh();
+      const navigateToDashboard = () => {
+        router.push("/dashboard");
+        router.refresh();
+      };
+      trackLogin({ method: "google" }, navigateToDashboard);
     } catch {
       toast.error("Erro de conexão", "Não foi possível conectar ao servidor.");
       setGoogleLoading(false);
@@ -295,8 +298,11 @@ function LoginForm() {
         onClose={() => setLinkingModal((prev) => ({ ...prev, isOpen: false }))}
         onSuccess={() => {
           setLinkingModal((prev) => ({ ...prev, isOpen: false }));
-          router.push("/dashboard");
-          router.refresh();
+          const navigateToDashboard = () => {
+            router.push("/dashboard");
+            router.refresh();
+          };
+          trackLogin({ method: "google" }, navigateToDashboard);
         }}
       />
     </div>

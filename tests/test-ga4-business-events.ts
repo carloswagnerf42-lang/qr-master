@@ -41,6 +41,9 @@ async function runTestSuite() {
   const createContent = readFile("src/app/(dashboard)/create/page.tsx");
   const settingsContent = readFile("src/app/(dashboard)/settings/page.tsx");
   const qRouteContent = readFile("src/app/q/[shortCode]/route.ts");
+  const googleAuthTrackerContent = readFile("src/components/analytics/GoogleAuthTracker.tsx");
+  const dashboardLayoutContent = readFile("src/app/(dashboard)/layout.tsx");
+  const callbackRouteContent = readFile("src/app/api/auth/callback/google/route.ts");
 
   // Mock environment
   let gtagCalls: Array<{ command: string; action: string; params?: any }> = [];
@@ -84,7 +87,7 @@ async function runTestSuite() {
     "1. sign_up possui somente method"
   );
 
-  // 2. login possui somente method
+  // 2. login possui somente method (email)
   gtagCalls = [];
   trackLogin({ method: "email" });
   assert(
@@ -92,7 +95,28 @@ async function runTestSuite() {
       gtagCalls[0].action === "login" &&
       JSON.stringify(Object.keys(gtagCalls[0].params).sort()) === JSON.stringify(["method"]) &&
       gtagCalls[0].params.method === "email",
-    "2. login possui somente method"
+    "2. login possui somente method (email)"
+  );
+
+  // 2b. login suporta method: "google"
+  gtagCalls = [];
+  trackLogin({ method: "google" });
+  assert(
+    gtagCalls.length === 1 &&
+      gtagCalls[0].action === "login" &&
+      JSON.stringify(Object.keys(gtagCalls[0].params).sort()) === JSON.stringify(["method"]) &&
+      gtagCalls[0].params.method === "google",
+    "2b. login suporta method: 'google'"
+  );
+
+  // 2c. login com method arbitrário/inválido sanitiza defensivamente para 'email'
+  gtagCalls = [];
+  (trackLogin as any)({ method: "unsupported_provider" });
+  assert(
+    gtagCalls.length === 1 &&
+      gtagCalls[0].action === "login" &&
+      gtagCalls[0].params.method === "email",
+    "2c. login com method arbitrário/inválido sanitiza defensivamente para 'email'"
   );
 
   // 3. qr_created possui somente qr_type e plan_tier
@@ -368,6 +392,111 @@ async function runTestSuite() {
       !analyticsModuleContent.includes("2000") &&
       analyticsModuleContent.includes("400"),
     "15.9. ausência de timeouts arbitrários longos (timeout estrito de 400ms)"
+  );
+
+  // ========================================================================
+  // GRUPO 2C: GOOGLE OAUTH LOGIN TRACKING & DEDUPLICAÇÃO (GA4-09)
+  // ========================================================================
+  console.log("\n--- GA4-09: Rastreamento do Login via Google OAuth e Anti-Duplicação ---");
+
+  // 15.10. GoogleAuthTracker existe e é client-side
+  assert(
+    googleAuthTrackerContent.includes('"use client"') &&
+      googleAuthTrackerContent.includes("export function GoogleAuthTracker"),
+    "15.10. GoogleAuthTracker é um componente client-side estrito ('use client')"
+  );
+
+  // 15.11. GoogleAuthTracker detecta parâmetro ?auth=google e limpa a URL imediatamente via history.replaceState
+  assert(
+    googleAuthTrackerContent.includes('authParam === "google"') &&
+      googleAuthTrackerContent.includes('url.searchParams.delete("auth")') &&
+      googleAuthTrackerContent.includes("window.history.replaceState"),
+    "15.11. GoogleAuthTracker detecta ?auth=google e limpa a URL imediatamente via window.history.replaceState"
+  );
+
+  // 15.12. GoogleAuthTracker dispara trackLogin({ method: "google" })
+  assert(
+    googleAuthTrackerContent.includes('trackLogin({ method: "google" })'),
+    "15.12. GoogleAuthTracker dispara trackLogin({ method: 'google' })"
+  );
+
+  // 15.13. GoogleAuthTracker possui proteção contra execução duplicada (useRef idempotente)
+  assert(
+    googleAuthTrackerContent.includes("executedRef") &&
+      googleAuthTrackerContent.includes("if (executedRef.current) return"),
+    "15.13. GoogleAuthTracker possui proteção contra execução duplicada no ciclo de vida (useRef)"
+  );
+
+  // 15.14. DashboardLayout monta GoogleAuthTracker
+  assert(
+    dashboardLayoutContent.includes("import { GoogleAuthTracker }") &&
+      dashboardLayoutContent.includes("<GoogleAuthTracker />"),
+    "15.14. DashboardLayout importa e renderiza <GoogleAuthTracker />"
+  );
+
+  // 15.15. Rota de callback OAuth aponta redirects de sucesso para /dashboard?auth=google
+  const callbackDashboardRedirects = callbackRouteContent.match(/NextResponse\.redirect\(`\${appUrl}\/dashboard[^`]*`\)/g) || [];
+  assert(
+    callbackDashboardRedirects.length === 3 &&
+      callbackDashboardRedirects.every((r) => r.includes("/dashboard?auth=google")),
+    "15.15. Todas as 3 rotas de sucesso no callback OAuth redirecionam com ?auth=google"
+  );
+
+  // 15.16. trackLogin com method: "google" despacha evento com consent granted
+  gtagCalls = [];
+  mockLocalStorageData = { qr_master_analytics_consent: "granted" };
+  trackLogin({ method: "google" });
+  assert(
+    gtagCalls.length === 1 &&
+      gtagCalls[0].action === "login" &&
+      gtagCalls[0].params.method === "google",
+    "15.16. trackLogin({ method: 'google' }) despacha en=login com method='google' quando consentido"
+  );
+
+  // 15.17. trackLogin com method: "google" é bloqueado quando consent denied (fail-closed)
+  gtagCalls = [];
+  mockLocalStorageData = { qr_master_analytics_consent: "denied" };
+  trackLogin({ method: "google" });
+  assert(
+    gtagCalls.length === 0,
+    "15.17. trackLogin({ method: 'google' }) é bloqueado quando consent denied"
+  );
+
+  // 15.18. trackLogin com method: "google" é bloqueado quando consent ausente (fail-closed)
+  gtagCalls = [];
+  mockLocalStorageData = {};
+  trackLogin({ method: "google" });
+  assert(
+    gtagCalls.length === 0,
+    "15.18. trackLogin({ method: 'google' }) é bloqueado quando consent ausente"
+  );
+
+  // 15.19. Nenhuma PII do Google é enviada no evento de login
+  gtagCalls = [];
+  mockLocalStorageData = { qr_master_analytics_consent: "granted" };
+  (trackLogin as any)({
+    method: "google",
+    email: "user@gmail.com",
+    googleId: "gid_12345",
+    sub: "sub_google_98765",
+    picture: "https://lh3.googleusercontent.com/photo.jpg",
+    name: "User Name",
+  });
+  assert(
+    gtagCalls.length === 1 &&
+      gtagCalls[0].params.email === undefined &&
+      gtagCalls[0].params.googleId === undefined &&
+      gtagCalls[0].params.sub === undefined &&
+      gtagCalls[0].params.picture === undefined &&
+      gtagCalls[0].params.name === undefined &&
+      gtagCalls[0].params.method === "google",
+    "15.19. Nenhuma PII do Google (email, sub, picture, name, googleId) é enviada no evento de login"
+  );
+
+  // 15.20. Fluxo de login por email em login/page.tsx permanece intacto com method: "email"
+  assert(
+    loginHandleSubmit.includes('trackLogin({ method: "email" }, navigateToDashboard)'),
+    "15.20. Fluxo de login por email em login/page.tsx permanece intacto com method: 'email'"
   );
 
   // ========================================================================

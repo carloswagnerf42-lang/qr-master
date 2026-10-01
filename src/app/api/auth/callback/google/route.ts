@@ -191,7 +191,7 @@ async function processGoogleUserAndRedirect(
       },
     });
 
-    const res = NextResponse.redirect(`${appUrl}/dashboard`);
+    const res = NextResponse.redirect(`${appUrl}/dashboard?auth=google`);
     res.cookies.set(GOOGLE_LINK_COOKIE, "", getOAuthCookieOptions(0, appUrl));
     res.cookies.set(GOOGLE_LINK_COOKIE, "", { maxAge: 0, path: "/" });
     return clearOAuthCookies(res);
@@ -239,7 +239,7 @@ async function processGoogleUserAndRedirect(
       },
     });
 
-    const res = NextResponse.redirect(`${appUrl}/dashboard`);
+    const res = NextResponse.redirect(`${appUrl}/dashboard?auth=google`);
     res.cookies.set(GOOGLE_LINK_COOKIE, "", getOAuthCookieOptions(0, appUrl));
     res.cookies.set(GOOGLE_LINK_COOKIE, "", { maxAge: 0, path: "/" });
     return clearOAuthCookies(res);
@@ -304,7 +304,7 @@ async function processGoogleUserAndRedirect(
     },
   });
 
-  const res = NextResponse.redirect(`${appUrl}/dashboard`);
+  const res = NextResponse.redirect(`${appUrl}/dashboard?auth=google`);
   res.cookies.set(GOOGLE_LINK_COOKIE, "", getOAuthCookieOptions(0, appUrl));
   res.cookies.set(GOOGLE_LINK_COOKIE, "", { maxAge: 0, path: "/" });
   return clearOAuthCookies(res);
