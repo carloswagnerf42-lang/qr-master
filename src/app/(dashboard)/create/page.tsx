@@ -45,6 +45,7 @@ import { useToast } from "@/components/ui/Toast";
 import { NEW_QR_EVENT } from "@/lib/qr-events";
 import Link from "next/link";
 import { useQuota } from "@/contexts/QuotaContext";
+import { trackQrCreated } from "@/lib/analytics";
 
 const INITIAL_CONTENT: QRCodeContentPayload = {
   url: "",
@@ -422,6 +423,16 @@ export default function CreateQRCodePage() {
 
       setCreatedQr({ id: data.qrCode.id, shortCode: data.qrCode.shortCode });
       refreshQuota();
+      const effectiveTier =
+        planName?.toLowerCase() === "business"
+          ? "business"
+          : planName?.toLowerCase() === "pro"
+          ? "pro"
+          : "free";
+      trackQrCreated({
+        qr_type: isDynamic ? "dynamic" : "static",
+        plan_tier: effectiveTier,
+      });
       toast.success("✓ QR Code criado com sucesso!", "Você já pode baixar e compartilhar.");
       setSaving(false);
     } catch {

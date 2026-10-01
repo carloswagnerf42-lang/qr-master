@@ -8,6 +8,7 @@ import { useToast } from "@/components/ui/Toast";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { LinkGoogleAccountModal } from "@/components/auth/LinkGoogleAccountModal";
+import { trackSignUp } from "@/lib/analytics";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -85,6 +86,7 @@ export default function RegisterPage() {
       }
 
       toast.success("Conta criada com sucesso!", "Redirecionando para o seu dashboard...");
+      trackSignUp({ method: "email" });
       router.push("/dashboard");
       router.refresh();
     } catch {

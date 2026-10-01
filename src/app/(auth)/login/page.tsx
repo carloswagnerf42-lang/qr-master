@@ -8,6 +8,7 @@ import { useToast } from "@/components/ui/Toast";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { LinkGoogleAccountModal } from "@/components/auth/LinkGoogleAccountModal";
+import { trackLogin } from "@/lib/analytics";
 
 function LoginForm() {
   const router = useRouter();
@@ -120,6 +121,7 @@ function LoginForm() {
       }
 
       toast.success("Bem-vindo ao QR MASTER!", "Redirecionando para o painel...");
+      trackLogin({ method: "email" });
       router.push("/dashboard");
       router.refresh();
     } catch {

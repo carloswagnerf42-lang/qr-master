@@ -50,10 +50,10 @@ export function removeGaCookies() {
  * Atualiza o Google Consent Mode v2 e salva a escolha no localStorage.
  */
 export function updateAnalyticsConsent(status: ConsentStatus) {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined" || !window.localStorage) return;
 
   try {
-    localStorage.setItem(CONSENT_STORAGE_KEY, status);
+    window.localStorage.setItem(CONSENT_STORAGE_KEY, status);
   } catch {
     // Falha silenciosa em ambientes com localStorage bloqueado
   }
@@ -83,9 +83,9 @@ export function updateAnalyticsConsent(status: ConsentStatus) {
  * Recupera o status de consentimento salvo ('granted' | 'denied' | null).
  */
 export function getStoredAnalyticsConsent(): ConsentStatus | null {
-  if (typeof window === "undefined") return null;
+  if (typeof window === "undefined" || !window.localStorage) return null;
   try {
-    const val = localStorage.getItem(CONSENT_STORAGE_KEY);
+    const val = window.localStorage.getItem(CONSENT_STORAGE_KEY);
     if (val === "granted" || val === "denied") {
       return val;
     }

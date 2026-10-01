@@ -36,6 +36,7 @@ import { useToast } from "@/components/ui/Toast";
 import { calculateAnnualDiscountPercent } from "@/lib/permissions";
 import { QRCodeRenderer } from "@/components/qr/QRCodeRenderer";
 import { useSearchParams } from "next/navigation";
+import { trackUpgradeIntent, trackBeginCheckout } from "@/lib/analytics";
 
 function SettingsContent() {
   const toast = useToast();
@@ -329,6 +330,10 @@ function SettingsContent() {
     setPixError(null);
     setCopiedPix(false);
     setCheckoutModalOpen(true);
+    trackUpgradeIntent({
+      plan_tier: planName.toLowerCase() as "pro" | "business",
+      billing_cycle: billingCycle === "year" ? "annual" : "monthly",
+    });
   };
 
   const handleCloseCheckoutModal = () => {
@@ -367,6 +372,18 @@ function SettingsContent() {
           planName: data.planName,
         });
         setCheckoutStep("pix");
+        const planTier = selectedPlanForCheckout.toLowerCase() as "pro" | "business";
+        const cycle = billingCycle === "year" ? "annual" : "monthly";
+        trackBeginCheckout({
+          currency: "BRL",
+          value: getSelectedPlanPrice(),
+          items: [
+            {
+              item_id: `${planTier}_${cycle}`,
+              item_name: `QR MASTER ${selectedPlanForCheckout} ${billingCycle === "year" ? "Anual" : "Mensal"}`,
+            },
+          ],
+        });
       } else {
         const errorMsg = data.error || "Não foi possível gerar a cobrança Pix.";
         setPixError({
@@ -399,6 +416,18 @@ function SettingsContent() {
       });
       const data = await res.json();
       if (res.ok && data.checkoutUrl) {
+        const planTier = selectedPlanForCheckout.toLowerCase() as "pro" | "business";
+        const cycle = billingCycle === "year" ? "annual" : "monthly";
+        trackBeginCheckout({
+          currency: "BRL",
+          value: getSelectedPlanPrice(),
+          items: [
+            {
+              item_id: `${planTier}_${cycle}`,
+              item_name: `QR MASTER ${selectedPlanForCheckout} ${billingCycle === "year" ? "Anual" : "Mensal"}`,
+            },
+          ],
+        });
         window.location.href = data.checkoutUrl;
       } else {
         toast.error("Erro no checkout", data.error || "Não foi possível abrir o checkout de cartão.");
