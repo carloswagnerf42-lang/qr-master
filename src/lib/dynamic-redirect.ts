@@ -14,42 +14,270 @@ export interface DestinationValidationResult {
 const FORBIDDEN_PROTOCOLS = ["javascript:", "data:", "vbscript:", "file:", "blob:"];
 
 /**
+ * Formatos MIME permitidos para Data URIs raster inline.
+ * SVG, XML, HTML e outros formatos executáveis/vetoriais são estritamente proibidos.
+ */
+const ALLOWED_RASTER_DATA_HEADERS = [
+  "data:image/png;base64",
+  "data:image/jpeg;base64",
+  "data:image/jpg;base64",
+  "data:image/webp;base64",
+  "data:image/gif;base64",
+];
+
+/**
+ * Decodifica com segurança o trecho inicial de um payload Base64 para inspeção de Magic Bytes.
+ * Decodifica no máximo 64 caracteres Base64 (até 48 bytes binários) para zero sobrecarga de memória.
+ */
+function getInitialBytesFromBase64(payload: string): Uint8Array | null {
+  try {
+    const sliceLen = Math.min(payload.length - (payload.length % 4), 64);
+    if (sliceLen < 4) return null;
+    const chunk = payload.slice(0, sliceLen);
+    if (typeof Buffer !== "undefined") {
+      const buf = Buffer.from(chunk, "base64");
+      return new Uint8Array(buf.buffer, buf.byteOffset, buf.length);
+    } else if (typeof atob !== "undefined") {
+      const bin = atob(chunk);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) {
+        bytes[i] = bin.charCodeAt(i);
+      }
+      return bytes;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+/**
+ * Verifica se um hostname HTTP/HTTPS pertence a um domínio confiável autorizado
+ * (Supabase Storage, avatares Google OAuth, domínio oficial da plataforma).
+ * Previne host spoofing (*.attacker.com), acessos a redes internas e SSRF.
+ */
+function isAllowedRemoteImageHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().trim();
+  if (!host) return false;
+
+  // Supabase official storage domain (*.supabase.co)
+  if (host === "supabase.co" || host.endsWith(".supabase.co")) return true;
+
+  // Google user content (OAuth avatars, *.googleusercontent.com)
+  if (host === "googleusercontent.com" || host.endsWith(".googleusercontent.com")) return true;
+
+  // Domínios oficiais da plataforma QR MASTER
+  if (host === "qrmasterdigital.com" || host.endsWith(".qrmasterdigital.com")) return true;
+  if (host === "qrmasterpro.vercel.app" || host.endsWith(".vercel.app")) return true;
+
+  // Host configurado dinamicamente no Supabase (se fornecido via ambiente)
+  const configuredSupabase = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (configuredSupabase) {
+    try {
+      const cfgHost = new URL(configuredSupabase).hostname.toLowerCase();
+      if (host === cfgHost || host.endsWith("." + cfgHost)) return true;
+    } catch {}
+  }
+
+  // Host configurado dinamicamente para o App (se fornecido via ambiente)
+  const configuredApp = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL;
+  if (configuredApp) {
+    try {
+      const appHost = new URL(configuredApp).hostname.toLowerCase();
+      if (appHost !== "localhost" && appHost !== "127.0.0.1") {
+        if (host === appHost || host.endsWith("." + appHost)) return true;
+      }
+    } catch {}
+  }
+
+  return false;
+}
+
+/**
  * Valida se uma URL de imagem (avatar ou logotipo) utiliza protocolo e formato seguros.
- * Utiliza allowlist estrita: https:, http:, caminhos relativos (/...) e data:image/ raster (png, jpeg, webp, gif).
- * Rejeita categoricamente data:image/svg+xml, links protocol-relative (//) e esquemas perigosos.
+ * - Suporta Data URIs raster autênticos (PNG, JPEG, WebP, GIF) com validação de magic bytes;
+ * - Valida o tipo MIME estritamente no cabeçalho antes de ';base64,';
+ * - Rejeita categoricamente SVG, XML, HTML, javascript:, blob: e esquemas maliciosos;
+ * - Suporta caminhos relativos locais (/uploads/...);
+ * - Para HTTP/HTTPS: valida host via URL parser, rejeita userinfo, localhost, IPs privados e spoofing.
  */
 export function isSafeImageUrl(url: unknown): boolean {
   if (!url || typeof url !== "string") return true;
-  // Remove caracteres de controle e espaços em branco
-  const clean = url.trim().toLowerCase().replace(/[\x00-\x1f\x7f\s]+/g, "");
-  if (!clean) return true;
 
-  // Rejeita explicitamente URLs protocol-relative (//evil.com)
-  if (clean.startsWith("//")) return false;
+  const trimmed = url.trim();
+  if (!trimmed) return true;
 
-  // Rejeita categoricamente data URLs contendo SVG, XML ou HTML
-  if (clean.startsWith("data:") && (clean.includes("svg") || clean.includes("xml") || clean.includes("html"))) {
+  // Rejeita caracteres de controle e null bytes
+  if (/[\x00-\x1f\x7f]/.test(trimmed)) {
     return false;
   }
 
-  // Allowlist estrita de formatos de URL remota e local
+  const lower = trimmed.toLowerCase();
+
+  // Rejeita explicitamente URLs protocol-relative (//evil.com)
+  if (lower.startsWith("//")) return false;
+
+  // Rejeita esquemas perigosos
   if (
-    clean.startsWith("https://") ||
-    clean.startsWith("http://") ||
-    (clean.startsWith("/") && !clean.startsWith("//"))
+    lower.startsWith("javascript:") ||
+    lower.startsWith("vbscript:") ||
+    lower.startsWith("file:") ||
+    lower.startsWith("blob:") ||
+    lower.startsWith("about:") ||
+    lower.startsWith("ftp:")
   ) {
+    return false;
+  }
+
+  // Caminhos relativos locais seguros (/uploads/avatar.png)
+  if (trimmed.startsWith("/") && !trimmed.startsWith("//")) {
     return true;
   }
 
-  // Allowlist estrita de data URLs: apenas formatos raster seguros
-  if (
-    clean.startsWith("data:image/png") ||
-    clean.startsWith("data:image/jpeg") ||
-    clean.startsWith("data:image/jpg") ||
-    clean.startsWith("data:image/webp") ||
-    clean.startsWith("data:image/gif")
-  ) {
-    return true;
+  // Processamento estrutural de Data URIs
+  if (lower.startsWith("data:")) {
+    const commaIdx = trimmed.indexOf(",");
+    if (commaIdx === -1) return false;
+
+    const header = lower.slice(0, commaIdx);
+    const payload = trimmed.slice(commaIdx + 1);
+
+    // O cabeçalho deve começar com data:image/ e terminar com ;base64
+    if (!header.startsWith("data:image/") || !header.endsWith(";base64")) {
+      return false;
+    }
+
+    // O cabeçalho NÃO pode conter SVG, XML ou HTML
+    if (header.includes("svg") || header.includes("xml") || header.includes("html")) {
+      return false;
+    }
+
+    // Permite apenas formatos raster suportados oficialmente
+    if (!ALLOWED_RASTER_DATA_HEADERS.includes(header)) {
+      return false;
+    }
+
+    // Validação estrutural do payload Base64
+    if (!payload || payload.length === 0) return false;
+    if (!/^[A-Za-z0-9+/]+={0,2}$/.test(payload)) return false;
+    if (payload.length % 4 === 1) return false;
+
+    // Validação determinística de Magic Bytes para prevenir MIME spoofing (ex: HTML/SVG disfarçado de PNG)
+    const magicBytes = getInitialBytesFromBase64(payload);
+    if (!magicBytes) return false;
+
+    if (header === "data:image/png;base64") {
+      return (
+        magicBytes.length >= 8 &&
+        magicBytes[0] === 0x89 &&
+        magicBytes[1] === 0x50 &&
+        magicBytes[2] === 0x4e &&
+        magicBytes[3] === 0x47 &&
+        magicBytes[4] === 0x0d &&
+        magicBytes[5] === 0x0a &&
+        magicBytes[6] === 0x1a &&
+        magicBytes[7] === 0x0a
+      );
+    }
+
+    if (header === "data:image/jpeg;base64" || header === "data:image/jpg;base64") {
+      return (
+        magicBytes.length >= 3 &&
+        magicBytes[0] === 0xff &&
+        magicBytes[1] === 0xd8 &&
+        magicBytes[2] === 0xff
+      );
+    }
+
+    if (header === "data:image/webp;base64") {
+      return (
+        magicBytes.length >= 12 &&
+        magicBytes[0] === 0x52 &&
+        magicBytes[1] === 0x49 &&
+        magicBytes[2] === 0x46 &&
+        magicBytes[3] === 0x46 &&
+        magicBytes[8] === 0x57 &&
+        magicBytes[9] === 0x45 &&
+        magicBytes[10] === 0x42 &&
+        magicBytes[11] === 0x50
+      );
+    }
+
+    if (header === "data:image/gif;base64") {
+      return (
+        magicBytes.length >= 6 &&
+        magicBytes[0] === 0x47 &&
+        magicBytes[1] === 0x49 &&
+        magicBytes[2] === 0x46 &&
+        magicBytes[3] === 0x38 &&
+        (magicBytes[4] === 0x37 || magicBytes[4] === 0x39) &&
+        magicBytes[5] === 0x61
+      );
+    }
+
+    return false;
+  }
+
+  // Validação segura de URLs remotas HTTP/HTTPS
+  if (lower.startsWith("http://") || lower.startsWith("https://")) {
+    let parsed: URL;
+    try {
+      parsed = new URL(trimmed);
+    } catch {
+      return false;
+    }
+
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
+    if (parsed.username || parsed.password) return false;
+
+    // Portas permitidas para conteúdo web
+    if (parsed.port && parsed.port !== "80" && parsed.port !== "443" && parsed.port !== "8080") {
+      return false;
+    }
+
+    const host = parsed.hostname.toLowerCase().trim();
+    if (!host) return false;
+
+    // Bloqueio de localhost e loopback
+    if (
+      host === "localhost" ||
+      host.endsWith(".localhost") ||
+      host === "127.0.0.1" ||
+      host === "::1" ||
+      host === "[::1]" ||
+      host === "0.0.0.0" ||
+      host.startsWith("127.")
+    ) {
+      return false;
+    }
+
+    // Bloqueio de IPv4 privados, link-local e especiais
+    const ipv4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+    if (ipv4) {
+      const [_, a, b, c, d] = ipv4.map(Number);
+      if (a > 255 || b > 255 || c > 255 || d > 255) return false;
+      if (a === 127) return false;
+      if (a === 10) return false;
+      if (a === 172 && b >= 16 && b <= 31) return false;
+      if (a === 192 && b === 168) return false;
+      if (a === 169 && b === 254) return false;
+      if (a === 0 || a >= 224) return false;
+    }
+
+    // Bloqueio de IPv6 link-local e unique-local
+    if (
+      host.startsWith("fe80:") ||
+      host.startsWith("[fe80:") ||
+      host.startsWith("fc00:") ||
+      host.startsWith("[fc00:") ||
+      host.startsWith("fd00:") ||
+      host.startsWith("[fd00:")
+    ) {
+      return false;
+    }
+
+    // Allowlist estrita de hosts remotos autorizados (Supabase, Google, Domínio Oficial)
+    return isAllowedRemoteImageHost(host);
   }
 
   return false;
