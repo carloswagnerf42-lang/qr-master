@@ -12,7 +12,6 @@ import {
   ExternalLink,
   MoreVertical,
   Trash2,
-  Copy as DuplicateIcon,
   ToggleLeft,
   ToggleRight,
   BarChart2,
@@ -229,6 +228,40 @@ export default function MyQRsPage() {
       }
     } catch {
       toast.error("Erro", "Não foi possível alternar o status.");
+    }
+  };
+
+  const handleToggleFavorite = async (qr: QRItem) => {
+    const nextFavorite = !qr.favorite;
+    setQrs((prev) =>
+      prev.map((q) => (q.id === qr.id ? { ...q, favorite: nextFavorite } : q))
+    );
+
+    try {
+      const res = await fetch(`/api/qr/${qr.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ favorite: nextFavorite }),
+      });
+
+      if (res.ok) {
+        toast.success(
+          nextFavorite ? "Adicionado aos favoritos" : "Removido dos favoritos",
+          nextFavorite
+            ? `O QR Code "${qr.name}" foi adicionado aos Favoritos.`
+            : `O QR Code "${qr.name}" foi removido dos Favoritos.`
+        );
+      } else {
+        setQrs((prev) =>
+          prev.map((q) => (q.id === qr.id ? { ...q, favorite: qr.favorite } : q))
+        );
+        toast.error("Erro", "Não foi possível atualizar o status de favorito.");
+      }
+    } catch {
+      setQrs((prev) =>
+        prev.map((q) => (q.id === qr.id ? { ...q, favorite: qr.favorite } : q))
+      );
+      toast.error("Erro", "Falha de conexão ao atualizar favoritos.");
     }
   };
 
@@ -580,13 +613,21 @@ export default function MyQRsPage() {
                                 <Download className="w-4 h-4" />
                               </button>
 
-                              {/* Duplicar */}
+                              {/* Favoritar */}
                               <button
-                                onClick={() => handleDuplicate(qr.id)}
-                                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
-                                title="Duplicar"
+                                onClick={() => handleToggleFavorite(qr)}
+                                className={`p-1.5 rounded-lg transition-all ${
+                                  qr.favorite
+                                    ? "text-amber-500 bg-amber-500/10 hover:bg-amber-500/20"
+                                    : "text-slate-400 hover:text-amber-500 dark:hover:text-amber-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                }`}
+                                title={qr.favorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
                               >
-                                <DuplicateIcon className="w-4 h-4" />
+                                <Star
+                                  className={`w-4 h-4 ${
+                                    qr.favorite ? "fill-amber-500 text-amber-500" : ""
+                                  }`}
+                                />
                               </button>
 
                               {/* Excluir (Lixeira) */}
@@ -748,14 +789,22 @@ export default function MyQRsPage() {
                           <Download className="w-4 h-4" />
                         </button>
 
-                        {/* Duplicar */}
+                        {/* Favoritar */}
                         <button
-                          onClick={() => handleDuplicate(qr.id)}
-                          className="p-2 rounded-xl text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80"
-                          title="Duplicar"
-                          aria-label="Duplicar"
+                          onClick={() => handleToggleFavorite(qr)}
+                          className={`p-2 rounded-xl transition-all border ${
+                            qr.favorite
+                              ? "text-amber-500 bg-amber-500/10 border-amber-500/20"
+                              : "text-slate-500 dark:text-slate-400 hover:text-amber-500 dark:hover:text-amber-400 bg-slate-100 dark:bg-slate-800 border-slate-200/80 dark:border-slate-700/80"
+                          }`}
+                          title={qr.favorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
+                          aria-label={qr.favorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
                         >
-                          <DuplicateIcon className="w-4 h-4" />
+                          <Star
+                            className={`w-4 h-4 ${
+                              qr.favorite ? "fill-amber-500 text-amber-500" : ""
+                            }`}
+                          />
                         </button>
 
                         {/* Excluir (Lixeira) */}

@@ -6,6 +6,7 @@ import { Star, QrCode, Plus, ExternalLink, Download } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { QRCodeRenderer } from "@/components/qr/QRCodeRenderer";
 import { getAppUrl } from "@/lib/app-url";
+import { useToast } from "@/components/ui/Toast";
 
 interface QRItem {
   id: string;
@@ -19,8 +20,36 @@ interface QRItem {
 }
 
 export default function FavoritesPage() {
+  const toast = useToast();
   const [favorites, setFavorites] = useState<QRItem[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const handleRemoveFavorite = async (id: string, name: string) => {
+    // Optimistic removal
+    setFavorites((prev) => prev.filter((q) => q.id !== id));
+
+    try {
+      const res = await fetch(`/api/qr/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ favorite: false }),
+      });
+
+      if (res.ok) {
+        toast.success("Removido dos favoritos", `"${name}" foi removido dos seus Favoritos.`);
+      } else {
+        toast.error("Erro", "Não foi possível remover dos favoritos.");
+        // Recarregar
+        const reloadRes = await fetch("/api/qr?favorite=true");
+        if (reloadRes.ok) {
+          const d = await reloadRes.json();
+          setFavorites(d.qrCodes || []);
+        }
+      }
+    } catch {
+      toast.error("Erro", "Falha de conexão ao remover dos favoritos.");
+    }
+  };
 
   useEffect(() => {
     async function loadFavs() {
@@ -89,7 +118,14 @@ export default function FavoritesPage() {
                     <span className="capitalize text-xs font-bold text-slate-500">
                       {qr.type} • {qr.isDynamic ? "Dinâmico" : "Estático"}
                     </span>
-                    <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
+                    <button
+                      onClick={() => handleRemoveFavorite(qr.id, qr.name)}
+                      className="p-1 rounded-lg text-amber-500 hover:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                      title="Remover dos favoritos"
+                      aria-label="Remover dos favoritos"
+                    >
+                      <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
+                    </button>
                   </div>
 
                   <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950 flex items-center justify-center">
